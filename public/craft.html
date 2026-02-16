@@ -1980,9 +1980,41 @@
                   <option value="frost">Frost</option>
                   <option value="ember">Ember</option>
                   <option value="shadow">Shadow</option>
+                  <option value="bloodstone">Bloodstone</option>
+                  <option value="arcane">Arcane</option>
+                  <option value="nature">Nature</option>
+                  <option value="holy">Holy</option>
+                  <option value="void">Void</option>
+                </select>
+              </div>
+              <div class="toolbar-control-group">
+                <label>Font</label>
+                <select id="toolbarFontFamily" class="toolbar-select sm">
+                  <option value="Inter">Inter</option>
+                  <option value="Cinzel">Cinzel</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Courier New">Courier</option>
+                  <option value="Palatino">Palatino</option>
+                  <option value="Garamond">Garamond</option>
+                </select>
+              </div>
+              <div class="toolbar-control-group">
+                <label>Size</label>
+                <select id="toolbarFontSize" class="toolbar-select sm">
+                  <option value="10">10</option>
+                  <option value="12">12</option>
+                  <option value="14" selected>14</option>
+                  <option value="16">16</option>
+                  <option value="18">18</option>
+                  <option value="20">20</option>
+                  <option value="24">24</option>
                 </select>
               </div>
               <div class="toolbar-control-group toolbar-toggle-group">
+                <label class="toolbar-toggle" title="Sharp corners (no rounding)">
+                  <input type="checkbox" id="toolbarSharpEdge" />
+                  <span>Sharp</span>
+                </label>
                 <label class="toolbar-toggle" title="Hide accent bar">
                   <input type="checkbox" id="toolbarHideHeader" />
                   <span>Hdr</span>
@@ -2039,6 +2071,11 @@
                   <option value="frost">Frost</option>
                   <option value="ember">Ember</option>
                   <option value="shadow">Shadow</option>
+                  <option value="bloodstone">Bloodstone</option>
+                  <option value="arcane">Arcane</option>
+                  <option value="nature">Nature</option>
+                  <option value="holy">Holy</option>
+                  <option value="void">Void</option>
                 </select>
               </div>
               <div class="toolbar-control-group toolbar-toggle-group">
@@ -2050,11 +2087,51 @@
                   <input type="checkbox" id="multiHideTags" />
                   <span>Tags</span>
                 </label>
+                <label class="toolbar-toggle" title="Sharp corners">
+                  <input type="checkbox" id="multiSharpEdge" />
+                  <span>Sharp</span>
+                </label>
+              </div>
+              <div class="toolbar-control-group">
+                <label>Font</label>
+                <select id="multiFontFamily" class="toolbar-select sm">
+                  <option value="">—</option>
+                  <option value="Inter">Inter</option>
+                  <option value="Cinzel">Cinzel</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Courier New">Courier</option>
+                  <option value="Palatino">Palatino</option>
+                  <option value="Garamond">Garamond</option>
+                </select>
+              </div>
+              <div class="toolbar-control-group">
+                <label>Size</label>
+                <select id="multiFontSize" class="toolbar-select sm">
+                  <option value="">—</option>
+                  <option value="10">10</option>
+                  <option value="12">12</option>
+                  <option value="14">14</option>
+                  <option value="16">16</option>
+                  <option value="18">18</option>
+                  <option value="20">20</option>
+                  <option value="24">24</option>
+                </select>
               </div>
             </div>
 
             <!-- Connection Controls -->
             <div class="toolbar-section toolbar-controls" id="connectionControls" style="display: none;">
+              <div class="toolbar-control-group">
+                <label>Color</label>
+                <input type="color" id="connColorPicker" value="#4ecdc4" />
+              </div>
+              <div class="toolbar-control-group toolbar-toggle-group">
+                <label class="toolbar-toggle" title="Color glow effect">
+                  <input type="checkbox" id="connGlowToggle" />
+                  <span>Glow</span>
+                </label>
+              </div>
+              <div class="toolbar-divider-v"></div>
               <div class="toolbar-control-group">
                 <label>Style</label>
                 <select id="connStyleSelect" class="toolbar-select">
@@ -2072,9 +2149,15 @@
                   <option value="5">Bold</option>
                 </select>
               </div>
+              <div class="toolbar-divider-v"></div>
               <div class="toolbar-control-group">
-                <label>Color</label>
-                <input type="color" id="connColorPicker" value="#4ecdc4" />
+                <label>Path</label>
+                <select id="connCurveSelect" class="toolbar-select">
+                  <option value="up" selected>Arc Up</option>
+                  <option value="down">Arc Down</option>
+                  <option value="straight">Straight</option>
+                  <option value="swirl">Swirl</option>
+                </select>
               </div>
               <div class="toolbar-control-group">
                 <label>Arrow</label>
@@ -2110,14 +2193,6 @@
                     <option value="open-start">◁ Start</option>
                     <option value="open-both">◁ Both ▷</option>
                   </optgroup>
-                </select>
-              </div>
-              <div class="toolbar-control-group">
-                <label>Curve</label>
-                <select id="connCurveSelect" class="toolbar-select">
-                  <option value="up" selected>Arc Up</option>
-                  <option value="down">Arc Down</option>
-                  <option value="straight">Straight</option>
                 </select>
               </div>
             </div>

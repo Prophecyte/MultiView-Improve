@@ -199,6 +199,9 @@ function initEventListeners() {
   document.getElementById('toolbarCardDesign')?.addEventListener('change', updateCardToolbarExtras);
   document.getElementById('toolbarHideHeader')?.addEventListener('change', updateCardToolbarExtras);
   document.getElementById('toolbarHideTags')?.addEventListener('change', updateCardToolbarExtras);
+  document.getElementById('toolbarFontFamily')?.addEventListener('change', updateCardToolbarExtras);
+  document.getElementById('toolbarFontSize')?.addEventListener('change', updateCardToolbarExtras);
+  document.getElementById('toolbarSharpEdge')?.addEventListener('change', updateCardToolbarExtras);
   const cardTopColorEl = document.getElementById('cardTopColor');
   if (cardTopColorEl) cardTopColorEl.addEventListener('input', updateCardStyle);
 
@@ -3337,6 +3340,7 @@ function createCardElement(cardData) {
   card.className = `card ${cardData.type}`;
   if (cardData.textStyle) card.classList.add(cardData.textStyle);
   if (cardData.design) card.classList.add(`design-${cardData.design}`);
+  if (cardData.sharpEdge) card.classList.add('edge-sharp');
   if (cardData.hideTitle) card.classList.add('hide-title');
   if (cardData.hideTags) card.classList.add('hide-tags');
   if (cardData.hidden) card.classList.add('card-hidden');
@@ -4527,6 +4531,12 @@ function selectCard(cardEl) {
   if (tbHideHeader) tbHideHeader.checked = !!cardData.hideTitle;
   const tbHideTags = document.getElementById('toolbarHideTags');
   if (tbHideTags) tbHideTags.checked = !!cardData.hideTags;
+  const tbFont = document.getElementById('toolbarFontFamily');
+  if (tbFont) tbFont.value = cardData.fontFamily || 'Inter';
+  const tbFontSize = document.getElementById('toolbarFontSize');
+  if (tbFontSize) tbFontSize.value = cardData.fontSize || 14;
+  const tbSharp = document.getElementById('toolbarSharpEdge');
+  if (tbSharp) tbSharp.checked = !!cardData.sharpEdge;
 
 
   // Hide all type-specific sections first
@@ -4771,6 +4781,13 @@ function updateCardToolbarExtras() {
   if (designSel) cardData.design = designSel.value || null;
   if (hideHeader) cardData.hideTitle = hideHeader.checked;
   if (hideTags) cardData.hideTags = hideTags.checked;
+
+  const fontFam = document.getElementById('toolbarFontFamily');
+  const fontSize = document.getElementById('toolbarFontSize');
+  const sharpEdge = document.getElementById('toolbarSharpEdge');
+  if (fontFam) cardData.fontFamily = fontFam.value;
+  if (fontSize) cardData.fontSize = parseInt(fontSize.value) || 14;
+  if (sharpEdge) cardData.sharpEdge = sharpEdge.checked;
 
   refreshCard(cardData);
 }
@@ -6056,11 +6073,39 @@ function renderConnections() {
     let d;
     if (curveMode === 'straight') {
       d = `M ${fromX} ${fromY} L ${toX} ${toY}`;
+    } else if (curveMode === 'swirl') {
+      // Bee-line swirl: S-curve with decorative loops
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / len; // normal perpendicular
+      const ny = dx / len;
+      const amp = Math.min(len * 0.25, 60);
+      const q1x = fromX + dx * 0.25 + nx * amp;
+      const q1y = fromY + dy * 0.25 + ny * amp;
+      const q2x = fromX + dx * 0.5 - nx * amp * 0.6;
+      const q2y = fromY + dy * 0.5 - ny * amp * 0.6;
+      const q3x = fromX + dx * 0.75 + nx * amp * 0.4;
+      const q3y = fromY + dy * 0.75 + ny * amp * 0.4;
+      d = `M ${fromX} ${fromY} C ${q1x} ${q1y} ${q2x} ${q2y} ${midX} ${(fromY+toY)/2} S ${q3x} ${q3y} ${toX} ${toY}`;
     } else {
       const ctrlY = (curveMode === 'down')
         ? (Math.max(fromY, toY) + curvature)
         : (Math.min(fromY, toY) - curvature);
       d = `M ${fromX} ${fromY} Q ${midX} ${ctrlY} ${toX} ${toY}`;
+    }
+
+    // Glow filter for this connection
+    if (conn.glow) {
+      const glowId = `connGlow-${conn.color ? conn.color.replace('#','') : '4ecdc4'}`;
+      if (!defs.querySelector(`#${CSS.escape(glowId)}`)) {
+        const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+        filter.setAttribute('id', glowId);
+        filter.setAttribute('x', '-50%'); filter.setAttribute('y', '-50%');
+        filter.setAttribute('width', '200%'); filter.setAttribute('height', '200%');
+        filter.innerHTML = `<feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>`;
+        defs.appendChild(filter);
+      }
     }
 
     // Wide invisible hit area for easy clicking/drag-select
@@ -6095,6 +6140,12 @@ function renderConnections() {
 
     if (style === 'dashed') path.setAttribute('stroke-dasharray', '8 4');
     else if (style === 'dotted') path.setAttribute('stroke-dasharray', '2 4');
+
+    // Apply glow filter
+    if (conn.glow) {
+      const glowId = `connGlow-${color.replace('#','')}`;
+      path.setAttribute('filter', `url(#${glowId})`);
+    }
 
     // Marker handling (backwards compatible: end/start/both = arrow)
     const markerArrow = `arrow-${color.replace('#', '')}`;
@@ -6217,6 +6268,8 @@ function selectConnection(fromId, toId) {
     document.getElementById('connColorPicker').value = selectedConnection.color || '#4ecdc4';
     document.getElementById('connArrowSelect').value = selectedConnection.arrow || 'none';
     document.getElementById('connCurveSelect').value = selectedConnection.curve || 'up';
+    const glowTgl = document.getElementById('connGlowToggle');
+    if (glowTgl) glowTgl.checked = !!selectedConnection.glow;
 
     renderConnections();
   }
@@ -6259,6 +6312,8 @@ function addConnectionToSelection(fromId, toId) {
   document.getElementById('connColorPicker').value = selectedConnection.color || '#4ecdc4';
   document.getElementById('connArrowSelect').value = selectedConnection.arrow || 'none';
   document.getElementById('connCurveSelect').value = selectedConnection.curve || 'up';
+  const glowTgl2 = document.getElementById('connGlowToggle');
+  if (glowTgl2) glowTgl2.checked = !!selectedConnection.glow;
 
   renderConnections();
 }
@@ -6272,6 +6327,7 @@ function updateConnectionStyle() {
   const color = document.getElementById('connColorPicker').value;
   const arrow = document.getElementById('connArrowSelect').value;
   const curve = document.getElementById('connCurveSelect').value;
+  const glow = document.getElementById('connGlowToggle')?.checked || false;
 
   const targets = multiSelectedConnections.length > 0 ? multiSelectedConnections : (selectedConnection ? [selectedConnection] : []);
 
@@ -6285,6 +6341,7 @@ function updateConnectionStyle() {
       conn.color = color;
       conn.arrow = arrow;
       conn.curve = curve;
+      conn.glow = glow;
     }
   });
 
@@ -6339,6 +6396,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('connColorPicker')?.addEventListener('input', updateConnectionStyle);
   document.getElementById('connArrowSelect')?.addEventListener('change', updateConnectionStyle);
   document.getElementById('connCurveSelect')?.addEventListener('change', updateConnectionStyle);
+  document.getElementById('connGlowToggle')?.addEventListener('change', updateConnectionStyle);
 
   // Card controls
   document.getElementById('cardTopAccentPicker')?.addEventListener('input', (e) => {
@@ -6399,6 +6457,29 @@ document.addEventListener('DOMContentLoaded', () => {
     multiSelectedCards.forEach(cardId => {
       const cd = board.cards.find(c => c.id === cardId);
       if (cd) { cd.hideTags = e.target.checked; refreshCard(cd); }
+    });
+  });
+  document.getElementById('multiSharpEdge')?.addEventListener('change', (e) => {
+    const board = getCurrentBoard();
+    multiSelectedCards.forEach(cardId => {
+      const cd = board.cards.find(c => c.id === cardId);
+      if (cd) { cd.sharpEdge = e.target.checked; refreshCard(cd); }
+    });
+  });
+  document.getElementById('multiFontFamily')?.addEventListener('change', (e) => {
+    if (!e.target.value) return;
+    const board = getCurrentBoard();
+    multiSelectedCards.forEach(cardId => {
+      const cd = board.cards.find(c => c.id === cardId);
+      if (cd) { cd.fontFamily = e.target.value; refreshCard(cd); }
+    });
+  });
+  document.getElementById('multiFontSize')?.addEventListener('change', (e) => {
+    if (!e.target.value) return;
+    const board = getCurrentBoard();
+    multiSelectedCards.forEach(cardId => {
+      const cd = board.cards.find(c => c.id === cardId);
+      if (cd) { cd.fontSize = parseInt(e.target.value); refreshCard(cd); }
     });
   });
 
@@ -6712,10 +6793,20 @@ function handleKeyboard(e) {
   switch (e.key) {
     case 'Delete':
     case 'Backspace':
-      if (currentView === 'board' && multiSelectedCards.size > 0) {
+      if (currentView === 'board' && (multiSelectedCards.size > 0 || multiSelectedConnections.length > 0)) {
         saveUndoState();
         multiSelectedCards.forEach(cardId => deleteCard(cardId));
         multiSelectedCards.clear();
+        if (multiSelectedConnections.length > 0) {
+          const board = getCurrentBoard();
+          if (board) {
+            multiSelectedConnections.forEach(mc => {
+              board.connections = board.connections.filter(c => !(c.from === mc.from && c.to === mc.to));
+            });
+            multiSelectedConnections = [];
+            renderConnections();
+          }
+        }
         setToolbarMode('none');
       } else if (currentView === 'board' && selectedCard) {
         saveUndoState();
@@ -12683,10 +12774,10 @@ let sbFreesoundKey = localStorage.getItem('freesoundApiKey') || '';
 function sbEnsureCtx(){if(!sbAudioCtx){sbAudioCtx=new(window.AudioContext||window.webkitAudioContext)();sbMasterGain=sbAudioCtx.createGain();sbMasterGain.gain.value=sbMasterVol*sbPersonalVol;sbMasterGain.connect(sbAudioCtx.destination);}if(sbAudioCtx.state==='suspended')sbAudioCtx.resume();}
 
 // Play audio from file (data URL)
-function sbCreateFile(def){sbEnsureCtx();const a=new Audio();a.src=def.fileDataUrl;a.loop=true;a.crossOrigin='anonymous';const s=sbAudioCtx.createMediaElementSource(a);const g=sbAudioCtx.createGain();g.gain.value=def.baseGain;s.connect(g);g.connect(sbMasterGain);a.play().catch(()=>{});return{gainNode:g,audioEl:a,stop(){a.pause();a.currentTime=0;g.disconnect();}};}
+function sbCreateFile(def){sbEnsureCtx();const a=new Audio();a.src=def.fileDataUrl;a.loop=true;a.crossOrigin='anonymous';a.onended=function(){a.currentTime=0;a.play().catch(()=>{});};const s=sbAudioCtx.createMediaElementSource(a);const g=sbAudioCtx.createGain();g.gain.value=def.baseGain;s.connect(g);g.connect(sbMasterGain);a.play().catch(()=>{});return{gainNode:g,audioEl:a,stop(){a.pause();a.currentTime=0;g.disconnect();}};}
 
 // Play audio from remote URL (Freesound previews, etc.)
-function sbCreateUrl(def){sbEnsureCtx();const a=new Audio();a.src=def.audioUrl;a.loop=true;a.crossOrigin='anonymous';const s=sbAudioCtx.createMediaElementSource(a);const g=sbAudioCtx.createGain();g.gain.value=def.baseGain;s.connect(g);g.connect(sbMasterGain);a.play().catch(()=>{});return{gainNode:g,audioEl:a,stop(){a.pause();a.currentTime=0;g.disconnect();}};}
+function sbCreateUrl(def){sbEnsureCtx();const a=new Audio();a.src=def.audioUrl;a.loop=true;a.onended=function(){a.currentTime=0;a.play().catch(()=>{});};const g=sbAudioCtx.createGain();g.gain.value=def.baseGain;g.connect(sbMasterGain);try{a.crossOrigin='anonymous';const s=sbAudioCtx.createMediaElementSource(a);s.connect(g);a.play().catch(()=>{a.removeAttribute('crossOrigin');a.load();a.play().catch(()=>{});});}catch(e){a.removeAttribute('crossOrigin');a.load();a.play().catch(()=>{});}return{gainNode:g,audioEl:a,stop(){a.pause();a.currentTime=0;try{g.disconnect();}catch(e){}}};}
 
 // Play YouTube audio via hidden iframe
 function sbCreateYt(def){sbEnsureCtx();let c=document.getElementById('sbYtPlayers');if(!c){c=document.createElement('div');c.id='sbYtPlayers';c.className='sb-yt-hidden-player';document.body.appendChild(c);}const iframe=document.createElement('iframe');const v=def.ytVideoId;iframe.id='sb-yt-'+def.id;iframe.width='1';iframe.height='1';iframe.allow='autoplay';iframe.src=`https://www.youtube.com/embed/${v}?autoplay=1&loop=1&playlist=${v}&enablejsapi=1&controls=0`;c.appendChild(iframe);const g=sbAudioCtx.createGain();g.gain.value=def.baseGain;g.connect(sbMasterGain);return{gainNode:g,iframe,stop(){iframe.remove();g.disconnect();}};}
@@ -13243,7 +13334,7 @@ window.craftGetState = function() {
 window.craftSetState = function(state, skipRender) {
   if (!state) return;
   
-  // Core data
+  // Core data - currentView and viewSettings are NEVER synced (local only)
   if (state.boards) boards = state.boards;
   if (state.currentBoardId) currentBoardId = state.currentBoardId;
   if (state.maps) maps = state.maps;
@@ -13252,12 +13343,7 @@ window.craftSetState = function(state, skipRender) {
   if (state.currentChapterId) currentChapterId = state.currentChapterId;
   if (state.associations) associations = state.associations;
   if (state.destinationMarkers) destinationMarkers = state.destinationMarkers;
-  if (state.currentView) currentView = state.currentView;
   if (state.diceHistory) diceHistory = state.diceHistory;
-  if (state.viewSettings !== undefined) {
-    viewSettings = state.viewSettings;
-    if (viewSettings) localStorage.setItem('craftViewSettings', JSON.stringify(viewSettings));
-  }
   
   // Timeline
   if (state.timelines) timelines = state.timelines;

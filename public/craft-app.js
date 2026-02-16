@@ -66,7 +66,15 @@
   var kickHandled = false;
 
   function quickHash(str) { var h = 0; for (var i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; } return h.toString(36); }
-  function getStateHash() { if (!window.craftGetState) return ''; try { return quickHash(JSON.stringify(window.craftGetState())); } catch(e) { return ''; } }
+  function getStateHash() {
+    if (!window.craftGetState) return '';
+    try {
+      var s = window.craftGetState();
+      delete s.currentView;
+      delete s.viewSettings;
+      return quickHash(JSON.stringify(s));
+    } catch(e) { return ''; }
+  }
 
   // ═══ KICK HANDLING ═══
   function handleKicked() {
@@ -95,10 +103,10 @@
 
   // ═══ SYNC ENGINE ═══
   function pullState() {
-    if (isPulling) return;
+    if (isPulling) return Promise.resolve();
     isPulling = true;
     setSyncStatus('syncing');
-    apiRequest('/craftrooms/' + roomId + '/sync')
+    return apiRequest('/craftrooms/' + roomId + '/sync')
       .then(function(d) {
         localVersion = d.version || 0;
         members = d.members || [];
@@ -106,8 +114,6 @@
         updateMyRole();
         checkKickedFromMembers();
         if (d.state && window.craftSetState) {
-          // Never force view switching or viewSettings changes from sync
-          // Sync is for data only - each user controls their own view
           var syncState = Object.assign({}, d.state);
           delete syncState.currentView;
           delete syncState.viewSettings;
@@ -138,19 +144,37 @@
   }
 
   function pushState() {
-    if (!roomId || !window.craftGetState || isPushing) return;
+    if (!roomId || !window.craftGetState || isPushing || isPulling) return;
     if (myRole === 'viewer') { stateDirty = false; return; }
     var currentHash = getStateHash();
     if (currentHash === lastPushedHash && !stateDirty) return;
-    isPushing = true; stateDirty = false; lastPushedHash = currentHash;
+    
+    // Pull-before-push: check if server has newer data to avoid overwriting
+    isPushing = true; stateDirty = false;
     setSyncStatus('syncing');
-    var state = window.craftGetState();
-    var payload = { state: state, activeView: state.currentView };
-    if (!getToken()) payload.guestId = getGuestId();
-    apiRequest('/craftrooms/' + roomId + '/sync', { method: 'PUT', body: JSON.stringify(payload) })
-      .then(function(d) {
-        localVersion = d.version || localVersion;
-        setSyncStatus('synced');
+    apiRequest('/craftrooms/' + roomId + '/version')
+      .then(function(vd) {
+        if (vd.version > localVersion) {
+          // Server is ahead - pull first, then re-push after merge
+          isPushing = false;
+          return pullState().then(function() {
+            // After pull, schedule another push with merged data
+            stateDirty = true;
+            setTimeout(function() { isPushing = false; pushState(); }, 200);
+          });
+        }
+        // Server is up to date - safe to push
+        var state = window.craftGetState();
+        delete state.currentView;
+        delete state.viewSettings;
+        var payload = { state: state };
+        if (!getToken()) payload.guestId = getGuestId();
+        lastPushedHash = getStateHash();
+        return apiRequest('/craftrooms/' + roomId + '/sync', { method: 'PUT', body: JSON.stringify(payload) })
+          .then(function(d) {
+            localVersion = d.version || localVersion;
+            setSyncStatus('synced');
+          });
       })
       .catch(function(e) {
         if (e.message !== 'kicked') {
@@ -649,11 +673,13 @@
 
   function startSync() {
     function onReady() {
-      pullState();
+      pullState().then(function() {
+        // Only set up change detection AFTER first pull (so myRole is correct)
+        setupChangeDetection();
+      });
       syncTimer = setInterval(pollVersion, POLL_INTERVAL);
       sendHeartbeat();
       heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
-      setupChangeDetection();
       refreshMembers();
       memberTimer = setInterval(refreshMembers, MEMBER_REFRESH);
     }
@@ -674,7 +700,9 @@
   window.addEventListener('beforeunload', function() {
     if (stateDirty && roomId && window.craftGetState && myRole !== 'viewer') {
       var state = window.craftGetState();
-      var p = JSON.stringify({ state: state, activeView: state.currentView, guestId: getToken() ? undefined : getGuestId() });
+      delete state.currentView;
+      delete state.viewSettings;
+      var p = JSON.stringify({ state: state, guestId: getToken() ? undefined : getGuestId() });
       navigator.sendBeacon(API_BASE + '/craftrooms/' + roomId + '/sync', new Blob([p], { type: 'application/json' }));
     }
     if (roomId) {

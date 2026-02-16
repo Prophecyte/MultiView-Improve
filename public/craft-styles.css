@@ -2315,24 +2315,6 @@ body {
   background: linear-gradient(90deg, var(--gold-dark), var(--gold));
 }
 
-.card.design-glass {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.card.design-parchment {
-  background: linear-gradient(135deg, #2a2318 0%, #1e1a14 50%, #261f15 100%);
-  border: 1px solid rgba(168, 140, 100, 0.3);
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.card.design-parchment .card-type-indicator {
-  background: linear-gradient(90deg, #8b6914, #c49b2a, #8b6914);
-}
-
 .card.design-dark-steel {
   background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
   border: 1px solid rgba(120, 120, 140, 0.4);
@@ -2410,6 +2392,8 @@ body {
 
 .card-type-indicator {
   height: 4px;
+  flex-shrink: 0;
+  width: 100%;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
@@ -2542,6 +2526,149 @@ body {
 }
 
 /* Chart Card */
+/* Fix select dropdown gray background in dark theme */
+.toolbar-select option,
+.detail-select option,
+.perm-select option,
+select option {
+  background: #0a0a0a;
+  color: #f5ede0;
+}
+.toolbar-select optgroup,
+select optgroup {
+  background: #111;
+  color: #d4a824;
+}
+
+.card.design-glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+    inset 1px 0 0 rgba(255, 255, 255, 0.04),
+    inset -1px 0 0 rgba(255, 255, 255, 0.04);
+}
+.card.design-glass .card-content {
+  background: transparent;
+}
+.card.design-glass .card-type-indicator {
+  background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.2), rgba(255,255,255,0.1));
+  backdrop-filter: blur(8px);
+}
+.card.design-glass:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 20px rgba(255, 255, 255, 0.03);
+}
+.card.design-glass.selected {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.card.design-parchment {
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(120, 100, 60, 0.03) 18px, rgba(120, 100, 60, 0.03) 19px),
+    linear-gradient(135deg, #2d2418 0%, #241f16 30%, #2a2318 50%, #211c14 70%, #28221a 100%);
+  border: 1px solid rgba(168, 140, 100, 0.3);
+  box-shadow:
+    inset 0 0 30px rgba(0, 0, 0, 0.25),
+    inset 0 0 8px rgba(168, 140, 100, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+  border-image: none;
+}
+.card.design-parchment::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse at 10% 10%, rgba(168, 140, 100, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 90%, rgba(100, 80, 50, 0.06) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+.card.design-parchment .card-content {
+  position: relative;
+  z-index: 1;
+}
+
+.card.design-parchment .card-type-indicator {
+  background: linear-gradient(90deg, #8b6914, #c49b2a, #8b6914);
+}
+
+/* New Fantasy Designs */
+.card.design-bloodstone {
+  background: linear-gradient(135deg, #1a0808 0%, #2a0e0e 40%, #1d0505 60%, #250a0a 100%);
+  border: 1px solid rgba(180, 30, 30, 0.3);
+  box-shadow: inset 0 0 30px rgba(120, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.card.design-bloodstone .card-type-indicator {
+  background: linear-gradient(90deg, #8b0000, #cc2222, #8b0000);
+  box-shadow: 0 0 8px rgba(200, 30, 30, 0.4);
+}
+.card.design-bloodstone:hover {
+  border-color: rgba(200, 40, 40, 0.4);
+  box-shadow: inset 0 0 30px rgba(120, 0, 0, 0.1), 0 0 15px rgba(180, 30, 30, 0.08), 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.card.design-arcane {
+  background: linear-gradient(135deg, #0d0520 0%, #150832 40%, #1a0b3d 60%, #0f0625 100%);
+  border: 1px solid rgba(160, 100, 255, 0.2);
+  box-shadow: inset 0 0 30px rgba(130, 80, 200, 0.05), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.card.design-arcane .card-type-indicator {
+  background: linear-gradient(90deg, #6b21a8, #a855f7, #6b21a8);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+}
+.card.design-arcane:hover {
+  border-color: rgba(160, 100, 255, 0.35);
+  box-shadow: inset 0 0 30px rgba(130, 80, 200, 0.08), 0 0 15px rgba(130, 80, 255, 0.06), 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.card.design-nature {
+  background: linear-gradient(135deg, #0a1a0a 0%, #0e200e 40%, #0b1b0b 60%, #0d1f0d 100%);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  box-shadow: inset 0 0 25px rgba(34, 197, 94, 0.03), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.card.design-nature .card-type-indicator {
+  background: linear-gradient(90deg, #166534, #22c55e, #166534);
+}
+.card.design-nature:hover {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.card.design-holy {
+  background: linear-gradient(135deg, #1a1708 0%, #211e0e 40%, #1e1b0a 60%, #25220f 100%);
+  border: 1px solid rgba(250, 204, 21, 0.2);
+  box-shadow: inset 0 0 25px rgba(250, 204, 21, 0.03), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.card.design-holy .card-type-indicator {
+  background: linear-gradient(90deg, #a16207, #facc15, #a16207);
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.3);
+}
+.card.design-holy:hover {
+  border-color: rgba(250, 204, 21, 0.35);
+  box-shadow: inset 0 0 25px rgba(250, 204, 21, 0.05), 0 0 12px rgba(250, 204, 21, 0.06), 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.card.design-void {
+  background: radial-gradient(ellipse at center, #080810 0%, #030308 50%, #000002 100%);
+  border: 1px solid rgba(80, 80, 120, 0.15);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6), 0 8px 32px rgba(0, 0, 0, 0.7);
+}
+.card.design-void .card-type-indicator {
+  background: linear-gradient(90deg, #1e1e3a, #2d2d5a, #1e1e3a);
+}
+.card.design-void:hover {
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(50, 50, 100, 0.05), 0 12px 40px rgba(0, 0, 0, 0.8);
+}
+
+/* Card edge styles */
+.card.edge-sharp { border-radius: 0 !important; }
+.card.edge-sharp .card-type-indicator { border-radius: 0; }
+
 /* Stat Block */
 .card-stats {
   display: grid;
@@ -7780,7 +7907,7 @@ body.mm-dragging .mindmap-canvas {
   gap: 4px;
 }
 .sb-master-btn {
-  width: 30px;
+  min-width: 30px;
   height: 28px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -8062,7 +8189,12 @@ body.mm-dragging .mindmap-canvas {
 /* MultiView connected indicator */
 #sbMvConnectBtn.mv-connected { color: var(--gold); border-color: var(--gold); }
 #sbMvConnectBtn.mv-connected::after { content: ''; width: 5px; height: 5px; background: #22c55e; border-radius: 50%; position: absolute; top: 2px; right: 2px; }
-#sbMvConnectBtn { position: relative; }
+#sbMvConnectBtn { position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px !important;
+    font-size: 11px; }
 .sb-mv-playlist { margin-left: 8px; }
 
 /* ─── Browse Button ─── */
