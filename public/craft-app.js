@@ -199,6 +199,7 @@
       if (mid === myId) {
         myRole = members[i].is_owner ? 'owner' : (members[i].role || 'viewer');
         isOwner = !!members[i].is_owner;
+        window.craftIsOwner = isOwner;
         return;
       }
     }
@@ -397,11 +398,10 @@
       };
     }
 
-    // Add permissions to cogwheel modal
+    // Add permissions section to cogwheel modal (visible to all, editable by owner only)
     var origOpen = window.openSettingsModal;
     window.openSettingsModal = function() {
       if (origOpen) origOpen();
-      if (!isOwner) return;
       var modalBody = document.querySelector('#settingsModal .popup-body');
       if (!modalBody) return;
       var old = document.getElementById('cogwheelPerms'); if (old) old.remove();
@@ -416,47 +416,133 @@
           var uid = m.user_id || '', gid = m.guest_id || '', role = m.role || 'viewer', canHidden = m.can_view_hidden || false;
           var statusCls = m.status === 'online' ? 'online' : 'offline';
           var row = document.createElement('div'); row.className = 'perm-row';
-          row.innerHTML = '<div class="perm-info"><span class="perm-name">' + esc(m.display_name) + (m.guest_id ? ' <span style="opacity:0.5;font-size:10px">(guest)</span>' : '') + '</span><span class="perm-status ' + statusCls + '">' + (statusCls === 'online' ? '\u25CF Online' : '\u25CB Offline') + '</span></div><div class="perm-controls"><select class="perm-select" data-uid="' + uid + '" data-gid="' + gid + '"><option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>\uD83D\uDC41 View Only</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>\u270F\uFE0F Can Edit</option></select><label class="perm-cb"><input type="checkbox" data-uid="' + uid + '" data-gid="' + gid + '"' + (canHidden ? ' checked' : '') + ' /><span>See hidden</span></label><button class="perm-kick" data-uid="' + uid + '" data-gid="' + gid + '" data-name="' + esc(m.display_name) + '" title="Kick user" style="background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:4px">Kick</button></div>';
+          var controlsHtml;
+          if (isOwner) {
+            controlsHtml = '<select class="perm-select" data-uid="' + uid + '" data-gid="' + gid + '"><option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>\uD83D\uDC41 View Only</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>\u270F\uFE0F Can Edit</option></select><label class="perm-cb"><input type="checkbox" data-uid="' + uid + '" data-gid="' + gid + '"' + (canHidden ? ' checked' : '') + ' /><span>See hidden</span></label><button class="perm-kick" data-uid="' + uid + '" data-gid="' + gid + '" data-name="' + esc(m.display_name) + '" title="Kick user" style="background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:4px">Kick</button>';
+          } else {
+            controlsHtml = '<span style="font-size:11px;color:var(--text-muted,#605545)">' + (role === 'editor' ? '\u270F\uFE0F Can Edit' : '\uD83D\uDC41 View Only') + '</span>';
+          }
+          row.innerHTML = '<div class="perm-info"><span class="perm-name">' + esc(m.display_name) + (m.guest_id ? ' <span style="opacity:0.5;font-size:10px">(guest)</span>' : '') + '</span><span class="perm-status ' + statusCls + '">' + (statusCls === 'online' ? '\u25CF Online' : '\u25CB Offline') + '</span></div><div class="perm-controls">' + controlsHtml + '</div>';
           div.appendChild(row);
         });
-        div.querySelectorAll('.perm-select').forEach(function(sel) {
-          sel.addEventListener('change', function() {
-            apiRequest('/craftrooms/' + roomId + '/permissions', { method: 'PUT', body: JSON.stringify({ targetUserId: sel.dataset.uid || undefined, targetGuestId: sel.dataset.gid || undefined, role: sel.value }) })
-              .then(function() { refreshMembers(); })
-              .catch(function(err) { alert('Error: ' + err.message); });
+        // Also show current user's own role (read-only)
+        if (!isOwner) {
+          var myMember = members.find(function(m) { var mid = m.user_id || m.guest_id; return mid === (currentUser ? (currentUser.id || currentUser.guestId) : null); });
+          if (myMember) {
+            var myDiv = document.createElement('div');
+            myDiv.style.cssText = 'margin-top:12px;padding:8px 12px;background:rgba(212,168,36,0.08);border:1px solid rgba(212,168,36,0.2);border-radius:6px;font-size:12px;color:var(--text-secondary,#a89880)';
+            myDiv.textContent = 'Your role: ' + (myMember.role === 'editor' ? '\u270F\uFE0F Can Edit' : '\uD83D\uDC41 View Only');
+            div.appendChild(myDiv);
+          }
+        }
+        if (isOwner) {
+          div.querySelectorAll('.perm-select').forEach(function(sel) {
+            sel.addEventListener('change', function() {
+              apiRequest('/craftrooms/' + roomId + '/permissions', { method: 'PUT', body: JSON.stringify({ targetUserId: sel.dataset.uid || undefined, targetGuestId: sel.dataset.gid || undefined, role: sel.value }) })
+                .then(function() { refreshMembers(); })
+                .catch(function(err) { alert('Error: ' + err.message); });
+            });
           });
-        });
-        div.querySelectorAll('.perm-cb input').forEach(function(cb) {
-          cb.addEventListener('change', function() {
-            apiRequest('/craftrooms/' + roomId + '/permissions', { method: 'PUT', body: JSON.stringify({ targetUserId: cb.dataset.uid || undefined, targetGuestId: cb.dataset.gid || undefined, canViewHidden: cb.checked }) })
-              .catch(function(err) { alert('Error: ' + err.message); });
+          div.querySelectorAll('.perm-cb input').forEach(function(cb) {
+            cb.addEventListener('change', function() {
+              apiRequest('/craftrooms/' + roomId + '/permissions', { method: 'PUT', body: JSON.stringify({ targetUserId: cb.dataset.uid || undefined, targetGuestId: cb.dataset.gid || undefined, canViewHidden: cb.checked }) })
+                .catch(function(err) { alert('Error: ' + err.message); });
+            });
           });
-        });
-        div.querySelectorAll('.perm-kick').forEach(function(btn) {
-          btn.addEventListener('click', function() {
-            if (confirm('Kick ' + btn.dataset.name + ' from this room?')) {
-              apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: btn.dataset.uid ? btn.dataset.uid : undefined, guestId: btn.dataset.gid ? btn.dataset.gid : undefined }) })
-                .then(function() { refreshMembers(); var overlay = document.getElementById('craftUserSettingsOverlay'); if (overlay) overlay.remove(); })
-                .catch(function(err) { alert('Failed: ' + err.message); });
-            }
+          div.querySelectorAll('.perm-kick').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              if (confirm('Kick ' + btn.dataset.name + ' from this room?')) {
+                apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: btn.dataset.uid ? btn.dataset.uid : undefined, guestId: btn.dataset.gid ? btn.dataset.gid : undefined }) })
+                  .then(function() { refreshMembers(); window.openSettingsModal(); })
+                  .catch(function(err) { alert('Failed: ' + err.message); });
+              }
+            });
           });
-        });
+        }
       }
       modalBody.appendChild(div);
     };
+    // Expose isOwner for craft-script.js to check
+    window.craftIsOwner = isOwner;
   }
 
-  // ═══ CONNECTED BAR REMOVED - sync pill in status bar, users in cogwheel ═══
+  // ═══ CONNECTED BAR (matches video room, inline online/offline, right-click kick) ═══
   var activeCtx = null;
   function closeCtx() { if (activeCtx) { activeCtx.remove(); activeCtx = null; } }
   document.addEventListener('click', closeCtx);
 
   function renderConnectedBar() {
-    // No bottom bar - just update sync pill in status bar
-    var pill = document.getElementById('craftSyncPill');
-    if (pill) {
-      pill.className = 'sync-pill ' + syncStatus;
-      pill.textContent = syncStatus === 'synced' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing...' : 'Offline';
+    var bar = document.getElementById('craftConnectedBar'); if (!bar || !roomId) return;
+    bar.style.display = '';
+    var myId = currentUser ? (currentUser.id || currentUser.guestId) : null;
+    updateMyRole();
+
+    var onlineMembers = members.filter(function(m) { return m.status === 'online'; });
+    var offlineMembers = members.filter(function(m) { return m.status !== 'online'; });
+
+    // Sort: owner first, then alphabetical
+    function sortM(list) {
+      return list.slice().sort(function(a, b) {
+        if (a.is_owner && !b.is_owner) return -1;
+        if (!a.is_owner && b.is_owner) return 1;
+        return (a.display_name || '').localeCompare(b.display_name || '');
+      });
+    }
+    var sortedOnline = sortM(onlineMembers);
+    var sortedOffline = sortM(offlineMembers);
+
+    bar.innerHTML = '<div class="connected-header"><h4><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Connected</h4><span class="online-count"><span class="count">' + sortedOnline.length + '</span> online</span><span class="sync-pill ' + syncStatus + '" id="craftSyncPill">' + (syncStatus === 'synced' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing...' : 'Offline') + '</span></div><div class="users-list" id="barUsersList"></div>';
+
+    var container = document.getElementById('barUsersList');
+
+    function renderBadge(m) {
+      var uid = m.user_id || m.guest_id;
+      var isYou = uid === myId;
+      var online = m.status === 'online';
+      var isGuest = !!m.guest_id;
+
+      var chip = document.createElement('div');
+      var cls = 'user-badge ' + (online ? 'online' : 'offline');
+      if (isYou) cls += ' is-you';
+      if (m.is_owner) cls += ' is-owner';
+      chip.className = cls;
+
+      chip.innerHTML =
+        (m.is_owner ? '<span class="owner-crown">\uD83D\uDC51</span>' : '') +
+        '<span class="status-indicator ' + (online ? 'online' : 'offline') + '"></span>' +
+        '<span class="badge-name">' + esc(m.display_name) + '</span>' +
+        (isYou ? '<span class="you-tag">(you)</span>' : '') +
+        (isGuest && !isYou ? '<span class="guest-tag-badge">(guest)</span>' : '') +
+        (m.role && !m.is_owner ? '<span class="role-chip">' + (m.role === 'editor' ? '\u270F\uFE0F' : '\uD83D\uDC41') + '</span>' : '');
+
+      // Right-click context menu for kick (owner only)
+      if (isOwner && !isYou) {
+        chip.addEventListener('contextmenu', function(e) {
+          e.preventDefault(); e.stopPropagation(); closeCtx();
+          var menu = document.createElement('div');
+          menu.className = 'context-menu';
+          menu.style.cssText = 'position:fixed;left:' + Math.min(e.clientX, window.innerWidth - 170) + 'px;top:' + e.clientY + 'px;z-index:10000';
+          menu.innerHTML = '<button class="context-menu-item danger">\u2715 Kick ' + esc(m.display_name) + '</button>';
+          menu.querySelector('.context-menu-item').addEventListener('click', function() {
+            if (confirm('Kick ' + m.display_name + ' from this room?')) {
+              apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: m.user_id ? m.user_id : undefined, guestId: m.guest_id ? m.guest_id : undefined }) })
+                .then(function() { refreshMembers(); })
+                .catch(function(err) { alert('Failed: ' + err.message); });
+            }
+            closeCtx();
+          });
+          document.body.appendChild(menu); activeCtx = menu;
+        });
+      }
+      return chip;
+    }
+
+    if (sortedOnline.length === 0 && sortedOffline.length === 0) {
+      container.innerHTML = '<div class="no-users">No one here yet</div>';
+    } else {
+      // Inline: online then offline, no divider
+      sortedOnline.forEach(function(m) { container.appendChild(renderBadge(m)); });
+      sortedOffline.forEach(function(m) { container.appendChild(renderBadge(m)); });
     }
   }
 
@@ -503,6 +589,7 @@
     }).then(function(d) {
       roomInfo = d.room;
       isOwner = (roomInfo.owner_id === currentUser.id);
+      window.craftIsOwner = isOwner;
       myRole = isOwner ? 'owner' : 'viewer';
       setRoomTitle(roomInfo.name);
       renderShareBtn();

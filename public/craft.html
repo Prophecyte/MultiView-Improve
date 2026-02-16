@@ -97,6 +97,35 @@
     .guest-modal-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--text-muted, #605545); font-size: 12px; }
     .guest-modal-divider::before, .guest-modal-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-color, #252015); }
 
+    /* ═══ Connected Users Section (matches video room) ═══ */
+    .craft-connected-section { background: var(--bg-medium, #111); border: 1px solid var(--border-color, #252015); border-radius: 6px; flex-shrink: 0; margin: 0 8px 4px; }
+    .craft-connected-section .connected-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid var(--border-color, #252015); background: var(--bg-light, #181818); border-radius: 6px 6px 0 0; }
+    .craft-connected-section .connected-header h4 { font-family: 'Cinzel', serif; font-size: 11px; color: var(--gold, #d4a824); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
+    .craft-connected-section .connected-header h4 svg { stroke: currentColor; fill: none; }
+    .craft-connected-section .online-count { font-size: 11px; color: var(--text-muted, #605545); white-space: nowrap; }
+    .craft-connected-section .online-count .count { color: #22c55e; font-weight: 600; }
+    .craft-connected-section .users-list { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px; min-height: 28px; }
+    .craft-connected-section .no-users { padding: 6px 12px; text-align: center; color: var(--text-muted, #605545); font-size: 11px; font-style: italic; width: 100%; }
+    .craft-connected-section .user-badge { display: flex; align-items: center; gap: 5px; padding: 3px 10px; background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; font-size: 11px; cursor: pointer; transition: all 0.2s ease; }
+    .craft-connected-section .user-badge:hover { background: rgba(40,40,40,0.9); border-color: rgba(255,255,255,0.15); }
+    .craft-connected-section .user-badge.offline { opacity: 0.45; }
+    .craft-connected-section .user-badge.is-you { border-color: rgba(212,168,36,0.4); background: rgba(212,168,36,0.1); }
+    .craft-connected-section .user-badge.is-owner { border-color: var(--gold, #d4a824); background: linear-gradient(135deg, rgba(212,168,36,0.15) 0%, rgba(212,168,36,0.06) 100%); }
+    .craft-connected-section .user-badge.is-owner.is-you { box-shadow: 0 0 8px rgba(212,168,36,0.12); }
+    .craft-connected-section .owner-crown { font-size: 11px; margin-right: -2px; filter: drop-shadow(0 0 2px rgba(255,215,0,0.5)); }
+    .craft-connected-section .status-indicator { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .craft-connected-section .status-indicator.online { background: #22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.4); }
+    .craft-connected-section .status-indicator.offline { background: var(--text-muted, #605545); }
+    .craft-connected-section .badge-name { color: var(--text-primary, #f5ede0); font-weight: 500; }
+    .craft-connected-section .user-badge.is-you .badge-name { color: var(--gold, #d4a824); }
+    .craft-connected-section .you-tag { font-size: 9px; color: var(--text-muted, #605545); opacity: 0.7; }
+    .craft-connected-section .guest-tag-badge { font-size: 9px; color: var(--text-muted, #605545); margin-left: 1px; opacity: 0.6; }
+    .craft-connected-section .role-chip { font-size: 9px; opacity: 0.5; margin-left: 1px; }
+    .craft-connected-section .sync-pill { font-size: 10px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+    .craft-connected-section .sync-pill.synced { color: #22c55e; background: rgba(34,197,94,0.08); }
+    .craft-connected-section .sync-pill.syncing { color: var(--gold, #d4a824); background: rgba(212,168,36,0.08); }
+    .craft-connected-section .sync-pill.error { color: #ef4444; background: rgba(239,68,68,0.08); }
+
     /* ═══ Context Menu ═══ */
     .context-menu { background: var(--bg-medium, #111); border: 1px solid var(--border-color, #252015); border-radius: var(--radius-md, 6px); box-shadow: 0 8px 32px rgba(0,0,0,0.5); min-width: 160px; z-index: 10000; overflow: hidden; animation: fadeIn 0.1s; }
     .context-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: none; border: none; color: var(--text-primary, #f5ede0); font-size: 13px; cursor: pointer; transition: background 0.15s; font-family: inherit; text-align: left; }
@@ -3019,6 +3048,11 @@
                     <input type="range" id="sbMasterVol" min="0" max="100" value="70" />
                     <span id="sbMasterVolVal" class="sb-master-vol-val">70%</span>
                   </div>
+                  <div class="sb-master-vol sb-personal-vol">
+                    <span class="sb-master-vol-label">My Vol</span>
+                    <input type="range" id="sbPersonalVol" min="0" max="100" value="100" />
+                    <span id="sbPersonalVolVal" class="sb-master-vol-val">100%</span>
+                  </div>
                 </div>
                 <div class="sb-master-right">
                   <button class="sb-master-btn sb-browse-btn" id="sbBrowseBtn" title="Browse Freesound Library">
@@ -4035,6 +4069,9 @@
         </aside>
       </div>
 
+      <!-- Connected Users Section (matches video room) -->
+      <div id="craftConnectedBar" class="craft-connected-section" style="display:none"></div>
+
       <!-- Status Bar -->
       <footer class="status-bar">
         <div class="status-left">
@@ -4042,7 +4079,6 @@
             <span class="status-dot"></span>
             Connected
           </span>
-          <span class="sync-pill synced" id="craftSyncPill">Synced</span>
         </div>
         <div class="status-right">
           <span class="status-item" id="statusBoard">Board: Your Board</span>

@@ -9642,11 +9642,15 @@ function initViewSettings() {
     settingsInitialized = true;
     applyViewSettings();
   } else {
-    // First time — show settings modal with board+write pre-checked
+    // First time — show settings modal only for room owner
     viewSettings = {};
     VIEW_CONFIG.forEach(v => { viewSettings[v.key] = (v.key === 'board' || v.key === 'write'); });
     settingsInitialized = false;
-    setTimeout(() => openSettingsModal(), 300);
+    // Delay check so craft-app.js can set window.craftIsOwner after auth
+    setTimeout(() => {
+      if (window.craftIsOwner) openSettingsModal();
+      else { applyViewSettings(); settingsInitialized = true; }
+    }, 500);
   }
 }
 
@@ -12626,6 +12630,7 @@ function siteConfirm(title, message, confirmLabel, isDanger) {
 let sbAudioCtx = null;
 let sbMasterGain = null;
 let sbMasterVol = 0.7;
+let sbPersonalVol = parseFloat(localStorage.getItem('sbPersonalVol') || '1');
 let sbSoundscapes = [];
 let sbPlaylists = []; // { id, name, soundIds[] }
 let sbActiveChannels = {};
@@ -12665,7 +12670,7 @@ const SB_CATEGORIES = [
 
 let sbFreesoundKey = localStorage.getItem('freesoundApiKey') || '';
 
-function sbEnsureCtx(){if(!sbAudioCtx){sbAudioCtx=new(window.AudioContext||window.webkitAudioContext)();sbMasterGain=sbAudioCtx.createGain();sbMasterGain.gain.value=sbMasterVol;sbMasterGain.connect(sbAudioCtx.destination);}if(sbAudioCtx.state==='suspended')sbAudioCtx.resume();}
+function sbEnsureCtx(){if(!sbAudioCtx){sbAudioCtx=new(window.AudioContext||window.webkitAudioContext)();sbMasterGain=sbAudioCtx.createGain();sbMasterGain.gain.value=sbMasterVol*sbPersonalVol;sbMasterGain.connect(sbAudioCtx.destination);}if(sbAudioCtx.state==='suspended')sbAudioCtx.resume();}
 
 // Play audio from file (data URL)
 function sbCreateFile(def){sbEnsureCtx();const a=new Audio();a.src=def.fileDataUrl;a.loop=true;a.crossOrigin='anonymous';const s=sbAudioCtx.createMediaElementSource(a);const g=sbAudioCtx.createGain();g.gain.value=def.baseGain;s.connect(g);g.connect(sbMasterGain);a.play().catch(()=>{});return{gainNode:g,audioEl:a,stop(){a.pause();a.currentTime=0;g.disconnect();}};}
@@ -12681,7 +12686,8 @@ function sbStart(id){sbEnsureCtx();if(sbActiveChannels[id]?.playing)return;const
 function sbStop(id){const ch=sbActiveChannels[id];if(!ch)return;ch.sound.stop();delete sbActiveChannels[id];sbUpdateTile(id);}
 function sbToggle(id){if(sbActiveChannels[id]?.playing)sbStop(id);else sbStart(id);}
 function sbSetVol(id,val){const ch=sbActiveChannels[id];if(!ch)return;ch.volume=val;const bg=ch.def.baseGain;if((ch.def.type==='file'||ch.def.type==='url')&&ch.sound.audioEl){ch.sound.audioEl.volume=val/100;ch.sound.gainNode.gain.setTargetAtTime(bg,sbAudioCtx.currentTime,.02);}else{ch.sound.gainNode.gain.setTargetAtTime(bg*(val/100),sbAudioCtx.currentTime,.02);}}
-function sbSetMaster(val){sbMasterVol=val/100;if(sbMasterGain)sbMasterGain.gain.setTargetAtTime(sbMasterVol,sbAudioCtx.currentTime,.02);}
+function sbSetMaster(val){sbMasterVol=val/100;if(sbMasterGain)sbMasterGain.gain.setTargetAtTime(sbMasterVol*sbPersonalVol,sbAudioCtx.currentTime,.02);}
+function sbSetPersonal(val){sbPersonalVol=val/100;localStorage.setItem('sbPersonalVol',sbPersonalVol.toString());if(sbMasterGain)sbMasterGain.gain.setTargetAtTime(sbMasterVol*sbPersonalVol,sbAudioCtx.currentTime,.02);}
 function sbPlayAll(){sbGetAll().forEach(s=>{const t=document.querySelector(`.sb-tile[data-id="${s.id}"]`);if(t&&t.classList.contains('was-active')){sbStart(s.id);t.classList.remove('was-active');}});}
 function sbStopAll(){Object.keys(sbActiveChannels).forEach(id=>{const t=document.querySelector(`.sb-tile[data-id="${id}"]`);if(t)t.classList.add('was-active');sbStop(id);});}
 
@@ -13008,6 +13014,10 @@ function initSoundboard(){
   document.getElementById('sbPlayAll')?.addEventListener('click',sbPlayAll);
   document.getElementById('sbStopAll')?.addEventListener('click',sbStopAll);
   document.getElementById('sbMasterVol')?.addEventListener('input',e=>{const v=parseInt(e.target.value);document.getElementById('sbMasterVolVal').textContent=v+'%';sbSetMaster(v);});
+  document.getElementById('sbPersonalVol')?.addEventListener('input',e=>{const v=parseInt(e.target.value);document.getElementById('sbPersonalVolVal').textContent=v+'%';sbSetPersonal(v);});
+  // Init personal volume from localStorage
+  const pvSlider=document.getElementById('sbPersonalVol'),pvVal=document.getElementById('sbPersonalVolVal');
+  if(pvSlider){pvSlider.value=Math.round(sbPersonalVol*100);if(pvVal)pvVal.textContent=Math.round(sbPersonalVol*100)+'%';}
   document.getElementById('sbScapeSave')?.addEventListener('click',sbSaveSoundscape);
   document.getElementById('sbPlaylistAdd')?.addEventListener('click',sbAddPlaylist);
   document.getElementById('sbUploadBtn')?.addEventListener('click',()=>document.getElementById('sbFileInput')?.click());
@@ -13039,6 +13049,15 @@ window.craftGetState = function() {
     sbSoundscapes: JSON.parse(JSON.stringify(sbSoundscapes)),
     sbPlaylists: JSON.parse(JSON.stringify(sbPlaylists)),
     sbCustomSounds: sbCustomSounds.filter(s => s.type !== 'file').map(s => JSON.parse(JSON.stringify(s))),
+    // Active sound channels for sync (which sounds are playing + volumes)
+    sbActiveMix: (function() {
+      var mix = {};
+      Object.entries(sbActiveChannels).forEach(function([id, ch]) {
+        if (ch.playing) mix[id] = { volume: ch.volume };
+      });
+      return mix;
+    })(),
+    sbMasterVol: Math.round(sbMasterVol * 100),
     // Note: file-type sounds with dataURLs are excluded from sync (too large)
     // They are local-only. URL and YouTube sounds sync fine.
   };
@@ -13047,8 +13066,7 @@ window.craftGetState = function() {
 window.craftSetState = function(state, skipRender) {
   if (!state) return;
   
-  // Stop all sounds before applying new state
-  if (typeof sbStopAll === 'function') sbStopAll();
+  // Sound sync is handled per-channel below instead of stopping all
   
   if (state.boards) boards = state.boards;
   if (state.currentBoardId) currentBoardId = state.currentBoardId;
@@ -13071,6 +13089,46 @@ window.craftSetState = function(state, skipRender) {
     const localFiles = sbCustomSounds.filter(s => s.type === 'file');
     const synced = state.sbCustomSounds || [];
     sbCustomSounds = [...localFiles, ...synced];
+  }
+  
+  // Apply active sound mix from sync (don't stop/restart if already matching)
+  if (state.sbActiveMix !== undefined) {
+    const mix = state.sbActiveMix || {};
+    const currentIds = new Set(Object.keys(sbActiveChannels).filter(id => sbActiveChannels[id]?.playing));
+    const targetIds = new Set(Object.keys(mix));
+    
+    // Stop sounds not in target mix
+    currentIds.forEach(id => {
+      if (!targetIds.has(id)) sbStop(id);
+    });
+    
+    // Start sounds in target mix that aren't playing, adjust volumes
+    targetIds.forEach(id => {
+      const def = sbGetAll().find(s => s.id === id);
+      if (!def) return;
+      if (!currentIds.has(id)) {
+        sbActiveChannels[id] = { volume: mix[id].volume };
+        sbStart(id);
+      }
+      // Apply synced volume (with personal override)
+      const vol = mix[id].volume;
+      sbSetVol(id, vol);
+      const sl = document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol`);
+      const vl = document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol-val`);
+      if (sl) sl.value = vol;
+      if (vl) vl.textContent = vol + '%';
+    });
+  }
+  
+  // Apply master volume from sync (but personal volume overrides locally)
+  if (state.sbMasterVol !== undefined && !window.craftIsOwner) {
+    const mv = state.sbMasterVol / 100;
+    sbMasterVol = mv;
+    if (sbMasterGain) sbMasterGain.gain.setTargetAtTime(sbMasterVol * sbPersonalVol, sbAudioCtx.currentTime, 0.02);
+    const mSlider = document.getElementById('sbMasterVol');
+    const mVal = document.getElementById('sbMasterVolVal');
+    if (mSlider) mSlider.value = state.sbMasterVol;
+    if (mVal) mVal.textContent = Math.round(state.sbMasterVol) + '%';
   }
   
   if (!skipRender) {
