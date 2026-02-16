@@ -3630,6 +3630,10 @@ function HomePage(props) {
           React.createElement('button', { className: 'btn primary', onClick: createRoom }, 'Create'),
           React.createElement('button', { className: 'btn', onClick: function() { setShowCreate(false); } }, 'Cancel')
         ),
+        rooms.length === 0 && !showCreate && React.createElement('div', { className: 'empty-section' },
+          React.createElement('div', { className: 'empty-icon' }, '🎬'),
+          'Create a Video Room to watch together with friends'
+        ),
         React.createElement('div', { className: 'rooms-grid' },
           rooms.map(function(room) {
             return React.createElement('div', { key: room.id, className: 'room-card video-card' },
@@ -3664,8 +3668,8 @@ function HomePage(props) {
           React.createElement('button', { className: 'btn primary', onClick: createCraftRoom }, 'Create'),
           React.createElement('button', { className: 'btn', onClick: function() { setShowCreateCraft(false); } }, 'Cancel')
         ),
-        craftRooms.length === 0 && !showCreateCraft && React.createElement('div', { style: { textAlign: 'center', padding: '30px 20px', color: 'var(--text-muted)', fontSize: '13px' } },
-          React.createElement('div', { style: { fontSize: '24px', marginBottom: '8px', opacity: '0.6' } }, '⚔️'),
+        craftRooms.length === 0 && !showCreateCraft && React.createElement('div', { className: 'empty-section' },
+          React.createElement('div', { className: 'empty-icon' }, '⚔️'),
           'Create a Craft Room for character sheets, writing, soundscapes, and more'
         ),
         React.createElement('div', { className: 'rooms-grid' },

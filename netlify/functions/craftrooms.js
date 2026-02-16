@@ -10,6 +10,18 @@ const headers = {
   'Content-Type': 'application/json'
 };
 
+// Auto-migrate: add role/can_view_hidden if missing
+let migrated = false;
+async function ensureMigration() {
+  if (migrated) return;
+  try {
+    await sql`ALTER TABLE craft_room_members ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'viewer'`;
+    await sql`ALTER TABLE craft_room_members ADD COLUMN IF NOT EXISTS can_view_hidden BOOLEAN DEFAULT false`;
+    await sql`UPDATE craft_room_members SET role = 'owner' WHERE is_owner = true AND (role IS NULL OR role = 'viewer')`;
+  } catch(e) { /* columns may already exist */ }
+  migrated = true;
+}
+
 const getPath = (event) => {
   let path = event.path || '';
   path = path.replace('/.netlify/functions/craftrooms', '');
@@ -34,6 +46,7 @@ export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   try {
+    await ensureMigration();
     const path = getPath(event);
     const user = await getUserFromToken(event.headers.authorization || event.headers.Authorization);
     const body = event.body ? JSON.parse(event.body) : {};
@@ -47,11 +60,20 @@ export const handler = async (event) => {
       const [room] = await sql`
         INSERT INTO craft_rooms (owner_id, name, description, state)
         VALUES (${user.id}, ${name.trim()}, ${description || null}, ${JSON.stringify({
-          cards: [], chapters: [{ id: 'ch_default', title: 'Chapter 1', content: '' }],
-          currentView: 'cards', selectedCardId: null, currentChapterId: 'ch_default',
-          settings: { enabledViews: ['cards', 'write', 'soundboard'] },
-          soundscapes: [], playlists: [], customSounds: [],
-          diceHistory: []
+          boards: [{ id: 'board_default', name: 'Main Board', cards: [], connections: [] }],
+          currentBoardId: 'board_default',
+          maps: [{ id: 'map_default', name: 'World Map', pins: [], image: null }],
+          currentMapId: 'map_default',
+          chapters: [{ id: 'ch_default', title: 'Chapter 1', content: '' }],
+          currentChapterId: 'ch_default',
+          associations: [],
+          destinationMarkers: [],
+          currentView: 'board',
+          diceHistory: [],
+          viewSettings: { board: true, write: true, map: false, timeline: false, combat: false, factions: false, mindmap: false, soundboard: false },
+          sbSoundscapes: [],
+          sbPlaylists: [],
+          sbCustomSounds: []
         })})
         RETURNING id, name, description, created_at
       `;
@@ -260,6 +282,15 @@ export const handler = async (event) => {
 
     // ─── POST /:id/heartbeat - Presence heartbeat ───
     if (event.httpMethod === 'POST' && subPath === '/heartbeat') {
+      // Check if kicked
+      if (user) {
+        const [kicked] = await sql`SELECT id FROM craft_room_kicked WHERE craft_room_id = ${roomId} AND user_id = ${user.id}`;
+        if (kicked) return { statusCode: 403, headers, body: JSON.stringify({ error: 'kicked', kicked: true }) };
+      } else if (body.guestId) {
+        const [kicked] = await sql`SELECT id FROM craft_room_kicked WHERE craft_room_id = ${roomId} AND guest_id = ${body.guestId}`;
+        if (kicked) return { statusCode: 403, headers, body: JSON.stringify({ error: 'kicked', kicked: true }) };
+      }
+
       if (user) {
         await sql`
           INSERT INTO craft_room_presence (craft_room_id, user_id, status, last_seen)

@@ -13090,6 +13090,15 @@ window.craftSetState = function(state, skipRender) {
   }
 };
 
+// Expose view settings to craft-app.js
+window.VIEW_CONFIG = VIEW_CONFIG;
+Object.defineProperty(window, 'viewSettings', {
+  get: function() { return viewSettings; },
+  set: function(v) { viewSettings = v; }
+});
+window.toggleViewSetting = toggleViewSetting;
+window.applyViewSettings = applyViewSettings;
+
 // Signal that craft room is ready
 window.craftReady = true;
 if (window.onCraftReady) window.onCraftReady();

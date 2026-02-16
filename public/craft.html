@@ -13,132 +13,129 @@
     <style>
     .craft-loading, .craft-auth-needed {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      height: 100vh; background: #060606; color: #d4a824; font-family: "Inter", sans-serif;
+      height: 100vh; background: #060606; color: var(--gold, #d4a824); font-family: "Inter", sans-serif;
     }
     .craft-loading .icon { font-size: 48px; animation: bounce 1s infinite; }
     @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-    .craft-auth-needed p { margin: 16px 0; color: #aaa; font-size: 14px; }
-    .craft-auth-needed a { color: #d4a824; text-decoration: underline; cursor: pointer; }
+    .craft-auth-needed p { margin: 16px 0; color: var(--text-secondary, #a89880); font-size: 14px; }
+    .craft-auth-needed a { color: var(--gold, #d4a824); text-decoration: underline; cursor: pointer; }
 
-    /* ─── Shared modal overlay ─── */
-    .craft-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-    .craft-modal { background: linear-gradient(160deg, rgba(20,18,14,0.98), rgba(10,10,10,0.99)); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 28px 28px 24px; position: relative; font-family: 'Inter', sans-serif; box-shadow: 0 30px 80px rgba(0,0,0,0.7); }
-    .craft-modal h2 { color: #eee; font-size: 20px; margin: 0 0 8px; font-family: 'Cinzel', serif; }
-    .craft-modal-close { position: absolute; top: 12px; right: 16px; background: none; border: none; color: #666; font-size: 24px; cursor: pointer; line-height: 1; }
-    .craft-modal-close:hover { color: #eee; }
-
-    /* ─── Common form elements ─── */
-    .craft-input, .craft-modal input[type="text"], .craft-modal input[type="email"], .craft-modal input[type="password"] {
-      width: 100%; padding: 11px 14px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: #eee; font-size: 14px; outline: none; box-sizing: border-box; font-family: inherit;
-    }
-    .craft-input:focus, .craft-modal input:focus { border-color: var(--gold, #d4a824); box-shadow: 0 0 0 3px rgba(212,168,36,0.1); }
-    .craft-input:disabled, .craft-modal input:disabled { opacity: 0.5; cursor: not-allowed; }
-    .craft-btn { padding: 10px 20px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-    .craft-btn.primary { background: var(--gold, #d4a824); color: #060606; }
-    .craft-btn.primary:hover { filter: brightness(1.1); }
-    .craft-btn.secondary { background: rgba(255,255,255,0.06); color: #ccc; border: 1px solid rgba(255,255,255,0.08); }
-    .craft-btn.secondary:hover { background: rgba(255,255,255,0.1); }
-    .craft-btn.danger { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
-    .craft-btn.danger:hover { background: rgba(239,68,68,0.25); }
-    .craft-btn.full { width: 100%; }
-    .craft-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .modal-divider { text-align: center; color: #555; font-size: 12px; margin: 14px 0; position: relative; }
-    .modal-divider span { background: rgba(10,10,10,0.99); padding: 0 12px; position: relative; z-index: 1; }
-    .modal-divider::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.06); }
-
-    /* ─── Guest join modal ─── */
-    .guest-modal { width: 380px; max-width: 90vw; text-align: center; }
-    .guest-modal .modal-icon { font-size: 48px; margin-bottom: 12px; }
-    .guest-modal .craft-input { margin-bottom: 12px; text-align: center; }
-
-    /* ─── Share modal ─── */
-    .share-modal { width: 480px; max-width: 90vw; }
+    /* ═══ Modal overlay + modal (identical to video room styles.css) ═══ */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; animation: fadeIn 0.15s; backdrop-filter: blur(4px); }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal { background: var(--bg-medium, #111); border: 1px solid var(--border-color, #252015); border-radius: var(--radius-lg, 10px); padding: 24px; max-width: 400px; width: 90%; position: relative; animation: slideUp 0.2s; box-shadow: var(--shadow-lg, 0 8px 30px rgba(0,0,0,0.6)); z-index: 1001; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .modal-close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text-muted, #605545); cursor: pointer; padding: 4px; font-size: 18px; line-height: 1; transition: color 0.15s; }
+    .modal-close:hover { color: var(--text-primary, #f5ede0); }
+    .modal h2 { font-family: 'Cinzel', serif; font-size: 18px; color: var(--gold, #d4a824); margin-bottom: 8px; }
+    .modal p { color: var(--text-secondary, #a89880); font-size: 14px; margin-bottom: 20px; }
+    .modal-input-group { margin-bottom: 16px; }
+    .modal-input-group label { display: block; font-family: 'Cinzel', serif; font-size: 11px; color: var(--text-secondary, #a89880); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .modal-input-group input { width: 100%; padding: 10px 12px; background: var(--bg-dark, #0a0a0a); border: 1px solid var(--border-color, #252015); border-radius: var(--radius-md, 6px); color: var(--text-primary, #f5ede0); font-size: 14px; outline: none; box-sizing: border-box; font-family: inherit; }
+    .modal-input-group input:focus { border-color: var(--gold, #d4a824); box-shadow: 0 0 0 3px var(--gold-subtle, rgba(212,168,36,0.1)); }
+    .modal-input-group input:disabled { opacity: 0.5; }
+    .modal .btn, .modal-overlay .btn { padding: 10px 20px; border: none; border-radius: var(--radius-md, 6px); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+    .modal .btn.primary, .modal-overlay .btn.primary { background: var(--gold, #d4a824); color: var(--bg-darkest, #060606); }
+    .modal .btn.primary:hover { filter: brightness(1.1); }
+    .modal .btn.danger { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+    .settings-modal { max-width: 480px; }
+    .settings-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color, #252015); padding-bottom: 12px; }
+    .settings-tab { padding: 8px 16px; background: none; border: none; color: var(--text-secondary, #a89880); font-family: 'Cinzel', serif; font-size: 12px; cursor: pointer; border-radius: var(--radius-sm, 4px); transition: all 0.15s; }
+    .settings-tab:hover { background: var(--bg-hover, #2a2a2a); }
+    .settings-tab.active { background: var(--gold-subtle, rgba(212,168,36,0.1)); color: var(--gold, #d4a824); }
+    .settings-content { padding-top: 4px; }
+    .section-description { color: var(--text-secondary, #a89880); font-size: 13px; margin-bottom: 16px; }
+    .error-message, .success-message { padding: 10px 14px; border-radius: var(--radius-md, 6px); font-size: 13px; margin-bottom: 12px; }
+    .error-message { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+    .success-message { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+    .theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 8px; }
+    .theme-option { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; background: var(--bg-dark, #0a0a0a); border: 2px solid var(--border-color, #252015); border-radius: var(--radius-md, 6px); cursor: pointer; transition: all 0.15s; }
+    .theme-option:hover { border-color: var(--border-light, #352a1a); background: var(--bg-light, #181818); }
+    .theme-option.active { border-color: var(--gold, #d4a824); background: var(--gold-subtle, rgba(212,168,36,0.1)); }
+    .theme-swatch { width: 32px; height: 32px; border-radius: 50%; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.4)); }
+    .theme-name { font-size: 11px; color: var(--text-secondary, #a89880); text-transform: capitalize; }
+    .theme-option.active .theme-name { color: var(--gold, #d4a824); font-weight: 600; }
+    .share-modal { max-width: 450px; }
     .share-link-box { display: flex; gap: 8px; }
-    .share-link-box input { flex: 1; font-size: 13px; }
-
-    /* ─── Settings modal ─── */
-    .settings-modal-wide { width: 520px; max-width: 92vw; max-height: 85vh; overflow-y: auto; }
-    .settings-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin: 0 -28px; padding: 0 28px; }
-    .settings-tab { padding: 10px 14px; background: none; border: none; border-bottom: 2px solid transparent; color: #666; cursor: pointer; font-size: 13px; font-family: inherit; white-space: nowrap; }
-    .settings-tab:hover { color: #aaa; }
-    .settings-tab.active { color: var(--gold, #d4a824); border-bottom-color: var(--gold, #d4a824); }
-    .settings-tab.logout { margin-left: auto; color: #ef4444; }
-    .settings-tab.logout:hover { color: #f87171; }
-    .settings-body { padding-top: 20px; }
-    .settings-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
-    .settings-msg.success { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
-    .settings-msg.error { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
-    .form-group { margin-bottom: 16px; }
-    .form-group label { display: block; color: #888; font-size: 12px; margin-bottom: 6px; font-weight: 500; }
-    /* Theme grid matching video room */
-    .theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-    .theme-option { text-align: center; cursor: pointer; padding: 10px 6px; border-radius: 10px; border: 2px solid transparent; transition: all 0.15s; }
-    .theme-option:hover { background: rgba(255,255,255,0.04); }
-    .theme-option.active { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.06); }
-    .theme-swatch { width: 100%; height: 36px; border-radius: 8px; margin-bottom: 6px; }
-    .theme-name { font-size: 11px; color: #888; }
-    .theme-option.active .theme-name { color: #eee; }
-    /* Danger zone */
-    .danger-zone { border: 1px solid rgba(239,68,68,0.2); border-radius: 12px; padding: 20px; background: rgba(239,68,68,0.04); }
-
-    /* ─── Permissions tab ─── */
-    .perms-list { display: flex; flex-direction: column; gap: 10px; }
-    .perm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
-    .perm-user { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .perm-name { color: #ddd; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .share-link-box input { flex: 1; padding: 10px 12px; background: var(--bg-dark, #0a0a0a); border: 1px solid var(--border-color, #252015); border-radius: var(--radius-md, 6px); color: var(--text-primary, #f5ede0); font-size: 13px; outline: none; }
+    .guest-modal { max-width: 380px; }
+    .danger-zone { margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(239,68,68,0.3); }
+    .danger-zone h3 { font-family: 'Cinzel', serif; font-size: 13px; color: #ef4444; margin-bottom: 12px; }
+    .danger-zone p { font-size: 13px; color: var(--text-muted, #605545); margin-bottom: 12px; }
+    .perm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; background: var(--bg-light, #181818); border: 1px solid var(--border-color, #252015); border-radius: var(--radius-md, 6px); margin-bottom: 8px; }
+    .perm-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .perm-name { color: var(--text-primary, #f5ede0); font-size: 13px; font-weight: 500; }
     .perm-status { font-size: 11px; }
     .perm-status.online { color: #22c55e; }
-    .perm-status.offline { color: #555; }
+    .perm-status.offline { color: var(--text-muted, #605545); }
     .perm-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-    .perm-role-select { padding: 5px 8px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ccc; font-size: 12px; font-family: inherit; cursor: pointer; }
-    .perm-role-select option { background: #111; color: #eee; }
-    .perm-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px; color: #888; white-space: nowrap; }
-    .perm-toggle input[type="checkbox"] { accent-color: var(--gold, #d4a824); width: 14px; height: 14px; cursor: pointer; }
-    .perm-toggle-label { font-size: 11px; }
-
-    /* ─── User menu in header ─── */
+    .perm-select { padding: 5px 8px; background: var(--bg-dark, #0a0a0a); border: 1px solid var(--border-color, #252015); border-radius: 6px; color: #ccc; font-size: 12px; font-family: inherit; cursor: pointer; }
+    .perm-select option { background: #111; color: #eee; }
+    .perm-cb { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px; color: var(--text-secondary, #a89880); white-space: nowrap; }
+    .perm-cb input[type="checkbox"] { accent-color: var(--gold, #d4a824); width: 14px; height: 14px; cursor: pointer; }
     .craft-user-menu { position: relative; }
-    .craft-user-btn { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #ccc; cursor: pointer; font-family: inherit; font-size: 13px; }
-    .craft-user-btn:hover { border-color: rgba(212,168,36,0.3); color: #eee; }
-    .craft-user-btn .avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--gold, #d4a824); color: #060606; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; }
-    .craft-user-btn .guest-tag { font-size: 10px; color: var(--text-muted, #666); background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 6px; }
-    .craft-user-dropdown { position: absolute; top: 100%; right: 0; margin-top: 6px; background: rgba(15,14,12,0.98); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; min-width: 200px; z-index: 1000; box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; }
-    .craft-user-dropdown .dd-header { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .craft-user-dropdown .dd-header .name { color: #eee; font-weight: 500; font-size: 13px; }
-    .craft-user-dropdown .dd-header .email { color: #666; font-size: 11px; margin-top: 2px; }
-    .craft-user-dropdown .dd-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: none; border: none; color: #ccc; cursor: pointer; font-size: 13px; font-family: inherit; text-align: left; }
-    .craft-user-dropdown .dd-item:hover { background: rgba(255,255,255,0.05); }
+    .craft-user-btn { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color, #252015); border-radius: 8px; color: var(--text-secondary, #a89880); cursor: pointer; font-family: inherit; font-size: 13px; }
+    .craft-user-btn:hover { border-color: var(--gold-dark, #a07810); color: var(--text-primary, #f5ede0); }
+    .craft-user-btn .avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--gold, #d4a824); color: var(--bg-darkest, #060606); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; }
+    .craft-user-btn .guest-tag { font-size: 10px; color: var(--text-muted, #605545); background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 6px; }
+    .craft-user-dropdown { position: absolute; top: 100%; right: 0; margin-top: 6px; background: var(--bg-medium, #111); border: 1px solid var(--border-color, #252015); border-radius: 12px; min-width: 200px; z-index: 1000; box-shadow: var(--shadow-lg, 0 8px 30px rgba(0,0,0,0.6)); overflow: hidden; }
+    .craft-user-dropdown .dd-header { padding: 12px 14px; border-bottom: 1px solid var(--border-color, #252015); }
+    .craft-user-dropdown .dd-header .name { color: var(--text-primary, #f5ede0); font-weight: 500; font-size: 13px; }
+    .craft-user-dropdown .dd-header .email { color: var(--text-muted, #605545); font-size: 11px; margin-top: 2px; }
+    .craft-user-dropdown .dd-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: none; border: none; color: var(--text-secondary, #a89880); cursor: pointer; font-size: 13px; font-family: inherit; text-align: left; }
+    .craft-user-dropdown .dd-item:hover { background: var(--bg-hover, #2a2a2a); }
     .craft-user-dropdown .dd-item.danger { color: #ef4444; }
     .craft-user-dropdown .dd-item.primary { color: var(--gold, #d4a824); }
-    .craft-user-dropdown .dd-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 2px 0; }
-    .craft-user-dropdown .dd-hint { padding: 8px 14px; font-size: 11px; color: #555; }
+    .craft-user-dropdown .dd-divider { height: 1px; background: var(--border-color, #252015); margin: 2px 0; }
+    /* ═══ Settings Logout Tab (matches video room) ═══ */
+    .settings-tab.logout { margin-left: auto; color: #ef4444; }
+    .settings-tab.logout:hover { background: rgba(239,68,68,0.1); }
+    .settings-section { padding: 4px 0; }
 
-    /* ─── Share button in header ─── */
-    .craft-share-btn { display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #ccc; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 500; }
-    .craft-share-btn:hover { border-color: rgba(212,168,36,0.3); color: #eee; }
+    /* ═══ Guest Modal Divider (matches video room) ═══ */
+    .guest-modal-icon { font-size: 64px; text-align: center; margin-bottom: 16px; }
+    .guest-modal-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--text-muted, #605545); font-size: 12px; }
+    .guest-modal-divider::before, .guest-modal-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-color, #252015); }
 
-    /* ─── Connected users bar (bottom) ─── */
-    .craft-connected-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; background: rgba(8,8,8,0.95); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.06); padding: 6px 16px; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; }
-    .craft-connected-bar .bar-label { color: #555; font-size: 11px; display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-    .craft-connected-bar .bar-label svg { stroke: #555; fill: none; stroke-width: 2; }
-    .craft-connected-bar .bar-users { display: flex; gap: 6px; flex-wrap: wrap; }
-    .craft-connected-bar .bar-user { display: flex; align-items: center; gap: 4px; padding: 3px 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; color: #999; font-size: 11px; user-select: none; }
-    .craft-connected-bar .bar-user.is-you { border-color: rgba(212,168,36,0.15); color: var(--gold, #d4a824); }
-    .craft-connected-bar .bar-user.is-owner .owner-crown { font-size: 10px; margin-right: 1px; }
-    .craft-connected-bar .bar-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
-    .craft-connected-bar .bar-count { margin-left: auto; color: #444; font-size: 11px; flex-shrink: 0; }
-    .craft-connected-bar .sync-pill { margin-left: 8px; font-size: 10px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+    /* ═══ Connected Users Section (matches video room exactly) ═══ */
+    .craft-connected-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; background: var(--bg-medium, #111); border-top: 1px solid var(--border-color, #252015); font-family: 'Inter', sans-serif; font-size: 12px; }
+    .craft-connected-bar .connected-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; border-bottom: 1px solid var(--border-color, #252015); background: var(--bg-light, #181818); gap: 12px; }
+    .craft-connected-bar .connected-header h4 { font-family: 'Cinzel', serif; font-size: 11px; color: var(--gold, #d4a824); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
+    .craft-connected-bar .connected-header h4 svg { stroke: currentColor; fill: none; }
+    .craft-connected-bar .online-count { font-size: 11px; color: var(--text-muted, #605545); white-space: nowrap; }
+    .craft-connected-bar .online-count .count { color: #22c55e; font-weight: 600; }
+    .craft-connected-bar .sync-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
     .craft-connected-bar .sync-pill.synced { color: #22c55e; background: rgba(34,197,94,0.08); }
-    .craft-connected-bar .sync-pill.syncing { color: #d4a824; background: rgba(212,168,36,0.08); }
+    .craft-connected-bar .sync-pill.syncing { color: var(--gold, #d4a824); background: rgba(212,168,36,0.08); }
     .craft-connected-bar .sync-pill.error { color: #ef4444; background: rgba(239,68,68,0.08); }
-    .craft-connected-bar .role-tag { font-size: 9px; opacity: 0.6; margin-left: 2px; }
+    .craft-connected-bar .users-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px; min-height: 30px; max-height: 80px; overflow-y: auto; }
+    .craft-connected-bar .no-users { padding: 4px 12px; text-align: center; color: var(--text-muted, #605545); font-size: 12px; font-style: italic; width: 100%; }
 
-    /* ─── Right-click context menu ─── */
-    .craft-context-menu { background: rgba(15,14,12,0.98); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.7); overflow: hidden; z-index: 10001; min-width: 140px; }
-    .ctx-item { display: block; width: 100%; padding: 10px 14px; background: none; border: none; color: #ccc; cursor: pointer; font-size: 12px; font-family: inherit; text-align: left; }
-    .ctx-item:hover { background: rgba(255,255,255,0.06); }
-    .ctx-item.danger { color: #ef4444; }
-    .ctx-item.danger:hover { background: rgba(239,68,68,0.1); }
+    /* ═══ User Badges (matches video room .user-badge) ═══ */
+    .craft-connected-bar .user-badge { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.25s ease; }
+    .craft-connected-bar .user-badge:hover { background: rgba(40,40,40,0.9); border-color: rgba(255,255,255,0.15); transform: translateY(-1px); }
+    .craft-connected-bar .user-badge.offline { opacity: 0.5; }
+    .craft-connected-bar .user-badge.is-you { border-color: var(--gold-dark, #a07810); background: rgba(212,168,36,0.12); }
+    .craft-connected-bar .user-badge.is-owner { border-color: var(--gold, #d4a824); background: linear-gradient(135deg, rgba(212,168,36,0.18) 0%, rgba(212,168,36,0.08) 100%); }
+    .craft-connected-bar .user-badge.is-owner.is-you { background: linear-gradient(135deg, rgba(212,168,36,0.28) 0%, rgba(212,168,36,0.12) 100%); box-shadow: 0 0 12px var(--gold-glow, rgba(212,168,36,0.15)); }
+    .craft-connected-bar .owner-crown { font-size: 12px; margin-right: -2px; filter: drop-shadow(0 0 3px rgba(255,215,0,0.6)); }
+    .craft-connected-bar .status-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .craft-connected-bar .status-indicator.online { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); animation: statusPulse 2s ease-in-out infinite; }
+    .craft-connected-bar .status-indicator.offline { background: var(--text-muted, #605545); }
+    @keyframes statusPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .craft-connected-bar .badge-name { color: var(--text-primary, #f5ede0); font-weight: 500; }
+    .craft-connected-bar .user-badge.is-you .badge-name { color: var(--gold, #d4a824); }
+    .craft-connected-bar .you-tag { font-size: 10px; color: var(--text-muted, #605545); opacity: 0.8; }
+    .craft-connected-bar .guest-tag-badge { font-size: 9px; color: var(--text-muted, #605545); margin-left: 2px; opacity: 0.7; }
+    .craft-connected-bar .role-chip { font-size: 9px; opacity: 0.6; margin-left: 2px; }
+    .craft-connected-bar .offline-divider { width: 100%; padding: 4px 12px; font-size: 10px; color: var(--text-muted, #605545); text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid var(--border-color, #252015); margin-top: 4px; }
+
+    /* ═══ Context Menu (matches video room) ═══ */
+    .context-menu { background: var(--bg-medium, #111); border: 1px solid var(--border-color, #252015); border-radius: var(--radius-md, 6px); box-shadow: 0 8px 32px rgba(0,0,0,0.5); min-width: 160px; z-index: 10000; overflow: hidden; animation: fadeIn 0.1s; }
+    .context-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: none; border: none; color: var(--text-primary, #f5ede0); font-size: 13px; cursor: pointer; transition: background 0.15s; font-family: inherit; text-align: left; }
+    .context-menu-item:hover { background: var(--bg-hover, #2a2a2a); }
+    .context-menu-item.danger { color: #ef4444; }
+    .context-menu-item.danger:hover { background: rgba(220,53,69,0.1); }
   </style>
   </head>
   <body>

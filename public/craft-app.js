@@ -1,14 +1,15 @@
 // ============================================
-// CRAFT ROOM SYNC LAYER
+// CRAFT ROOM SYNC + UI LAYER
 // Matches video room UI exactly
 // ============================================
 (function() {
   'use strict';
 
   var API_BASE = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || '/api';
-  var SYNC_INTERVAL = window.CRAFT_SYNC_INTERVAL || 500;
-  var HEARTBEAT_INTERVAL = 15000;
+  var POLL_INTERVAL = 1500;
   var PUSH_DEBOUNCE = 800;
+  var HEARTBEAT_INTERVAL = 12000;
+  var MEMBER_REFRESH = 6000;
 
   var THEMES = [
     { id: 'gold', name: 'Dragon Gold', color: '#d4a824' },
@@ -21,129 +22,221 @@
     { id: 'cyan', name: 'Cyan', color: '#06b6d4' }
   ];
 
-  // ─── Auth ───
   function getToken() { return localStorage.getItem('mv_token'); }
   function getGuestId() {
     var id = localStorage.getItem('mv_guest_id');
     if (!id) { id = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9); localStorage.setItem('mv_guest_id', id); }
     return id;
   }
-  function apiRequest(endpoint, options) {
-    options = options || {};
-    var token = getToken();
+
+  // ═══ API Request with kick detection ═══
+  function apiRequest(endpoint, opts) {
+    opts = opts || {};
     var h = { 'Content-Type': 'application/json' };
+    var token = getToken();
     if (token) h['Authorization'] = 'Bearer ' + token;
-    return fetch(API_BASE + endpoint, { method: options.method || 'GET', headers: h, body: options.body })
-      .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Request failed'); return d; }); });
+    return fetch(API_BASE + endpoint, { method: opts.method || 'GET', headers: h, body: opts.body })
+      .then(function(r) {
+        return r.json().then(function(d) {
+          if (!r.ok) {
+            if (r.status === 403 && (d.kicked || (d.error && d.error.indexOf('kicked') >= 0))) {
+              handleKicked();
+              throw new Error('kicked');
+            }
+            throw new Error(d.error || 'Request failed');
+          }
+          return d;
+        });
+      });
   }
+
   function parseRoomUrl() {
     var m = location.hash.match(/^#\/room\/([a-f0-9-]+)\/([a-f0-9-]+)$/);
     return m ? { hostId: m[1], roomId: m[2] } : null;
   }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-  // ─── State ───
-  var localVersion = 0, lastStateHash = '', syncInterval = null, heartbeatInterval = null, pushTimeout = null;
-  var roomId = null, isOwner = false, currentUser = null, roomInfo = null, members = [];
-  var isPushing = false, isPulling = false, syncStatus = 'connecting';
-  var userMenuOpen = false, myRole = 'viewer';
+  var roomId = null, roomInfo = null, currentUser = null;
+  var isOwner = false, myRole = 'viewer';
+  var members = [];
+  var localVersion = 0, lastPushedHash = '';
+  var syncTimer = null, heartbeatTimer = null, pushTimer = null, memberTimer = null;
+  var isPushing = false, isPulling = false;
+  var syncStatus = 'connecting', stateDirty = false;
+  var kickHandled = false;
 
-  function simpleHash(s) { var h = 0; for (var i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h = h & h; } return h.toString(); }
-  function getCurrentStateHash() {
-    if (!window.craftGetState) return '';
-    try { return simpleHash(JSON.stringify(window.craftGetState())); } catch(e) { return ''; }
+  function quickHash(str) { var h = 0; for (var i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; } return h.toString(36); }
+  function getStateHash() { if (!window.craftGetState) return ''; try { return quickHash(JSON.stringify(window.craftGetState())); } catch(e) { return ''; } }
+
+  // ═══ KICK HANDLING ═══
+  function handleKicked() {
+    if (kickHandled) return;
+    kickHandled = true;
+    clearInterval(syncTimer);
+    clearInterval(heartbeatTimer);
+    clearInterval(memberTimer);
+    clearTimeout(pushTimer);
+    alert('You have been removed from this room.');
+    window.location.href = '/';
   }
 
-  // ─── Sync engine ───
+  function checkKickedFromMembers() {
+    if (!roomId || !currentUser || members.length === 0) return;
+    var myId = currentUser.id || currentUser.guestId;
+    if (!myId) return;
+    var found = false;
+    for (var i = 0; i < members.length; i++) {
+      if ((members[i].user_id || members[i].guest_id) === myId) { found = true; break; }
+    }
+    if (!found) handleKicked();
+  }
+
+  // ═══ SYNC ENGINE ═══
+  function pullState() {
+    if (isPulling) return;
+    isPulling = true;
+    setSyncStatus('syncing');
+    apiRequest('/craftrooms/' + roomId + '/sync')
+      .then(function(d) {
+        localVersion = d.version || 0;
+        members = d.members || [];
+        renderConnectedBar();
+        updateMyRole();
+        checkKickedFromMembers();
+        if (d.state && window.craftSetState) {
+          window.craftSetState(d.state);
+          lastPushedHash = getStateHash();
+        }
+        setSyncStatus('synced');
+      })
+      .catch(function(e) {
+        if (e.message !== 'kicked') {
+          console.warn('Pull failed:', e.message);
+          setSyncStatus('error');
+        }
+      })
+      .finally(function() { isPulling = false; });
+  }
+
   function pollVersion() {
     if (!roomId || isPulling) return;
     apiRequest('/craftrooms/' + roomId + '/version')
-      .then(function(d) { updateSyncStatus('synced'); if (d.version > localVersion) pullState(); })
-      .catch(function() { updateSyncStatus('error'); });
-  }
-  function pullState() {
-    if (isPulling) return; isPulling = true; updateSyncStatus('syncing');
-    apiRequest('/craftrooms/' + roomId + '/sync')
       .then(function(d) {
-        localVersion = d.version;
-        members = d.members || [];
-        renderConnectedBar();
-        if (d.state && window.craftSetState) { window.craftSetState(d.state); lastStateHash = getCurrentStateHash(); }
-        updateSyncStatus('synced');
+        setSyncStatus('synced');
+        if (d.version > localVersion) pullState();
       })
-      .catch(function() { updateSyncStatus('error'); })
-      .finally(function() { isPulling = false; });
-  }
-  function pushState() {
-    if (!roomId || !window.craftGetState || isPushing) return;
-    if (myRole === 'viewer') return; // viewers can't push
-    var hash = getCurrentStateHash();
-    if (hash === lastStateHash) return;
-    isPushing = true; lastStateHash = hash; updateSyncStatus('syncing');
-    var state = window.craftGetState();
-    var body = { state: state, activeView: state.currentView };
-    if (!getToken()) body.guestId = getGuestId();
-    apiRequest('/craftrooms/' + roomId + '/sync', { method: 'PUT', body: JSON.stringify(body) })
-      .then(function(d) { localVersion = d.version; updateSyncStatus('synced'); })
-      .catch(function(err) { console.warn('Push failed:', err.message); updateSyncStatus('error'); })
-      .finally(function() { isPushing = false; });
-  }
-  function schedulePush() { if (pushTimeout) clearTimeout(pushTimeout); pushTimeout = setTimeout(pushState, PUSH_DEBOUNCE); }
-  function sendHeartbeat() {
-    if (!roomId) return;
-    var body = {};
-    if (!getToken()) body.guestId = getGuestId();
-    apiRequest('/craftrooms/' + roomId + '/heartbeat', { method: 'POST', body: JSON.stringify(body) }).catch(function() {});
-  }
-  function startChangeDetection() {
-    setInterval(function() { if (window.craftGetState && getCurrentStateHash() !== lastStateHash) schedulePush(); }, SYNC_INTERVAL);
+      .catch(function(e) {
+        if (e.message !== 'kicked') setSyncStatus('error');
+      });
   }
 
-  // ─── UI helpers ───
-  function setRoomTitle(name) { var el = document.getElementById('roomTitle'); if (el) el.value = name || 'Craft Room'; }
-  function updateSyncStatus(s) {
+  function pushState() {
+    if (!roomId || !window.craftGetState || isPushing) return;
+    if (myRole === 'viewer') { stateDirty = false; return; }
+    var currentHash = getStateHash();
+    if (currentHash === lastPushedHash && !stateDirty) return;
+    isPushing = true; stateDirty = false; lastPushedHash = currentHash;
+    setSyncStatus('syncing');
+    var state = window.craftGetState();
+    var payload = { state: state, activeView: state.currentView };
+    if (!getToken()) payload.guestId = getGuestId();
+    apiRequest('/craftrooms/' + roomId + '/sync', { method: 'PUT', body: JSON.stringify(payload) })
+      .then(function(d) {
+        localVersion = d.version || localVersion;
+        setSyncStatus('synced');
+      })
+      .catch(function(e) {
+        if (e.message !== 'kicked') {
+          console.warn('Push failed:', e.message);
+          setSyncStatus('error');
+          if (e.message.indexOf('View only') >= 0) myRole = 'viewer';
+        }
+      })
+      .finally(function() { isPushing = false; });
+  }
+
+  function schedulePush() {
+    stateDirty = true;
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushState, PUSH_DEBOUNCE);
+  }
+  window.craftSchedulePush = schedulePush;
+
+  function sendHeartbeat() {
+    if (!roomId) return;
+    var p = {};
+    if (!getToken()) p.guestId = getGuestId();
+    apiRequest('/craftrooms/' + roomId + '/heartbeat', { method: 'POST', body: JSON.stringify(p) })
+      .catch(function(e) { if (e.message !== 'kicked') console.warn('Heartbeat failed'); });
+  }
+
+  function refreshMembers() {
+    if (!roomId) return;
+    apiRequest('/craftrooms/' + roomId + '/members')
+      .then(function(d) {
+        members = d.members || [];
+        renderConnectedBar();
+        updateMyRole();
+        checkKickedFromMembers();
+      })
+      .catch(function(e) { if (e.message !== 'kicked') console.warn('Member refresh failed'); });
+  }
+
+  function updateMyRole() {
+    var myId = currentUser ? (currentUser.id || currentUser.guestId) : null;
+    if (!myId) return;
+    for (var i = 0; i < members.length; i++) {
+      var mid = members[i].user_id || members[i].guest_id;
+      if (mid === myId) {
+        myRole = members[i].is_owner ? 'owner' : (members[i].role || 'viewer');
+        isOwner = !!members[i].is_owner;
+        return;
+      }
+    }
+  }
+
+  function setupChangeDetection() {
+    var area = document.querySelector('.dashboard') || document.body;
+    ['mouseup', 'keyup', 'change', 'input'].forEach(function(evt) {
+      area.addEventListener(evt, function() { setTimeout(schedulePush, 100); }, true);
+    });
+    setInterval(function() {
+      if (window.craftGetState && getStateHash() !== lastPushedHash) schedulePush();
+    }, 2000);
+  }
+
+  function setSyncStatus(s) {
     syncStatus = s;
     var el = document.getElementById('craftSyncPill');
     if (!el) return;
     el.className = 'sync-pill ' + s;
     el.textContent = s === 'synced' ? 'Synced' : s === 'syncing' ? 'Syncing...' : 'Offline';
   }
-  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-  // ═══════════════════════════════════════════
-  // SHARE MODAL (matching video room popup)
-  // ═══════════════════════════════════════════
+  function setRoomTitle(name) {
+    var el = document.getElementById('roomTitle');
+    if (el) el.value = name || 'Craft Room';
+  }
+
+  // ═══ SHARE MODAL (matches video room .modal.share-modal) ═══
   function renderShareBtn() {
     var c = document.getElementById('craftShareBtn');
     if (!c) return;
     c.style.display = '';
-    c.innerHTML = '<button class="craft-share-btn" title="Share Room">' +
-      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>' +
-      ' Share</button>';
-    c.querySelector('.craft-share-btn').addEventListener('click', openShareModal);
+    c.innerHTML = '<button class="icon-btn" title="Share Room" id="shareOpenBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>';
+    document.getElementById('shareOpenBtn').addEventListener('click', openShareModal);
   }
 
   function openShareModal() {
-    var existing = document.getElementById('craftShareOverlay');
-    if (existing) existing.remove();
+    var old = document.getElementById('craftShareOverlay'); if (old) old.remove();
     var shareUrl = location.origin + '/craft.html' + location.hash;
     var div = document.createElement('div');
-    div.id = 'craftShareOverlay';
-    div.className = 'craft-modal-overlay';
-    div.innerHTML = '<div class="craft-modal share-modal" onclick="event.stopPropagation()">' +
-      '<button class="craft-modal-close" id="shareClose">&times;</button>' +
-      '<h2>🔗 Share Room</h2>' +
-      '<p style="color:#999;font-size:13px;margin:0 0 16px">Anyone with this link can join your room</p>' +
-      '<div class="share-link-box">' +
-        '<input type="text" value="' + esc(shareUrl) + '" readonly id="shareLinkInput" />' +
-        '<button class="craft-btn primary" id="shareCopyBtn">Copy Link</button>' +
-      '</div>' +
-    '</div>';
+    div.id = 'craftShareOverlay'; div.className = 'modal-overlay'; div.style.zIndex = '10000';
+    div.innerHTML = '<div class="modal share-modal" onclick="event.stopPropagation()"><button class="modal-close" id="shareCloseBtn">&times;</button><h2>\uD83D\uDD17 Share Room</h2><p>Anyone with this link can join your room</p><div class="share-link-box"><input type="text" value="' + esc(shareUrl) + '" readonly id="shareLinkInput" /><button class="btn primary" id="shareCopyBtn">Copy Link</button></div></div>';
     document.body.appendChild(div);
     div.addEventListener('click', function(e) { if (e.target === div) div.remove(); });
-    document.getElementById('shareClose').addEventListener('click', function() { div.remove(); });
+    document.getElementById('shareCloseBtn').addEventListener('click', function() { div.remove(); });
     document.getElementById('shareCopyBtn').addEventListener('click', function() {
-      var input = document.getElementById('shareLinkInput');
-      input.select();
       navigator.clipboard.writeText(shareUrl).then(function() {
         var btn = document.getElementById('shareCopyBtn');
         btn.textContent = 'Copied!'; btn.style.background = '#22c55e';
@@ -152,34 +245,14 @@
     });
   }
 
-  // ═══════════════════════════════════════════
-  // USER MENU (matching video room dropdown)
-  // ═══════════════════════════════════════════
+  // ═══ USER MENU ═══
+  var userMenuOpen = false;
   function renderUserMenu() {
-    var c = document.getElementById('craftUserMenu');
-    if (!c || !currentUser) return;
+    var c = document.getElementById('craftUserMenu'); if (!c || !currentUser) return;
     var isGuest = !currentUser.id;
     var initial = (currentUser.displayName || '?').charAt(0).toUpperCase();
-    c.innerHTML = '<div class="craft-user-menu">' +
-      '<button class="craft-user-btn" id="craftUserBtn">' +
-        '<span class="avatar">' + esc(initial) + '</span>' +
-        '<span>' + esc(currentUser.displayName || 'Guest') + '</span>' +
-        (isGuest ? '<span class="guest-tag">Guest</span>' : '') +
-        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>' +
-      '</button>' +
-      '<div class="craft-user-dropdown" id="craftUserDropdown" style="display:none">' +
-        '<div class="dd-header"><div class="name">' + esc(currentUser.displayName || 'Guest') + '</div>' +
-        '<div class="email">' + (isGuest ? 'Temporary account' : esc(currentUser.email || '')) + '</div></div>' +
-        (isGuest
-          ? '<button class="dd-item primary" data-action="login">✚ Create Account</button><div class="dd-hint">Save your display name and access room history</div>'
-          : '<button class="dd-item" data-action="home">🏠 My Rooms</button>' +
-            '<button class="dd-item" data-action="settings">⚙️ Settings</button>' +
-            '<div class="dd-divider"></div>' +
-            '<button class="dd-item danger" data-action="logout">↩ Log out</button>'
-        ) +
-      '</div></div>';
-    var btn = document.getElementById('craftUserBtn');
-    var dd = document.getElementById('craftUserDropdown');
+    c.innerHTML = '<div class="craft-user-menu"><button class="craft-user-btn" id="craftUserBtn"><span class="avatar">' + esc(initial) + '</span><span class="user-btn-name">' + esc(currentUser.displayName || 'Guest') + '</span>' + (isGuest ? '<span class="guest-tag">Guest</span>' : '') + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button><div class="craft-user-dropdown" id="craftUserDropdown" style="display:none"><div class="dd-header"><div class="name">' + esc(currentUser.displayName || 'Guest') + '</div><div class="email">' + (isGuest ? 'Temporary account' : esc(currentUser.email || '')) + '</div></div>' + (isGuest ? '<button class="dd-item primary" data-action="login">\u271A Create Account</button>' : '<button class="dd-item" data-action="home">\uD83C\uDFE0 My Rooms</button><button class="dd-item" data-action="settings">\u2699\uFE0F Settings</button><div class="dd-divider"></div><button class="dd-item danger" data-action="logout">\u21A9 Log out</button>') + '</div></div>';
+    var btn = document.getElementById('craftUserBtn'), dd = document.getElementById('craftUserDropdown');
     btn.addEventListener('click', function(e) { e.stopPropagation(); userMenuOpen = !userMenuOpen; dd.style.display = userMenuOpen ? '' : 'none'; });
     document.addEventListener('click', function() { userMenuOpen = false; if (dd) dd.style.display = 'none'; });
     c.querySelectorAll('.dd-item').forEach(function(item) {
@@ -187,126 +260,105 @@
         dd.style.display = 'none'; userMenuOpen = false;
         var a = item.dataset.action;
         if (a === 'home') window.location.href = '/';
-        else if (a === 'settings') openSettings();
+        else if (a === 'settings') openUserSettings();
         else if (a === 'logout') { apiRequest('/auth/logout', { method: 'POST' }).catch(function(){}); localStorage.removeItem('mv_token'); window.location.href = '/'; }
         else if (a === 'login') window.location.href = '/';
       });
     });
   }
 
-  // ═══════════════════════════════════════════
-  // SETTINGS MODAL (matching video room exactly)
-  // ═══════════════════════════════════════════
-  function openSettings() {
+  // ═══ USER SETTINGS MODAL (matches video room exactly) ═══
+  // Tabs: Profile, Email, Password, Theme, Account + Logout button
+  function openUserSettings() {
     if (!currentUser || !currentUser.id) return;
-    var existing = document.getElementById('craftSettingsOverlay');
-    if (existing) existing.remove();
-    var div = document.createElement('div');
-    div.id = 'craftSettingsOverlay';
-    div.className = 'craft-modal-overlay';
-    var tabs = ['Profile', 'Email', 'Password', 'Theme'];
-    if (isOwner) tabs.push('Permissions');
-    tabs.push('Account');
-    div.innerHTML = '<div class="craft-modal settings-modal-wide" onclick="event.stopPropagation()">' +
-      '<button class="craft-modal-close" id="settingsClose">&times;</button>' +
-      '<h2 style="font-family:Cinzel,serif;color:#eee;margin:0 0 12px">⚙️ Settings</h2>' +
-      '<div class="settings-tabs" id="settingsTabs">' + tabs.map(function(t, i) {
-        return '<button class="settings-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + t.toLowerCase() + '">' + t + '</button>';
-      }).join('') +
-      '<button class="settings-tab logout" id="settingsLogout">Logout</button></div>' +
-      '<div id="settingsMsg"></div>' +
-      '<div id="settingsBody" class="settings-body"></div>' +
-    '</div>';
-    document.body.appendChild(div);
-    div.addEventListener('click', function(e) { if (e.target === div) div.remove(); });
-    document.getElementById('settingsClose').addEventListener('click', function() { div.remove(); });
-    document.getElementById('settingsLogout').addEventListener('click', function() {
-      apiRequest('/auth/logout', { method: 'POST' }).catch(function(){});
-      localStorage.removeItem('mv_token'); window.location.href = '/';
-    });
-    div.querySelectorAll('.settings-tab:not(.logout)').forEach(function(tab) {
-      tab.addEventListener('click', function() {
-        div.querySelectorAll('.settings-tab').forEach(function(t) { t.classList.remove('active'); });
-        tab.classList.add('active');
+    var old = document.getElementById('craftUserSettingsOverlay'); if (old) old.remove();
+    var overlay = document.createElement('div');
+    overlay.id = 'craftUserSettingsOverlay'; overlay.className = 'modal-overlay'; overlay.style.zIndex = '10000';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    overlay.innerHTML = '<div class="modal settings-modal" onclick="event.stopPropagation()"><button class="modal-close" id="userSettingsClose">&times;</button><h2>Settings</h2><div class="settings-tabs" id="userSettingsTabs"></div><div id="userSettingsMsg"></div><div class="settings-content" id="userSettingsBody"></div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('userSettingsClose').addEventListener('click', function() { overlay.remove(); });
+
+    var tabs = ['Profile', 'Email', 'Password', 'Theme', 'Account'];
+    var tabsEl = document.getElementById('userSettingsTabs');
+    tabs.forEach(function(t) {
+      var b = document.createElement('button');
+      b.className = 'settings-tab' + (t === 'Profile' ? ' active' : '');
+      b.dataset.tab = t.toLowerCase();
+      b.textContent = t;
+      b.addEventListener('click', function() {
+        tabsEl.querySelectorAll('.settings-tab').forEach(function(x) { x.classList.remove('active'); });
+        b.classList.add('active');
         clearMsg();
-        renderSettingsTab(tab.dataset.tab);
+        renderUserTab(t.toLowerCase());
       });
+      tabsEl.appendChild(b);
     });
-    renderSettingsTab('profile');
+    // Logout tab — matches video room's .settings-tab.logout
+    var logoutBtn = document.createElement('button');
+    logoutBtn.className = 'settings-tab logout';
+    logoutBtn.textContent = 'Logout';
+    logoutBtn.addEventListener('click', function() {
+      apiRequest('/auth/logout', { method: 'POST' }).catch(function(){});
+      localStorage.removeItem('mv_token');
+      window.location.href = '/';
+    });
+    tabsEl.appendChild(logoutBtn);
+
+    renderUserTab('profile');
   }
 
-  function clearMsg() { var m = document.getElementById('settingsMsg'); if (m) { m.textContent = ''; m.className = ''; } }
+  function clearMsg() { var m = document.getElementById('userSettingsMsg'); if (m) { m.innerHTML = ''; m.className = ''; } }
   function showMsg(text, type) {
-    var m = document.getElementById('settingsMsg');
-    if (!m) return;
-    m.className = 'settings-msg ' + type; m.textContent = text;
+    var m = document.getElementById('userSettingsMsg'); if (!m) return;
+    m.className = type === 'error' ? 'error-message' : 'success-message';
+    m.textContent = text;
     setTimeout(function() { if (m) { m.textContent = ''; m.className = ''; } }, 3500);
   }
 
-  function renderSettingsTab(tab) {
-    var body = document.getElementById('settingsBody');
-    if (!body) return;
+  function renderUserTab(tab) {
+    var body = document.getElementById('userSettingsBody'); if (!body) return;
 
     if (tab === 'profile') {
-      body.innerHTML = '<div class="form-group"><label>Display Name</label>' +
-        '<input type="text" id="sDispName" value="' + esc(currentUser.displayName || '') + '" /></div>' +
-        '<div class="form-group"><label>Email</label><input type="email" value="' + esc(currentUser.email || '') + '" disabled /></div>' +
-        '<button class="craft-btn primary" id="sSaveProfile">Save Changes</button>';
-      document.getElementById('sSaveProfile').addEventListener('click', function() {
-        var n = document.getElementById('sDispName').value.trim();
-        if (!n) return;
-        this.textContent = 'Saving...'; this.disabled = true;
-        var btn = this;
+      body.innerHTML = '<div class="settings-section"><div class="modal-input-group"><label>Display Name</label><input type="text" id="usDispName" value="' + esc(currentUser.displayName || '') + '" /></div><div class="modal-input-group"><label>Email</label><input type="email" value="' + esc(currentUser.email || '') + '" disabled /></div><button class="btn primary" id="usSave">Save Changes</button></div>';
+      document.getElementById('usSave').addEventListener('click', function() {
+        var n = document.getElementById('usDispName').value.trim(); if (!n) return;
+        this.textContent = 'Saving...'; this.disabled = true; var btn = this;
         apiRequest('/auth/profile', { method: 'PUT', body: JSON.stringify({ displayName: n }) })
           .then(function() { currentUser.displayName = n; renderUserMenu(); showMsg('Profile saved!', 'success'); btn.textContent = 'Save Changes'; btn.disabled = false; })
           .catch(function(err) { showMsg(err.message, 'error'); btn.textContent = 'Save Changes'; btn.disabled = false; });
       });
-    }
-
-    else if (tab === 'email') {
-      body.innerHTML = '<div class="form-group"><label>Current Email</label><input type="email" value="' + esc(currentUser.email || '') + '" disabled /></div>' +
-        '<div class="form-group"><label>New Email</label><input type="email" id="sNewEmail" placeholder="Enter new email" /></div>' +
-        '<div class="form-group"><label>Current Password</label><input type="password" id="sEmailPw" placeholder="Confirm with password" /></div>' +
-        '<button class="craft-btn primary" id="sSaveEmail">Update Email</button>';
-      document.getElementById('sSaveEmail').addEventListener('click', function() {
-        var e = document.getElementById('sNewEmail').value.trim(), p = document.getElementById('sEmailPw').value;
+    } else if (tab === 'email') {
+      body.innerHTML = '<div class="settings-section"><div class="modal-input-group"><label>Current Email</label><input type="email" value="' + esc(currentUser.email || '') + '" disabled /></div><div class="modal-input-group"><label>New Email</label><input type="email" id="usNewEmail" placeholder="Enter new email" /></div><div class="modal-input-group"><label>Current Password</label><input type="password" id="usEmailPw" placeholder="Confirm with password" /></div><button class="btn primary" id="usEmailSave">Update Email</button></div>';
+      document.getElementById('usEmailSave').addEventListener('click', function() {
+        var e = document.getElementById('usNewEmail').value.trim(), p = document.getElementById('usEmailPw').value;
         if (!e || !p) return showMsg('Please fill in all fields', 'error');
         this.textContent = 'Updating...'; this.disabled = true; var btn = this;
         apiRequest('/auth/email', { method: 'PUT', body: JSON.stringify({ newEmail: e, password: p }) })
           .then(function() { currentUser.email = e; showMsg('Email updated!', 'success'); btn.textContent = 'Update Email'; btn.disabled = false; })
           .catch(function(err) { showMsg(err.message, 'error'); btn.textContent = 'Update Email'; btn.disabled = false; });
       });
-    }
-
-    else if (tab === 'password') {
-      body.innerHTML = '<div class="form-group"><label>Current Password</label><input type="password" id="sCurPw" placeholder="Enter current password" /></div>' +
-        '<div class="form-group"><label>New Password</label><input type="password" id="sNewPw" placeholder="Enter new password" /></div>' +
-        '<div class="form-group"><label>Confirm New Password</label><input type="password" id="sConfPw" placeholder="Confirm new password" /></div>' +
-        '<button class="craft-btn primary" id="sSavePw">Change Password</button>';
-      document.getElementById('sSavePw').addEventListener('click', function() {
-        var c = document.getElementById('sCurPw').value, n = document.getElementById('sNewPw').value, cf = document.getElementById('sConfPw').value;
+    } else if (tab === 'password') {
+      body.innerHTML = '<div class="settings-section"><div class="modal-input-group"><label>Current Password</label><input type="password" id="usCurPw" placeholder="Enter current password" /></div><div class="modal-input-group"><label>New Password</label><input type="password" id="usNewPw" placeholder="Enter new password" /></div><div class="modal-input-group"><label>Confirm New Password</label><input type="password" id="usConfPw" placeholder="Confirm new password" /></div><button class="btn primary" id="usPwSave">Change Password</button></div>';
+      document.getElementById('usPwSave').addEventListener('click', function() {
+        var c = document.getElementById('usCurPw').value, n = document.getElementById('usNewPw').value, cf = document.getElementById('usConfPw').value;
         if (!c || !n || !cf) return showMsg('Please fill in all fields', 'error');
         if (n !== cf) return showMsg('New passwords do not match', 'error');
         if (n.length < 6) return showMsg('Password must be at least 6 characters', 'error');
         this.textContent = 'Changing...'; this.disabled = true; var btn = this;
         apiRequest('/auth/password', { method: 'PUT', body: JSON.stringify({ currentPassword: c, newPassword: n }) })
-          .then(function() { showMsg('Password changed!', 'success'); btn.textContent = 'Change Password'; btn.disabled = false; document.getElementById('sCurPw').value = ''; document.getElementById('sNewPw').value = ''; document.getElementById('sConfPw').value = ''; })
+          .then(function() { showMsg('Password changed!', 'success'); btn.textContent = 'Change Password'; btn.disabled = false; })
           .catch(function(err) { showMsg(err.message, 'error'); btn.textContent = 'Change Password'; btn.disabled = false; });
       });
-    }
-
-    else if (tab === 'theme') {
+    } else if (tab === 'theme') {
       var themeKey = 'theme_' + currentUser.id;
       var cur = localStorage.getItem(themeKey) || 'gold';
-      body.innerHTML = '<p style="color:#999;font-size:13px;margin:0 0 16px">Choose your preferred color theme</p>' +
-        '<div class="theme-grid">' + THEMES.map(function(t) {
-          return '<div class="theme-option' + (t.id === cur ? ' active' : '') + '" data-theme="' + t.id + '">' +
-            '<div class="theme-swatch" style="background:' + t.color + '"></div>' +
-            '<span class="theme-name">' + t.name + '</span></div>';
-        }).join('') + '</div>';
+      body.innerHTML = '<div class="settings-section"><p class="section-description">Choose your preferred color theme</p><div class="theme-grid">' + THEMES.map(function(t) {
+        return '<div class="theme-option' + (t.id === cur ? ' active' : '') + '" data-tid="' + t.id + '"><div class="theme-swatch" style="background-color:' + t.color + '"></div><span class="theme-name">' + t.name + '</span></div>';
+      }).join('') + '</div></div>';
       body.querySelectorAll('.theme-option').forEach(function(opt) {
         opt.addEventListener('click', function() {
-          var id = opt.dataset.theme;
+          var id = opt.dataset.tid;
           localStorage.setItem(themeKey, id);
           document.documentElement.setAttribute('data-theme', id);
           body.querySelectorAll('.theme-option').forEach(function(o) { o.classList.remove('active'); });
@@ -314,19 +366,9 @@
           showMsg('Theme updated!', 'success');
         });
       });
-    }
-
-    else if (tab === 'permissions') {
-      renderPermissionsTab(body);
-    }
-
-    else if (tab === 'account') {
-      body.innerHTML = '<div class="danger-zone">' +
-        '<h4 style="color:#ef4444;margin:0 0 8px">⚠️ Danger Zone</h4>' +
-        '<p style="color:#888;font-size:13px;margin:0 0 16px">Deleting your account will permanently remove all your data including rooms and playlists.</p>' +
-        '<button class="craft-btn danger" id="sDeleteAcct">Delete My Account</button>' +
-      '</div>';
-      document.getElementById('sDeleteAcct').addEventListener('click', function() {
+    } else if (tab === 'account') {
+      body.innerHTML = '<div class="settings-section"><div class="danger-zone"><h3>\u26A0\uFE0F Danger Zone</h3><p>Deleting your account will permanently remove all your data including rooms and playlists.</p><button class="btn danger" id="usDelete">Delete My Account</button></div></div>';
+      document.getElementById('usDelete').addEventListener('click', function() {
         if (!confirm('Delete your account? This cannot be undone.')) return;
         this.textContent = 'Deleting...'; this.disabled = true;
         apiRequest('/auth/account', { method: 'DELETE' })
@@ -336,155 +378,157 @@
     }
   }
 
-  // ─── Permissions tab (owner only) ───
-  function renderPermissionsTab(body) {
-    var nonOwners = members.filter(function(m) { return !m.is_owner; });
-    if (nonOwners.length === 0) {
-      body.innerHTML = '<p style="color:#888;font-size:13px">No other members have joined this room yet. Share the room link to invite others.</p>';
-      return;
+  // ═══ COGWHEEL OVERRIDE (Permissions + view settings sync) ═══
+  function overrideCogwheel() {
+    var origClose = window.closeSettingsModal;
+    var origToggle = window.toggleViewSetting;
+
+    // Push state when view settings change so all users see updates
+    if (origToggle) {
+      window.toggleViewSetting = function(key, checked) {
+        origToggle(key, checked);
+        setTimeout(schedulePush, 200);
+      };
     }
-    body.innerHTML = '<p style="color:#999;font-size:13px;margin:0 0 16px">Manage what members can do in your room</p>' +
-      '<div class="perms-list">' + nonOwners.map(function(m) {
-        var uid = m.user_id || m.guest_id;
-        var role = m.role || 'viewer';
-        var canHidden = m.can_view_hidden || false;
-        var isGuest = !!m.guest_id;
-        return '<div class="perm-row" data-uid="' + (m.user_id || '') + '" data-gid="' + (m.guest_id || '') + '">' +
-          '<div class="perm-user">' +
-            '<span class="perm-name">' + esc(m.display_name) + (isGuest ? ' <span style="opacity:0.5">(guest)</span>' : '') + '</span>' +
-            '<span class="perm-status ' + (m.status || 'offline') + '">' + (m.status === 'online' ? '● Online' : '○ Offline') + '</span>' +
-          '</div>' +
-          '<div class="perm-controls">' +
-            '<select class="perm-role-select" data-uid="' + (m.user_id || '') + '" data-gid="' + (m.guest_id || '') + '">' +
-              '<option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>👁 View Only</option>' +
-              '<option value="editor"' + (role === 'editor' ? ' selected' : '') + '>✏️ Can Edit</option>' +
-            '</select>' +
-            '<label class="perm-toggle"><input type="checkbox" class="perm-hidden-cb" data-uid="' + (m.user_id || '') + '" data-gid="' + (m.guest_id || '') + '"' + (canHidden ? ' checked' : '') + ' />' +
-            '<span class="perm-toggle-label">See hidden</span></label>' +
-          '</div>' +
-        '</div>';
-      }).join('') + '</div>';
-
-    body.querySelectorAll('.perm-role-select').forEach(function(sel) {
-      sel.addEventListener('change', function() {
-        var uid = sel.dataset.uid || null, gid = sel.dataset.gid || null;
-        apiRequest('/craftrooms/' + roomId + '/permissions', {
-          method: 'PUT',
-          body: JSON.stringify({ targetUserId: uid || undefined, targetGuestId: gid || undefined, role: sel.value })
-        }).then(function() { showMsg('Permission updated', 'success'); }).catch(function(err) { showMsg(err.message, 'error'); });
-      });
-    });
-
-    body.querySelectorAll('.perm-hidden-cb').forEach(function(cb) {
-      cb.addEventListener('change', function() {
-        var uid = cb.dataset.uid || null, gid = cb.dataset.gid || null;
-        apiRequest('/craftrooms/' + roomId + '/permissions', {
-          method: 'PUT',
-          body: JSON.stringify({ targetUserId: uid || undefined, targetGuestId: gid || undefined, canViewHidden: cb.checked })
-        }).then(function() { showMsg('Permission updated', 'success'); }).catch(function(err) { showMsg(err.message, 'error'); });
-      });
-    });
-  }
-
-  // ═══════════════════════════════════════════
-  // CONNECTED BAR (bottom) + context menu
-  // ═══════════════════════════════════════════
-  var activeContextMenu = null;
-  function closeContextMenu() { if (activeContextMenu) { activeContextMenu.remove(); activeContextMenu = null; } }
-  document.addEventListener('click', closeContextMenu);
-
-  function renderConnectedBar() {
-    var bar = document.getElementById('craftConnectedBar');
-    if (!bar) return;
-    var online = members.filter(function(m) { return m.status === 'online'; });
-    if (online.length === 0 && !roomId) { bar.style.display = 'none'; return; }
-    bar.style.display = '';
-    var myId = currentUser ? (currentUser.id || currentUser.guestId) : null;
-
-    // Determine my role from members list
-    for (var i = 0; i < members.length; i++) {
-      var mid = members[i].user_id || members[i].guest_id;
-      if (mid === myId) { myRole = members[i].is_owner ? 'owner' : (members[i].role || 'viewer'); break; }
+    if (origClose) {
+      window.closeSettingsModal = function() {
+        origClose();
+        setTimeout(schedulePush, 200);
+      };
     }
 
-    bar.innerHTML = '<span class="bar-label"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Connected</span>' +
-      '<span class="bar-users" id="barUsers"></span>' +
-      '<span class="bar-count">' + online.length + ' online</span>' +
-      '<span class="sync-pill ' + syncStatus + '" id="craftSyncPill">' + (syncStatus === 'synced' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing...' : 'Offline') + '</span>';
-
-    var container = document.getElementById('barUsers');
-    online.forEach(function(m) {
-      var uid = m.user_id || m.guest_id;
-      var isYou = uid === myId;
-      var span = document.createElement('span');
-      span.className = 'bar-user' + (isYou ? ' is-you' : '') + (m.is_owner ? ' is-owner' : '');
-      span.innerHTML = (m.is_owner ? '<span class="owner-crown">👑</span>' : '') +
-        '<span class="bar-dot"></span>' + esc(m.display_name) +
-        (isYou ? ' <span style="opacity:0.5">(you)</span>' : '') +
-        (m.role && !m.is_owner ? ' <span class="role-tag">' + (m.role === 'editor' ? '✏️' : '👁') + '</span>' : '');
-
-      // Right-click for owner to kick
-      if (isOwner && !isYou) {
-        span.style.cursor = 'context-menu';
-        span.addEventListener('contextmenu', function(e) {
-          e.preventDefault();
-          closeContextMenu();
-          var menu = document.createElement('div');
-          menu.className = 'craft-context-menu';
-          menu.style.position = 'fixed';
-          menu.style.left = Math.min(e.clientX, window.innerWidth - 160) + 'px';
-          menu.style.bottom = (window.innerHeight - e.clientY + 4) + 'px';
-          menu.innerHTML = '<button class="ctx-item danger">✕ Kick ' + esc(m.display_name) + '</button>';
-          menu.querySelector('.ctx-item').addEventListener('click', function() {
-            if (confirm('Kick ' + m.display_name + ' from this room?')) {
-              apiRequest('/craftrooms/' + roomId + '/kick', {
-                method: 'POST',
-                body: JSON.stringify({ userId: m.user_id || undefined, guestId: m.guest_id || undefined })
-              }).then(function() {
-                members = members.filter(function(x) { return (x.user_id || x.guest_id) !== uid; });
-                renderConnectedBar();
-              }).catch(function(err) { alert('Failed: ' + err.message); });
-            }
-            closeContextMenu();
+    // Add permissions to cogwheel modal
+    var origOpen = window.openSettingsModal;
+    window.openSettingsModal = function() {
+      if (origOpen) origOpen();
+      if (!isOwner) return;
+      var modalBody = document.querySelector('#settingsModal .popup-body');
+      if (!modalBody) return;
+      var old = document.getElementById('cogwheelPerms'); if (old) old.remove();
+      var div = document.createElement('div'); div.id = 'cogwheelPerms';
+      div.style.cssText = 'margin-top:20px;border-top:1px solid var(--border-color,#252015);padding-top:20px';
+      var nonOwners = members.filter(function(m) { return !m.is_owner; });
+      div.innerHTML = '<h4 style="font-family:Cinzel,serif;font-size:13px;color:var(--gold,#d4a824);margin:0 0 12px;letter-spacing:0.05em;text-transform:uppercase">Connected Users & Permissions</h4>';
+      if (nonOwners.length === 0) {
+        div.innerHTML += '<p style="font-size:12px;color:var(--text-muted,#605545)">No other members yet. Share the room link to invite others.</p>';
+      } else {
+        nonOwners.forEach(function(m) {
+          var uid = m.user_id || '', gid = m.guest_id || '', role = m.role || 'viewer', canHidden = m.can_view_hidden || false;
+          var statusCls = m.status === 'online' ? 'online' : 'offline';
+          var row = document.createElement('div'); row.className = 'perm-row';
+          row.innerHTML = '<div class="perm-info"><span class="perm-name">' + esc(m.display_name) + (m.guest_id ? ' <span style="opacity:0.5;font-size:10px">(guest)</span>' : '') + '</span><span class="perm-status ' + statusCls + '">' + (statusCls === 'online' ? '\u25CF Online' : '\u25CB Offline') + '</span></div><div class="perm-controls"><select class="perm-select" data-uid="' + uid + '" data-gid="' + gid + '"><option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>\uD83D\uDC41 View Only</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>\u270F\uFE0F Can Edit</option></select><label class="perm-cb"><input type="checkbox" data-uid="' + uid + '" data-gid="' + gid + '"' + (canHidden ? ' checked' : '') + ' /><span>See hidden</span></label></div>';
+          div.appendChild(row);
+        });
+        div.querySelectorAll('.perm-select').forEach(function(sel) {
+          sel.addEventListener('change', function() {
+            apiRequest('/craftrooms/' + roomId + '/permissions', { method: 'PUT', body: JSON.stringify({ targetUserId: sel.dataset.uid || undefined, targetGuestId: sel.dataset.gid || undefined, role: sel.value }) })
+              .then(function() { refreshMembers(); })
+              .catch(function(err) { alert('Error: ' + err.message); });
           });
-          document.body.appendChild(menu);
-          activeContextMenu = menu;
-          e.stopPropagation();
+        });
+        div.querySelectorAll('.perm-cb input').forEach(function(cb) {
+          cb.addEventListener('change', function() {
+            apiRequest('/craftrooms/' + roomId + '/permissions', { method: 'PUT', body: JSON.stringify({ targetUserId: cb.dataset.uid || undefined, targetGuestId: cb.dataset.gid || undefined, canViewHidden: cb.checked }) })
+              .catch(function(err) { alert('Error: ' + err.message); });
+          });
         });
       }
-      container.appendChild(span);
-    });
+      modalBody.appendChild(div);
+    };
   }
 
-  // ═══════════════════════════════════════════
-  // GUEST JOIN MODAL (matching video room)
-  // ═══════════════════════════════════════════
+  // ═══ CONNECTED BAR (matches video room connected-users-section design) ═══
+  var activeCtx = null;
+  function closeCtx() { if (activeCtx) { activeCtx.remove(); activeCtx = null; } }
+  document.addEventListener('click', closeCtx);
+
+  function renderConnectedBar() {
+    var bar = document.getElementById('craftConnectedBar'); if (!bar || !roomId) return;
+    bar.style.display = '';
+    var myId = currentUser ? (currentUser.id || currentUser.guestId) : null;
+    updateMyRole();
+
+    var onlineMembers = [];
+    var offlineMembers = [];
+    members.forEach(function(m) {
+      if (m.status === 'online') onlineMembers.push(m);
+      else offlineMembers.push(m);
+    });
+
+    bar.innerHTML = '<div class="connected-header"><h4><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Connected</h4><span class="online-count"><span class="count">' + onlineMembers.length + '</span> online</span><span class="sync-pill ' + syncStatus + '" id="craftSyncPill">' + (syncStatus === 'synced' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing...' : 'Offline') + '</span></div><div class="users-list" id="barUsersList"></div>';
+
+    var container = document.getElementById('barUsersList');
+
+    function renderBadge(m) {
+      var uid = m.user_id || m.guest_id;
+      var isYou = uid === myId;
+      var online = m.status === 'online';
+      var isGuest = !!m.guest_id;
+
+      var chip = document.createElement('div');
+      var cls = 'user-badge ' + (online ? 'online' : 'offline');
+      if (isYou) cls += ' is-you';
+      if (m.is_owner) cls += ' is-owner';
+      chip.className = cls;
+
+      chip.innerHTML =
+        (m.is_owner ? '<span class="owner-crown">\uD83D\uDC51</span>' : '') +
+        '<span class="status-indicator ' + (online ? 'online' : 'offline') + '"></span>' +
+        '<span class="badge-name">' + esc(m.display_name) + '</span>' +
+        (isYou ? '<span class="you-tag">(you)</span>' : '') +
+        (isGuest && !isYou ? '<span class="guest-tag-badge">(guest)</span>' : '') +
+        (m.role && !m.is_owner ? '<span class="role-chip">' + (m.role === 'editor' ? '\u270F\uFE0F' : '\uD83D\uDC41') + '</span>' : '');
+
+      if (isOwner && !isYou) {
+        chip.style.cursor = 'context-menu';
+        chip.addEventListener('contextmenu', function(e) {
+          e.preventDefault(); e.stopPropagation(); closeCtx();
+          var menu = document.createElement('div');
+          menu.className = 'context-menu';
+          menu.style.cssText = 'position:fixed;left:' + Math.min(e.clientX, window.innerWidth - 170) + 'px;top:' + e.clientY + 'px;z-index:10000';
+          menu.innerHTML = '<button class="context-menu-item danger">\u2715 Kick ' + esc(m.display_name) + '</button>';
+          menu.querySelector('.context-menu-item').addEventListener('click', function() {
+            if (confirm('Kick ' + m.display_name + ' from this room?')) {
+              apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: m.user_id || undefined, guestId: m.guest_id || undefined }) })
+                .then(function() { refreshMembers(); })
+                .catch(function(err) { alert('Failed: ' + err.message); });
+            }
+            closeCtx();
+          });
+          document.body.appendChild(menu); activeCtx = menu;
+        });
+      }
+      return chip;
+    }
+
+    if (onlineMembers.length === 0 && offlineMembers.length === 0) {
+      container.innerHTML = '<div class="no-users">No one here yet</div>';
+    } else {
+      onlineMembers.forEach(function(m) { container.appendChild(renderBadge(m)); });
+      if (offlineMembers.length > 0) {
+        var divider = document.createElement('div');
+        divider.className = 'offline-divider';
+        divider.textContent = 'Offline';
+        container.appendChild(divider);
+        offlineMembers.forEach(function(m) { container.appendChild(renderBadge(m)); });
+      }
+    }
+  }
+
+  // ═══ GUEST JOIN MODAL ═══
   function showGuestJoinModal() {
-    var c = document.getElementById('craftGuestModal');
-    if (!c) return;
-    var dash = document.querySelector('.dashboard');
-    if (dash) dash.style.display = 'none';
-    c.innerHTML = '<div class="craft-modal-overlay">' +
-      '<div class="craft-modal guest-modal">' +
-        '<div class="modal-icon">🐉</div>' +
-        '<h2>Join Craft Room</h2>' +
-        '<p style="color:#999;font-size:13px;margin:0 0 20px">Enter a display name or join anonymously</p>' +
-        '<input type="text" id="guestNameInput" class="craft-input" placeholder="Your name (optional)" />' +
-        '<button class="craft-btn primary full" id="guestJoinBtn">Join as Guest</button>' +
-        '<div class="modal-divider"><span>or</span></div>' +
-        '<button class="craft-btn secondary full" id="guestLoginBtn">Sign in / Create Account</button>' +
-      '</div></div>';
-    var input = document.getElementById('guestNameInput');
-    var btn = document.getElementById('guestJoinBtn');
+    var c = document.getElementById('craftGuestModal'); if (!c) return;
+    var dash = document.querySelector('.dashboard'); if (dash) dash.style.display = 'none';
+    c.innerHTML = '<div class="modal-overlay" style="z-index:10000"><div class="modal guest-modal" onclick="event.stopPropagation()"><div class="guest-modal-icon">\uD83D\uDC09</div><h2>Join Craft Room</h2><p>Enter a display name to join</p><div class="modal-input-group"><input type="text" id="guestNameInput" placeholder="Your name (optional)" style="text-align:center;font-size:16px" /></div><button class="btn primary" id="guestJoinBtn" style="width:100%;margin-bottom:8px">Join as Guest</button><div class="guest-modal-divider"><span>or</span></div><button class="btn" id="guestLoginBtn" style="width:100%;background:var(--bg-hover);color:var(--text-secondary)">Sign in / Create Account</button></div></div>';
+    var input = document.getElementById('guestNameInput'), btn = document.getElementById('guestJoinBtn');
     input.focus();
     input.addEventListener('input', function() { var n = input.value.trim(); btn.textContent = n ? 'Join as ' + n : 'Join as Guest'; });
     function doJoin() {
       var name = input.value.trim() || ('Guest ' + Math.floor(Math.random() * 9000 + 1000));
-      btn.textContent = 'Joining...'; btn.disabled = true;
-      var gid = getGuestId();
+      btn.textContent = 'Joining...'; btn.disabled = true; var gid = getGuestId();
       apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: name, guestId: gid }) })
-        .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; return apiRequest('/craftrooms/' + roomId); })
-        .then(function(d) { roomInfo = d.room; isOwner = false; myRole = 'viewer'; setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu(); startSync(); })
+        .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; return apiRequest('/craftrooms/' + roomId); })
+        .then(function(d) { roomInfo = d.room; setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu(); startSync(); })
         .catch(function(err) { btn.textContent = 'Join as Guest'; btn.disabled = false; alert('Failed: ' + err.message); });
     }
     btn.addEventListener('click', doJoin);
@@ -492,61 +536,65 @@
     document.getElementById('guestLoginBtn').addEventListener('click', function() { window.location.href = '/'; });
   }
 
-  // ─── Start flows ───
+  // ═══ INIT ═══
   function startAuthenticated() {
-    apiRequest('/auth/me')
-      .then(function(d) {
-        currentUser = d.user;
-        var theme = localStorage.getItem('theme_' + currentUser.id) || 'gold';
-        document.documentElement.setAttribute('data-theme', theme);
-        return apiRequest('/craftrooms/' + roomId);
-      })
-      .then(function(d) {
-        roomInfo = d.room; isOwner = roomInfo.owner_id === currentUser.id;
-        myRole = isOwner ? 'owner' : 'viewer';
-        setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu();
-        return apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: currentUser.displayName }) });
-      })
-      .then(function() { startSync(); })
-      .catch(function(err) {
-        console.error('Init error:', err);
-        document.body.innerHTML = '<div class="craft-auth-needed"><div style="font-size:48px">⚔️</div><p>Error: ' + err.message + '</p><a href="/">← Go to Home</a></div>';
-      });
+    apiRequest('/auth/me').then(function(d) {
+      currentUser = d.user;
+      var theme = localStorage.getItem('theme_' + currentUser.id) || 'gold';
+      document.documentElement.setAttribute('data-theme', theme);
+      return apiRequest('/craftrooms/' + roomId);
+    }).then(function(d) {
+      roomInfo = d.room;
+      isOwner = (roomInfo.owner_id === currentUser.id);
+      myRole = isOwner ? 'owner' : 'viewer';
+      setRoomTitle(roomInfo.name);
+      renderShareBtn();
+      renderUserMenu();
+      overrideCogwheel();
+      return apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: currentUser.displayName || currentUser.username || 'User' }) });
+    }).then(function() {
+      startSync();
+    }).catch(function(err) {
+      if (err.message === 'kicked' || err.message.indexOf('kicked') >= 0) return;
+      document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#060606;color:#d4a824;font-family:Inter,sans-serif"><div style="font-size:48px">\u2694\uFE0F</div><p style="margin:16px 0;color:#aaa;font-size:14px">' + esc(err.message) + '</p><a href="/" style="color:#d4a824;text-decoration:underline">\u2190 Go to Home</a></div>';
+    });
   }
 
   function startSync() {
-    renderConnectedBar();
     function onReady() {
       pullState();
-      syncInterval = setInterval(pollVersion, SYNC_INTERVAL);
+      syncTimer = setInterval(pollVersion, POLL_INTERVAL);
       sendHeartbeat();
-      heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
-      startChangeDetection();
-      setInterval(function() {
-        apiRequest('/craftrooms/' + roomId + '/members')
-          .then(function(d) { members = d.members || []; renderConnectedBar(); })
-          .catch(function() {});
-      }, 10000);
+      heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
+      setupChangeDetection();
+      refreshMembers();
+      memberTimer = setInterval(refreshMembers, MEMBER_REFRESH);
     }
     if (window.craftReady) onReady(); else window.onCraftReady = onReady;
   }
 
   function init() {
     var u = parseRoomUrl();
-    if (!u) { document.body.innerHTML = '<div class="craft-auth-needed"><div style="font-size:48px">⚔️</div><p>No craft room specified</p><a href="/">← Go to Home</a></div>'; return; }
+    if (!u) {
+      document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#060606;color:#d4a824;font-family:Inter,sans-serif"><div style="font-size:48px">\u2694\uFE0F</div><p style="margin:16px 0;color:#aaa">No craft room specified</p><a href="/" style="color:#d4a824;text-decoration:underline">\u2190 Go to Home</a></div>';
+      return;
+    }
     roomId = u.roomId;
     if (!getToken()) { showGuestJoinModal(); return; }
     startAuthenticated();
   }
 
   window.addEventListener('beforeunload', function() {
+    if (stateDirty && roomId && window.craftGetState && myRole !== 'viewer') {
+      var state = window.craftGetState();
+      var p = JSON.stringify({ state: state, activeView: state.currentView, guestId: getToken() ? undefined : getGuestId() });
+      navigator.sendBeacon(API_BASE + '/craftrooms/' + roomId + '/sync', new Blob([p], { type: 'application/json' }));
+    }
     if (roomId) {
-      var b = {};
-      if (!getToken()) b.guestId = getGuestId();
-      navigator.sendBeacon(API_BASE + '/craftrooms/' + roomId + '/leave', JSON.stringify(b));
+      var lp = {}; if (!getToken()) lp.guestId = getGuestId();
+      navigator.sendBeacon(API_BASE + '/craftrooms/' + roomId + '/leave', new Blob([JSON.stringify(lp)], { type: 'application/json' }));
     }
   });
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
