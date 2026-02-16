@@ -13045,7 +13045,7 @@ function sbOpenMvConnect(){
 }
 
 // Legacy alias
-async function sbOpenMvBrowse() { sbOpenMvConnect(); }}
+async function sbOpenMvBrowse() { sbOpenMvConnect(); }
 
 // ─── Remove Custom ───
 function sbRemoveCustom(id){sbStop(id);sbCustomSounds=sbCustomSounds.filter(s=>s.id!==id);sbSoundscapes.forEach(sc=>{delete sc.mix[id];});sbPlaylists.forEach(pl=>{pl.soundIds=pl.soundIds.filter(sid=>sid!==id);});sbRenderChannels();sbRenderSidebar();showNotif('Sound removed');}
