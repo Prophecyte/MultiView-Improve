@@ -1,0 +1,97 @@
+[build]
+  functions = "netlify/functions"
+  publish = "public"
+  command = "echo 'Build complete'"
+
+[functions]
+  node_bundler = "esbuild"
+
+[functions."files"]
+  included_files = []
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# ─── Auth API ───
+[[redirects]]
+  from = "/api/auth/*"
+  to = "/.netlify/functions/auth/:splat"
+  status = 200
+  force = true
+
+# ─── Video Rooms API ───
+[[redirects]]
+  from = "/api/rooms/*"
+  to = "/.netlify/functions/rooms/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/rooms"
+  to = "/.netlify/functions/rooms"
+  status = 200
+  force = true
+
+# ─── Playlists API ───
+[[redirects]]
+  from = "/api/playlists/*"
+  to = "/.netlify/functions/playlists/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/playlists"
+  to = "/.netlify/functions/playlists"
+  status = 200
+  force = true
+
+# ─── Presence API ───
+[[redirects]]
+  from = "/api/presence/*"
+  to = "/.netlify/functions/presence/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/presence"
+  to = "/.netlify/functions/presence"
+  status = 200
+  force = true
+
+# ─── Files API ───
+[[redirects]]
+  from = "/api/files/*"
+  to = "/.netlify/functions/files/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/files"
+  to = "/.netlify/functions/files"
+  status = 200
+  force = true
+
+# ─── Craft Rooms API (NEW) ───
+[[redirects]]
+  from = "/api/craftrooms/*"
+  to = "/.netlify/functions/craftrooms/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/craftrooms"
+  to = "/.netlify/functions/craftrooms"
+  status = 200
+  force = true
+
+# ─── Craft Room page (served directly, not SPA) ───
+[[redirects]]
+  from = "/craft.html"
+  to = "/craft.html"
+  status = 200
+
+# ─── SPA fallback (for React app hash routing) ───
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
