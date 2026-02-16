@@ -168,7 +168,8 @@ export const handler = async (event) => {
       // Get members with online status
       const members = await sql`
         SELECT m.display_name, m.color, m.is_owner, m.user_id, m.guest_id, m.role, m.can_view_hidden,
-               CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status
+               CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status,
+               COALESCE(p.active_view, 'board') as active_view
         FROM craft_room_members m
         LEFT JOIN craft_room_presence p ON (
           (m.user_id IS NOT NULL AND m.user_id = p.user_id AND m.craft_room_id = p.craft_room_id) OR
@@ -296,17 +297,18 @@ export const handler = async (event) => {
         if (kicked) return { statusCode: 403, headers, body: JSON.stringify({ error: 'kicked', kicked: true }) };
       }
 
+      const av = body.activeView || 'board';
       if (user) {
         await sql`
-          INSERT INTO craft_room_presence (craft_room_id, user_id, status, last_seen)
-          VALUES (${roomId}, ${user.id}, 'online', NOW())
-          ON CONFLICT (craft_room_id, user_id) DO UPDATE SET status = 'online', last_seen = NOW()
+          INSERT INTO craft_room_presence (craft_room_id, user_id, status, last_seen, active_view)
+          VALUES (${roomId}, ${user.id}, 'online', NOW(), ${av})
+          ON CONFLICT (craft_room_id, user_id) DO UPDATE SET status = 'online', last_seen = NOW(), active_view = ${av}
         `;
       } else if (body.guestId) {
         await sql`
-          INSERT INTO craft_room_presence (craft_room_id, guest_id, status, last_seen)
-          VALUES (${roomId}, ${body.guestId}, 'online', NOW())
-          ON CONFLICT (craft_room_id, guest_id) DO UPDATE SET status = 'online', last_seen = NOW()
+          INSERT INTO craft_room_presence (craft_room_id, guest_id, status, last_seen, active_view)
+          VALUES (${roomId}, ${body.guestId}, 'online', NOW(), ${av})
+          ON CONFLICT (craft_room_id, guest_id) DO UPDATE SET status = 'online', last_seen = NOW(), active_view = ${av}
         `;
       }
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
@@ -316,7 +318,8 @@ export const handler = async (event) => {
     if (event.httpMethod === 'GET' && subPath === '/members') {
       const members = await sql`
         SELECT m.display_name, m.color, m.is_owner, m.user_id, m.guest_id, m.role, m.can_view_hidden,
-               CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status
+               CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status,
+               COALESCE(p.active_view, 'board') as active_view
         FROM craft_room_members m
         LEFT JOIN craft_room_presence p ON (
           (m.user_id IS NOT NULL AND m.user_id = p.user_id AND m.craft_room_id = p.craft_room_id) OR

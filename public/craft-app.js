@@ -173,6 +173,10 @@
     if (!roomId) return;
     var p = {};
     if (!getToken()) p.guestId = getGuestId();
+    // Send current view for presence indicator
+    if (window.craftGetState) {
+      try { p.activeView = window.craftGetState().currentView || 'board'; } catch(e) {}
+    }
     apiRequest('/craftrooms/' + roomId + '/heartbeat', { method: 'POST', body: JSON.stringify(p) })
       .catch(function(e) { if (e.message !== 'kicked') console.warn('Heartbeat failed'); });
   }
@@ -538,13 +542,21 @@
       if (m.is_owner) cls += ' is-owner';
       chip.className = cls;
 
+      // View label for online users
+      var viewLabel = '';
+      if (online && m.active_view) {
+        var viewMap = { board: 'Board', write: 'Write', map: 'Map', timeline: 'Timeline', combat: 'Combat', factions: 'Factions', mindmap: 'Mind Map', soundboard: 'Sound' };
+        viewLabel = '<span class="view-tag">' + (viewMap[m.active_view] || m.active_view) + '</span>';
+      }
+
       chip.innerHTML =
         (m.is_owner ? '<span class="owner-crown">\uD83D\uDC51</span>' : '') +
         '<span class="status-indicator ' + (online ? 'online' : 'offline') + '"></span>' +
         '<span class="badge-name">' + esc(m.display_name) + '</span>' +
         (isYou ? '<span class="you-tag">(you)</span>' : '') +
         (isGuest && !isYou ? '<span class="guest-tag-badge">(guest)</span>' : '') +
-        (m.role && !m.is_owner ? '<span class="role-chip">' + (m.role === 'editor' ? '\u270F\uFE0F' : '\uD83D\uDC41') + '</span>' : '');
+        (m.role && !m.is_owner ? '<span class="role-chip">' + (m.role === 'editor' ? '\u270F\uFE0F' : '\uD83D\uDC41') + '</span>' : '') +
+        viewLabel;
 
       // Right-click context menu for kick (owner only)
       if (isOwner && !isYou) {

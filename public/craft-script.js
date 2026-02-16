@@ -13313,17 +13313,23 @@ window.craftSetState = function(state, skipRender) {
   
   if (!skipRender) {
     try {
+      // Always render sidebar lists for all tabs
       renderBoardsList();
       renderMapsList();
       renderChaptersList();
-      updateCanvas();
+      if (typeof renderTimelinesList === 'function') renderTimelinesList();
+      if (typeof renderFactionsSidebar === 'function') renderFactionsSidebar();
+      
+      // Render current view content
+      if (currentView === 'board') { updateCanvas(); }
+      if (currentView === 'map') { if (typeof updateMapView === 'function') updateMapView(); }
+      if (currentView === 'timeline') { if (typeof renderTimelineView === 'function') renderTimelineView(); }
+      if (currentView === 'combat') { if (typeof renderCombatants === 'function') renderCombatants(); }
+      if (currentView === 'factions') { if (typeof renderFactionGrid === 'function') renderFactionGrid(); }
+      if (currentView === 'mindmap') { if (typeof renderMindMap === 'function') renderMindMap(); }
+      if (currentView === 'soundboard') { if (typeof sbRenderChannels === 'function') sbRenderChannels(); if (typeof sbRenderSidebar === 'function') sbRenderSidebar(); }
+      
       applyViewSettings();
-      // Re-render current view without switching
-      if (currentView === 'timeline' && typeof renderTimelineView === 'function') renderTimelineView();
-      if (currentView === 'combat' && typeof renderCombatants === 'function') renderCombatants();
-      if (currentView === 'factions' && typeof renderFactionsSidebar === 'function') { renderFactionsSidebar(); renderFactionGrid(); }
-      if (typeof sbRenderChannels === 'function') sbRenderChannels();
-      if (typeof sbRenderSidebar === 'function') sbRenderSidebar();
     } catch(e) {
       console.warn('craftSetState render error:', e);
     }
