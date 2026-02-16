@@ -57,8 +57,8 @@ export const handler = async (event) => {
       `;
       // Auto-join as owner
       await sql`
-        INSERT INTO craft_room_members (craft_room_id, user_id, display_name, is_owner)
-        VALUES (${room.id}, ${user.id}, ${user.display_name}, true)
+        INSERT INTO craft_room_members (craft_room_id, user_id, display_name, is_owner, role)
+        VALUES (${room.id}, ${user.id}, ${user.display_name}, true, 'owner')
       `;
       return { statusCode: 200, headers, body: JSON.stringify({ room }) };
     }
@@ -138,17 +138,17 @@ export const handler = async (event) => {
       `;
       if (!room) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
 
-      // Get members
+      // Get members with online status
       const members = await sql`
-        SELECT display_name, color, is_owner, user_id, guest_id
-        FROM craft_room_members WHERE craft_room_id = ${roomId}
-      `;
-
-      // Get online presence
-      const presence = await sql`
-        SELECT user_id, guest_id, status, last_seen
-        FROM craft_room_presence
-        WHERE craft_room_id = ${roomId} AND last_seen > NOW() - INTERVAL '30 seconds'
+        SELECT m.display_name, m.color, m.is_owner, m.user_id, m.guest_id, m.role, m.can_view_hidden,
+               CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status
+        FROM craft_room_members m
+        LEFT JOIN craft_room_presence p ON (
+          (m.user_id IS NOT NULL AND m.user_id = p.user_id AND m.craft_room_id = p.craft_room_id) OR
+          (m.guest_id IS NOT NULL AND m.guest_id = p.guest_id AND m.craft_room_id = p.craft_room_id)
+        )
+        WHERE m.craft_room_id = ${roomId}
+        ORDER BY m.is_owner DESC, m.display_name
       `;
 
       return { statusCode: 200, headers, body: JSON.stringify({
@@ -156,21 +156,31 @@ export const handler = async (event) => {
         state: room.state,
         activeView: room.active_view,
         updatedAt: room.updated_at,
-        members,
-        presence
+        members
       }) };
     }
 
     // ─── PUT /:id/sync - Push state update ───
     if (event.httpMethod === 'PUT' && subPath === '/sync') {
-      if (!user) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Login required' }) };
-
-      // Check membership
-      const [member] = await sql`
-        SELECT is_owner FROM craft_room_members
-        WHERE craft_room_id = ${roomId} AND user_id = ${user.id}
-      `;
+      // Check membership and role
+      let member = null;
+      if (user) {
+        const [m] = await sql`
+          SELECT is_owner, role FROM craft_room_members
+          WHERE craft_room_id = ${roomId} AND user_id = ${user.id}
+        `;
+        member = m;
+      } else if (body.guestId) {
+        const [m] = await sql`
+          SELECT is_owner, role FROM craft_room_members
+          WHERE craft_room_id = ${roomId} AND guest_id = ${body.guestId}
+        `;
+        member = m;
+      }
       if (!member) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not a member' }) };
+      if (!member.is_owner && member.role !== 'editor') {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'View only - no edit permission' }) };
+      }
 
       const { state, activeView } = body;
 
@@ -210,8 +220,8 @@ export const handler = async (event) => {
 
       if (user) {
         await sql`
-          INSERT INTO craft_room_members (craft_room_id, user_id, display_name, is_owner)
-          VALUES (${roomId}, ${user.id}, ${displayName}, false)
+          INSERT INTO craft_room_members (craft_room_id, user_id, display_name, is_owner, role)
+          VALUES (${roomId}, ${user.id}, ${displayName}, false, 'viewer')
           ON CONFLICT (craft_room_id, user_id) DO UPDATE SET display_name = ${displayName}
         `;
         // Update presence
@@ -222,8 +232,8 @@ export const handler = async (event) => {
         `;
       } else if (guestId) {
         await sql`
-          INSERT INTO craft_room_members (craft_room_id, guest_id, display_name, is_owner)
-          VALUES (${roomId}, ${guestId}, ${displayName}, false)
+          INSERT INTO craft_room_members (craft_room_id, guest_id, display_name, is_owner, role)
+          VALUES (${roomId}, ${guestId}, ${displayName}, false, 'viewer')
           ON CONFLICT (craft_room_id, guest_id) DO UPDATE SET display_name = ${displayName}
         `;
         await sql`
@@ -269,7 +279,7 @@ export const handler = async (event) => {
     // ─── GET /:id/members - List members ───
     if (event.httpMethod === 'GET' && subPath === '/members') {
       const members = await sql`
-        SELECT m.display_name, m.color, m.is_owner, m.user_id, m.guest_id,
+        SELECT m.display_name, m.color, m.is_owner, m.user_id, m.guest_id, m.role, m.can_view_hidden,
                CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status
         FROM craft_room_members m
         LEFT JOIN craft_room_presence p ON (
@@ -280,6 +290,34 @@ export const handler = async (event) => {
         ORDER BY m.is_owner DESC, m.display_name
       `;
       return { statusCode: 200, headers, body: JSON.stringify({ members }) };
+    }
+
+    // ─── PUT /:id/permissions - Update member permissions (owner only) ───
+    if (event.httpMethod === 'PUT' && subPath === '/permissions') {
+      if (!user) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Login required' }) };
+      const [room] = await sql`SELECT owner_id FROM craft_rooms WHERE id = ${roomId}`;
+      if (!room || room.owner_id !== user.id) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not owner' }) };
+
+      const { targetUserId, targetGuestId, role, canViewHidden } = body;
+      
+      if (role !== undefined) {
+        if (!['viewer', 'editor'].includes(role)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid role' }) };
+        if (targetUserId) {
+          await sql`UPDATE craft_room_members SET role = ${role} WHERE craft_room_id = ${roomId} AND user_id = ${targetUserId}`;
+        } else if (targetGuestId) {
+          await sql`UPDATE craft_room_members SET role = ${role} WHERE craft_room_id = ${roomId} AND guest_id = ${targetGuestId}`;
+        }
+      }
+      
+      if (canViewHidden !== undefined) {
+        if (targetUserId) {
+          await sql`UPDATE craft_room_members SET can_view_hidden = ${!!canViewHidden} WHERE craft_room_id = ${roomId} AND user_id = ${targetUserId}`;
+        } else if (targetGuestId) {
+          await sql`UPDATE craft_room_members SET can_view_hidden = ${!!canViewHidden} WHERE craft_room_id = ${roomId} AND guest_id = ${targetGuestId}`;
+        }
+      }
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
     // ─── POST /:id/kick - Kick member ───
