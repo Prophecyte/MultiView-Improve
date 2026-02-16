@@ -445,7 +445,7 @@ function initEventListeners() {
 
   // Dice roller
   document.getElementById('diceRollerBtn').addEventListener('click', openDiceModal);
-  document.getElementById('settingsBtn')?.addEventListener('click', openSettingsModal);
+  document.getElementById('settingsBtn')?.addEventListener('click', function() { window.openSettingsModal(); });
   document.getElementById('searchNavBtn')?.addEventListener('click', openSearch);
   document.getElementById('searchOverlay')?.addEventListener('click', (e) => { if (e.target.id === 'searchOverlay') closeSearch(); });
   document.getElementById('searchInput')?.addEventListener('input', (e) => performSearch(e.target.value));
@@ -6665,14 +6665,18 @@ function showNotif(msg) {
 
 function updateStatusBar() {
   const board = getCurrentBoard();
-  document.getElementById('statusBoard').textContent = `Board: ${board ? board.name : 'None'}`;
-  document.getElementById('statusCards').textContent = `${board ? board.cards.length : 0} cards`;
+  const sb = document.getElementById('statusBoard');
+  const sc = document.getElementById('statusCards');
+  if (sb) sb.textContent = `Board: ${board ? board.name : 'None'}`;
+  if (sc) sc.textContent = `${board ? board.cards.length : 0} cards`;
 }
 
 function updateMapStatusBar() {
   const map = getCurrentMap();
-  document.getElementById('statusBoard').textContent = `Map: ${map ? map.name : 'None'}`;
-  document.getElementById('statusCards').textContent = `${map ? map.pins.length : 0} pins`;
+  const sb = document.getElementById('statusBoard');
+  const sc = document.getElementById('statusCards');
+  if (sb) sb.textContent = `Map: ${map ? map.name : 'None'}`;
+  if (sc) sc.textContent = `${map ? map.pins.length : 0} pins`;
 }
 
 // ============================================
@@ -9648,7 +9652,7 @@ function initViewSettings() {
     settingsInitialized = false;
     // Delay check so craft-app.js can set window.craftIsOwner after auth
     setTimeout(() => {
-      if (window.craftIsOwner) openSettingsModal();
+      if (window.craftIsOwner) window.openSettingsModal();
       else { applyViewSettings(); settingsInitialized = true; }
     }, 500);
   }
@@ -12883,8 +12887,159 @@ function sbOpenYoutubePopup(){if(sbYtPopupOpen)return;sbYtPopupOpen=true;const o
 function sbCloseYtPopup(){sbYtPopupOpen=false;document.querySelector('.sb-yt-overlay')?.remove();document.querySelector('.sb-yt-popup')?.remove();}
 
 // ─── MultiView Integration (kept from previous) ───
-function sbOpenMvConnect(){if(sbYtPopupOpen)return;sbYtPopupOpen=true;const ov=document.createElement('div');ov.className='sb-yt-overlay';const pp=document.createElement('div');pp.className='sb-yt-popup';pp.style.width='460px';if(mvConnected){pp.innerHTML=`<h3>MultiView Connected</h3><p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">Logged in as <strong>${mvUser?.display_name||mvUser?.username||'User'}</strong></p><button class="btn primary sm" id="sbMvBrowse" style="width:100%;margin-bottom:8px;">Browse My Playlists</button><div class="sb-yt-actions"><button class="btn secondary sm" id="sbMvDisconnect">Disconnect</button><button class="btn secondary sm" id="sbMvClose">Close</button></div>`;document.body.appendChild(ov);document.body.appendChild(pp);ov.addEventListener('click',sbCloseYtPopup);pp.querySelector('#sbMvClose').addEventListener('click',sbCloseYtPopup);pp.querySelector('#sbMvDisconnect').addEventListener('click',()=>{mvConnected=false;mvToken='';mvUser=null;mvRooms=[];document.getElementById('sbMvConnectBtn')?.classList.remove('mv-connected');sbCloseYtPopup();showNotif('Disconnected');});pp.querySelector('#sbMvBrowse').addEventListener('click',()=>{sbCloseYtPopup();sbOpenMvBrowse();});}else{pp.innerHTML=`<h3>Connect to MultiView</h3><p style="font-size:11px;color:var(--text-muted);margin:0 0 10px;">Import audio from your MultiView playlists</p><input type="text" id="sbMvUrl" placeholder="Site URL (e.g. https://yourdomain.netlify.app)" value="${mvApiBase||''}" /><input type="text" id="sbMvLogin" placeholder="Email or username" /><input type="password" id="sbMvPass" placeholder="Password" /><div id="sbMvError" style="color:var(--danger);font-size:11px;min-height:16px;margin-bottom:4px;"></div><div class="sb-yt-actions"><button class="btn secondary sm" id="sbMvCancel">Cancel</button><button class="btn primary sm" id="sbMvConnect">Connect</button></div>`;document.body.appendChild(ov);document.body.appendChild(pp);ov.addEventListener('click',sbCloseYtPopup);pp.querySelector('#sbMvCancel').addEventListener('click',sbCloseYtPopup);pp.querySelector('#sbMvConnect').addEventListener('click',async()=>{const u=pp.querySelector('#sbMvUrl').value.trim().replace(/\/$/,''),l=pp.querySelector('#sbMvLogin').value.trim(),p=pp.querySelector('#sbMvPass').value,err=pp.querySelector('#sbMvError');if(!u||!l||!p){err.textContent='All fields required';return;}err.textContent='Connecting...';try{const r=await fetch(u+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({identifier:l,password:p})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Login failed');mvApiBase=u;mvToken=d.token;const mr=await fetch(u+'/api/auth/me',{headers:{'Authorization':'Bearer '+mvToken,'Content-Type':'application/json'}});const md=await mr.json();mvUser=md.user;mvConnected=true;document.getElementById('sbMvConnectBtn')?.classList.add('mv-connected');sbCloseYtPopup();showNotif(`Connected as ${mvUser.display_name||mvUser.username}`);}catch(e){err.textContent=e.message;}});pp.querySelector('#sbMvUrl').focus();}}
-async function sbOpenMvBrowse(){if(!mvConnected)return;sbYtPopupOpen=true;const ov=document.createElement('div');ov.className='sb-yt-overlay';const pp=document.createElement('div');pp.className='sb-yt-popup';pp.style.width='500px';pp.style.maxHeight='70vh';pp.style.display='flex';pp.style.flexDirection='column';pp.innerHTML=`<h3 style="flex-shrink:0;">My MultiView Playlists</h3><div id="sbMvBrowseBody" style="flex:1;overflow-y:auto;margin:0 -20px;padding:0 20px;"><div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div></div><div class="sb-yt-actions" style="flex-shrink:0;padding-top:8px;"><button class="btn secondary sm" id="sbMvBrowseClose">Close</button></div>`;document.body.appendChild(ov);document.body.appendChild(pp);ov.addEventListener('click',sbCloseYtPopup);pp.querySelector('#sbMvBrowseClose').addEventListener('click',sbCloseYtPopup);try{const r=await fetch(mvApiBase+'/api/rooms/my-playlists',{headers:{'Authorization':'Bearer '+mvToken,'Content-Type':'application/json'}});const d=await r.json();mvRooms=d.rooms||[];const body=pp.querySelector('#sbMvBrowseBody');if(!mvRooms.length){body.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;">No rooms found</div>';return;}body.innerHTML=mvRooms.map(rm=>{const pls=rm.playlists||[];return`<div><div class="sb-mv-rh" data-r="${rm.id}" style="cursor:pointer;padding:6px 0;display:flex;align-items:center;gap:6px;font-size:13px;border-bottom:1px solid var(--border-color);"><span class="sb-mv-ra">▸</span><strong>${rm.name||'Room'}</strong><span style="color:var(--text-muted);font-size:10px;margin-left:6px;">${pls.length} playlist${pls.length!==1?'s':''}</span></div><div class="sb-mv-rp hidden" data-r="${rm.id}">${pls.map(pl=>{const vs=pl.videos||[];return`<div style="margin-left:8px;"><div class="sb-mv-ph" data-p="${pl.id}" style="cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);"><span class="sb-mv-pa">▸</span>${pl.name||'Playlist'}<span style="color:var(--text-muted);font-size:10px;margin-left:6px;">${vs.length}</span></div><div class="sb-mv-pv hidden" data-p="${pl.id}">${vs.map(v=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0 3px 24px;font-size:11px;"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);">${v.title||v.url}</span><button class="sb-mv-ab" data-url="${v.url}" data-title="${(v.title||'').replace(/"/g,'&quot;')}" style="padding:2px 8px;border:1px solid var(--border-color);border-radius:4px;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;flex-shrink:0;">+ Add</button></div>`).join('')}</div></div>`;}).join('')}</div></div>`;}).join('');body.querySelectorAll('.sb-mv-rh').forEach(h=>{h.addEventListener('click',()=>{const p=body.querySelector(`.sb-mv-rp[data-r="${h.dataset.r}"]`),a=h.querySelector('.sb-mv-ra');p.classList.toggle('hidden');a.textContent=p.classList.contains('hidden')?'▸':'▾';});});body.querySelectorAll('.sb-mv-ph').forEach(h=>{h.addEventListener('click',()=>{const v=body.querySelector(`.sb-mv-pv[data-p="${h.dataset.p}"]`),a=h.querySelector('.sb-mv-pa');v.classList.toggle('hidden');a.textContent=v.classList.contains('hidden')?'▸':'▾';});});body.querySelectorAll('.sb-mv-ab').forEach(btn=>{btn.addEventListener('click',()=>{const url=btn.dataset.url,title=btn.dataset.title;const m=url.match(/(?:v=|\/embed\/|youtu\.be\/|\/v\/|\/watch\?.*v=)([a-zA-Z0-9_-]{11})/);if(!m){showNotif('Not a YouTube video');return;}const vid=m[1],id='mv_'+Date.now()+'_'+vid;if(sbCustomSounds.find(s=>s.ytVideoId===vid)){showNotif('Already added');return;}sbCustomSounds.push({id,name:title||'MV: '+vid,cat:'custom',type:'youtube',ytVideoId:vid,baseGain:0.5});btn.textContent='Added';btn.disabled=true;btn.style.color='var(--gold)';btn.style.borderColor='var(--gold)';sbRenderChannels();});});}catch(e){pp.querySelector('#sbMvBrowseBody').innerHTML=`<div style="text-align:center;color:var(--danger);padding:20px;">Failed: ${e.message}</div>`;}}
+function sbOpenMvConnect(){
+  // Use existing auth to browse playlists directly (no separate login needed)
+  const token = localStorage.getItem('mv_token');
+  if (!token) { showNotif('Please log in to import from your playlists'); return; }
+  if (sbYtPopupOpen) return;
+  sbYtPopupOpen = true;
+
+  // Create modal matching video room ImportPlaylistModal design
+  const ov = document.createElement('div');
+  ov.className = 'popup-overlay';
+  ov.style.cssText = 'display:flex;align-items:center;justify-content:center;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);';
+  
+  const modal = document.createElement('div');
+  modal.className = 'popup-modal';
+  modal.style.cssText = 'width:520px;max-height:75vh;display:flex;flex-direction:column;background:var(--bg-dark,#0a0a0a);border:1px solid var(--border-color,#252015);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,0.6);';
+  
+  modal.innerHTML = `
+    <div class="popup-header" style="flex-shrink:0;padding:16px 20px;border-bottom:1px solid var(--border-color,#252015);display:flex;align-items:center;justify-content:space-between;">
+      <h3 style="font-family:Cinzel,serif;font-size:16px;color:var(--gold,#d4a824);margin:0;">Import from My Rooms</h3>
+      <button class="icon-btn" id="sbImportClose" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:4px 8px;">&times;</button>
+    </div>
+    <div id="sbImportBody" style="flex:1;overflow-y:auto;padding:16px 20px;">
+      <div style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px;">Loading your playlists...</div>
+    </div>
+    <div style="flex-shrink:0;padding:12px 20px;border-top:1px solid var(--border-color,#252015);display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn secondary sm" id="sbImportCancel">Close</button>
+    </div>
+  `;
+  
+  ov.appendChild(modal);
+  document.body.appendChild(ov);
+  
+  function closeModal() { ov.remove(); sbYtPopupOpen = false; }
+  ov.addEventListener('click', e => { if (e.target === ov) closeModal(); });
+  modal.querySelector('#sbImportClose').addEventListener('click', closeModal);
+  modal.querySelector('#sbImportCancel').addEventListener('click', closeModal);
+  
+  // Fetch playlists
+  fetch('/api/rooms/my-playlists', {
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+  })
+  .then(r => r.json())
+  .then(d => {
+    const rooms = d.rooms || [];
+    const body = modal.querySelector('#sbImportBody');
+    
+    if (!rooms.length) {
+      body.innerHTML = '<div style="text-align:center;padding:32px 16px;"><p style="color:var(--text-secondary);font-size:13px;margin:0 0 6px;">No rooms with playlists found.</p><p style="color:var(--text-muted);font-size:11px;margin:0;">Create playlists in your video rooms to import songs here.</p></div>';
+      return;
+    }
+    
+    body.innerHTML = '<p style="font-size:11px;color:var(--text-muted);margin:0 0 12px;">Select songs from your video room playlists to add as soundscape audio:</p><div id="sbImportRooms"></div>';
+    const container = body.querySelector('#sbImportRooms');
+    
+    rooms.forEach(rm => {
+      const pls = rm.playlists || [];
+      if (!pls.length) return;
+      
+      const roomEl = document.createElement('div');
+      roomEl.style.cssText = 'margin-bottom:4px;border:1px solid var(--border-color,#252015);border-radius:8px;overflow:hidden;';
+      
+      // Room header
+      const roomHeader = document.createElement('div');
+      roomHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:var(--bg-medium,#111);transition:background 0.15s;';
+      roomHeader.innerHTML = `<div style="display:flex;align-items:center;gap:8px;"><span class="sb-imp-arrow" style="color:var(--text-muted);font-size:10px;transition:transform 0.2s;">&#9656;</span><span style="font-size:13px;font-weight:600;color:var(--text-primary,#f5ede0);">${rm.name || 'Room'}</span></div><span style="font-size:11px;color:var(--text-muted);">${pls.length} playlist${pls.length !== 1 ? 's' : ''}</span>`;
+      roomHeader.addEventListener('mouseenter', () => { roomHeader.style.background = 'var(--bg-light,#181818)'; });
+      roomHeader.addEventListener('mouseleave', () => { roomHeader.style.background = 'var(--bg-medium,#111)'; });
+      
+      const roomBody = document.createElement('div');
+      roomBody.style.cssText = 'display:none;border-top:1px solid var(--border-color,#252015);';
+      
+      roomHeader.addEventListener('click', () => {
+        const vis = roomBody.style.display !== 'none';
+        roomBody.style.display = vis ? 'none' : 'block';
+        roomHeader.querySelector('.sb-imp-arrow').innerHTML = vis ? '&#9656;' : '&#9662;';
+      });
+      
+      // Playlists
+      pls.forEach(pl => {
+        const vs = pl.videos || [];
+        const plEl = document.createElement('div');
+        plEl.style.cssText = 'border-bottom:1px solid rgba(255,255,255,0.03);';
+        
+        const plHeader = document.createElement('div');
+        plHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 14px 8px 28px;cursor:pointer;transition:background 0.15s;';
+        plHeader.innerHTML = `<div style="display:flex;align-items:center;gap:6px;"><span class="sb-imp-pl-arrow" style="color:var(--text-muted);font-size:9px;">&#9656;</span><span style="font-size:12px;color:var(--text-secondary,#a89880);">${pl.name || 'Playlist'}</span></div><span style="font-size:10px;color:var(--text-muted);">${vs.length} song${vs.length !== 1 ? 's' : ''}</span>`;
+        plHeader.addEventListener('mouseenter', () => { plHeader.style.background = 'rgba(255,255,255,0.02)'; });
+        plHeader.addEventListener('mouseleave', () => { plHeader.style.background = 'transparent'; });
+        
+        const plBody = document.createElement('div');
+        plBody.style.cssText = 'display:none;padding:2px 0;';
+        
+        plHeader.addEventListener('click', () => {
+          const vis = plBody.style.display !== 'none';
+          plBody.style.display = vis ? 'none' : 'block';
+          plHeader.querySelector('.sb-imp-pl-arrow').innerHTML = vis ? '&#9656;' : '&#9662;';
+        });
+        
+        // Individual songs
+        vs.forEach(v => {
+          const songEl = document.createElement('div');
+          songEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 14px 5px 48px;transition:background 0.1s;';
+          songEl.addEventListener('mouseenter', () => { songEl.style.background = 'rgba(212,168,36,0.04)'; });
+          songEl.addEventListener('mouseleave', () => { songEl.style.background = 'transparent'; });
+          
+          const titleSpan = document.createElement('span');
+          titleSpan.style.cssText = 'flex:1;font-size:11px;color:var(--text-secondary,#a89880);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px;';
+          titleSpan.textContent = v.title || v.url || 'Untitled';
+          
+          const addBtn = document.createElement('button');
+          addBtn.style.cssText = 'flex-shrink:0;padding:3px 10px;border:1px solid var(--border-color,#252015);border-radius:6px;background:none;color:var(--text-muted,#605545);cursor:pointer;font-size:10px;transition:all 0.15s;';
+          addBtn.textContent = '+ Add';
+          addBtn.addEventListener('mouseenter', () => { if (!addBtn.disabled) { addBtn.style.borderColor = 'var(--gold,#d4a824)'; addBtn.style.color = 'var(--gold,#d4a824)'; } });
+          addBtn.addEventListener('mouseleave', () => { if (!addBtn.disabled) { addBtn.style.borderColor = 'var(--border-color,#252015)'; addBtn.style.color = 'var(--text-muted,#605545)'; } });
+          
+          addBtn.addEventListener('click', () => {
+            const url = v.url || '';
+            const title = v.title || '';
+            const m = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/v\/|\/watch\?.*v=)([a-zA-Z0-9_-]{11})/);
+            if (!m) { showNotif('Not a YouTube video'); return; }
+            const vid = m[1], id = 'mv_' + Date.now() + '_' + vid;
+            if (sbCustomSounds.find(s => s.ytVideoId === vid)) { showNotif('Already added'); return; }
+            sbCustomSounds.push({ id, name: title || 'MV: ' + vid, cat: 'custom', type: 'youtube', ytVideoId: vid, baseGain: 0.5 });
+            addBtn.textContent = 'Added';
+            addBtn.disabled = true;
+            addBtn.style.color = 'var(--gold,#d4a824)';
+            addBtn.style.borderColor = 'var(--gold,#d4a824)';
+            addBtn.style.opacity = '0.6';
+            sbRenderChannels();
+          });
+          
+          songEl.appendChild(titleSpan);
+          songEl.appendChild(addBtn);
+          plBody.appendChild(songEl);
+        });
+        
+        plEl.appendChild(plHeader);
+        plEl.appendChild(plBody);
+        roomBody.appendChild(plEl);
+      });
+      
+      roomEl.appendChild(roomHeader);
+      roomEl.appendChild(roomBody);
+      container.appendChild(roomEl);
+    });
+  })
+  .catch(e => {
+    modal.querySelector('#sbImportBody').innerHTML = `<div style="text-align:center;color:var(--danger,#ef4444);padding:24px;font-size:12px;">Failed to load playlists: ${e.message}</div>`;
+  });
+}
+
+// Legacy alias
+async function sbOpenMvBrowse() { sbOpenMvConnect(); }}
 
 // ─── Remove Custom ───
 function sbRemoveCustom(id){sbStop(id);sbCustomSounds=sbCustomSounds.filter(s=>s.id!==id);sbSoundscapes.forEach(sc=>{delete sc.mix[id];});sbPlaylists.forEach(pl=>{pl.soundIds=pl.soundIds.filter(sid=>sid!==id);});sbRenderChannels();sbRenderSidebar();showNotif('Sound removed');}
