@@ -135,35 +135,38 @@ export const handler = async (event) => {
         return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
       }
 
-      // Get all rooms the user owns with their playlists
-      const roomsWithPlaylists = await sql`
-        SELECT 
-          r.id as room_id,
-          r.name as room_name,
-          p.id as playlist_id,
-          p.name as playlist_name,
-          (SELECT COUNT(*) FROM videos WHERE playlist_id = p.id) as video_count
-        FROM rooms r
-        LEFT JOIN playlists p ON p.room_id = r.id
-        WHERE r.owner_id = ${user.id}
-        ORDER BY r.name, p.name
+      // Get all rooms the user owns
+      const myRooms = await sql`
+        SELECT id, name FROM rooms WHERE owner_id = ${user.id} ORDER BY name
       `;
 
-      // Group by room
-      const roomsMap = {};
-      for (const row of roomsWithPlaylists) {
-        if (!roomsMap[row.room_id]) {
-          roomsMap[row.room_id] = {
-            id: row.room_id,
-            name: row.room_name,
-            playlists: []
-          };
-        }
-        if (row.playlist_id) {
-          roomsMap[row.room_id].playlists.push({
-            id: row.playlist_id,
-            name: row.playlist_name,
-            videoCount: parseInt(row.video_count) || 0
+      const roomsWithData = [];
+      for (const rm of myRooms) {
+        const playlists = await sql`
+          SELECT p.id, p.name,
+                 COALESCE(
+                   json_agg(
+                     json_build_object('id', v.id, 'title', v.title, 'url', v.url)
+                     ORDER BY v.position
+                   ) FILTER (WHERE v.id IS NOT NULL),
+                   '[]'
+                 ) as videos
+          FROM playlists p
+          LEFT JOIN videos v ON v.playlist_id = p.id
+          WHERE p.room_id = ${rm.id}
+          GROUP BY p.id
+          ORDER BY p.position, p.created_at
+        `;
+        if (playlists.length > 0) {
+          roomsWithData.push({
+            id: rm.id,
+            name: rm.name,
+            playlists: playlists.map(p => ({
+              id: p.id,
+              name: p.name,
+              videoCount: Array.isArray(p.videos) ? p.videos.length : 0,
+              videos: p.videos || []
+            }))
           });
         }
       }
@@ -171,7 +174,7 @@ export const handler = async (event) => {
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ rooms: Object.values(roomsMap) })
+        body: JSON.stringify({ rooms: roomsWithData })
       };
     }
 

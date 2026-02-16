@@ -3516,6 +3516,10 @@ function HomePage(props) {
   function createCraftRoom() {
     if (!newCraftName.trim()) return;
     api.craftRooms.create(newCraftName.trim()).then(function(room) {
+      // Add owner info so card renders correctly
+      room.owner_name = user.displayName || user.username;
+      room.member_count = 1;
+      room.online_count = 0;
       setCraftRooms(craftRooms.concat([room]));
       setNewCraftName('');
       setShowCreateCraft(false);
@@ -3686,7 +3690,7 @@ function HomePage(props) {
                       ? React.createElement('span', { className: 'room-owner' }, 'Owner')
                       : React.createElement('span', { className: 'room-joined-badge' }, 'Joined'),
                     !isMine && React.createElement('span', { className: 'room-owner' }, 'by ' + (room.owner_name || 'Unknown')),
-                    room.member_count > 1 && React.createElement('span', { className: 'online-badge' }, room.member_count + ' members')
+                    parseInt(room.online_count) > 0 && React.createElement('span', { className: 'online-badge' }, room.online_count + ' online')
                   ),
                   React.createElement('div', { className: 'room-card-actions' },
                     React.createElement('button', { className: 'btn primary', onClick: function() { window.location.href = '/craft.html#/room/' + (room.owner_id || user.id) + '/' + room.id; } }, React.createElement(Icon, { name: 'enter', size: 'sm' }), ' Enter'),

@@ -106,21 +106,12 @@
         updateMyRole();
         checkKickedFromMembers();
         if (d.state && window.craftSetState) {
-          // Don't force view switch on non-owners - let them browse pages independently
-          if (!isOwner && d.state.currentView) {
-            var syncState = Object.assign({}, d.state);
-            delete syncState.currentView;
-            window.craftSetState(syncState);
-          } else {
-            // For owners, don't let synced viewSettings overwrite local settings
-            if (isOwner && d.state.viewSettings) {
-              var localVS = localStorage.getItem('craftViewSettings');
-              if (localVS) {
-                d.state.viewSettings = JSON.parse(localVS);
-              }
-            }
-            window.craftSetState(d.state);
-          }
+          // Never force view switching or viewSettings changes from sync
+          // Sync is for data only - each user controls their own view
+          var syncState = Object.assign({}, d.state);
+          delete syncState.currentView;
+          delete syncState.viewSettings;
+          window.craftSetState(syncState);
           lastPushedHash = getStateHash();
         }
         setSyncStatus('synced');
@@ -232,7 +223,26 @@
 
   function setRoomTitle(name) {
     var el = document.getElementById('roomTitle');
-    if (el) el.value = name || 'Craft Room';
+    if (el) {
+      el.value = name || 'Craft Room';
+      // Only owner can edit title
+      el.readOnly = !isOwner;
+      el.style.cursor = isOwner ? 'text' : 'default';
+      el.style.opacity = isOwner ? '1' : '0.85';
+    }
+  }
+
+  // Save room title on change (owner only)
+  var titleEl = document.getElementById('roomTitle');
+  if (titleEl) {
+    titleEl.addEventListener('change', function() {
+      if (!isOwner || !roomId) return;
+      var newName = titleEl.value.trim();
+      if (!newName) { titleEl.value = roomInfo.name; return; }
+      apiRequest('/craftrooms/' + roomId + '/name', { method: 'PUT', body: JSON.stringify({ name: newName }) })
+        .then(function() { roomInfo.name = newName; })
+        .catch(function(err) { titleEl.value = roomInfo.name; alert('Rename failed: ' + err.message); });
+    });
   }
 
   // ═══ SHARE MODAL (matches video room .modal.share-modal) ═══
@@ -413,35 +423,49 @@
       if (!modalBody) return;
       var old = document.getElementById('cogwheelPerms'); if (old) old.remove();
       var div = document.createElement('div'); div.id = 'cogwheelPerms';
-      div.style.cssText = 'margin-top:20px;border-top:1px solid var(--border-color,#252015);padding-top:20px';
+      div.style.cssText = 'margin-top:18px;border-top:1px solid var(--border-color,#252015);padding-top:16px';
+      
+      // Refresh members list first
+      refreshMembers();
+      
       var nonOwners = members.filter(function(m) { return !m.is_owner; });
-      div.innerHTML = '<h4 style="font-family:Cinzel,serif;font-size:13px;color:var(--gold,#d4a824);margin:0 0 12px;letter-spacing:0.05em;text-transform:uppercase">Connected Users & Permissions</h4>';
+      div.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h4 style="font-family:Cinzel,serif;font-size:12px;color:var(--gold,#d4a824);margin:0;letter-spacing:0.06em;text-transform:uppercase">User Permissions</h4><span style="font-size:10px;color:var(--text-muted,#605545)">' + members.length + ' member' + (members.length !== 1 ? 's' : '') + '</span></div>';
       if (nonOwners.length === 0) {
-        div.innerHTML += '<p style="font-size:12px;color:var(--text-muted,#605545)">No other members yet. Share the room link to invite others.</p>';
+        div.innerHTML += '<p style="font-size:11px;color:var(--text-muted,#605545);text-align:center;padding:12px 0;margin:0">No other members yet</p>';
       } else {
+        var list = document.createElement('div');
+        list.style.cssText = 'display:flex;flex-direction:column;gap:6px';
         nonOwners.forEach(function(m) {
           var uid = m.user_id || '', gid = m.guest_id || '', role = m.role || 'viewer', canHidden = m.can_view_hidden || false;
-          var statusCls = m.status === 'online' ? 'online' : 'offline';
-          var row = document.createElement('div'); row.className = 'perm-row';
-          var controlsHtml;
+          var online = m.status === 'online';
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,0.02);border:1px solid var(--border-color,#252015);border-radius:8px';
+          
+          var dotColor = online ? '#22c55e' : 'var(--text-muted,#605545)';
+          var nameHtml = '<div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';flex-shrink:0"></span><span style="font-size:12px;color:var(--text-primary,#f5ede0);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.display_name) + '</span>' + (m.guest_id ? '<span style="font-size:9px;color:var(--text-muted);opacity:0.6">guest</span>' : '') + '</div></div>';
+          
           if (isOwner) {
-            controlsHtml = '<select class="perm-select" data-uid="' + uid + '" data-gid="' + gid + '"><option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>\uD83D\uDC41 View Only</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>\u270F\uFE0F Can Edit</option></select><label class="perm-cb"><input type="checkbox" data-uid="' + uid + '" data-gid="' + gid + '"' + (canHidden ? ' checked' : '') + ' /><span>See hidden</span></label><button class="perm-kick" data-uid="' + uid + '" data-gid="' + gid + '" data-name="' + esc(m.display_name) + '" title="Kick user" style="background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:4px">Kick</button>';
+            row.innerHTML = nameHtml + '<select class="perm-select" data-uid="' + uid + '" data-gid="' + gid + '" style="padding:3px 6px;font-size:10px;background:var(--bg-dark,#0a0a0a);border:1px solid var(--border-color,#252015);border-radius:4px;color:var(--text-secondary,#a89880);cursor:pointer"><option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>View Only</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>Can Edit</option></select><label style="display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-muted,#605545);cursor:pointer;white-space:nowrap"><input type="checkbox" class="perm-hidden-cb" data-uid="' + uid + '" data-gid="' + gid + '"' + (canHidden ? ' checked' : '') + ' style="accent-color:var(--gold)" /><span>Hidden</span></label><button class="perm-kick" data-uid="' + uid + '" data-gid="' + gid + '" data-name="' + esc(m.display_name) + '" title="Kick" style="background:none;border:none;color:rgba(239,68,68,0.6);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1">&times;</button>';
           } else {
-            controlsHtml = '<span style="font-size:11px;color:var(--text-muted,#605545)">' + (role === 'editor' ? '\u270F\uFE0F Can Edit' : '\uD83D\uDC41 View Only') + '</span>';
+            var roleLabel = role === 'editor' ? 'Can Edit' : 'View Only';
+            row.innerHTML = nameHtml + '<span style="font-size:10px;color:var(--text-muted,#605545);padding:3px 8px;border:1px solid var(--border-color,#252015);border-radius:4px">' + roleLabel + '</span>';
           }
-          row.innerHTML = '<div class="perm-info"><span class="perm-name">' + esc(m.display_name) + (m.guest_id ? ' <span style="opacity:0.5;font-size:10px">(guest)</span>' : '') + '</span><span class="perm-status ' + statusCls + '">' + (statusCls === 'online' ? '\u25CF Online' : '\u25CB Offline') + '</span></div><div class="perm-controls">' + controlsHtml + '</div>';
-          div.appendChild(row);
+          list.appendChild(row);
         });
-        // Also show current user's own role (read-only)
+        div.appendChild(list);
+        
+        // Show my own role for non-owners
         if (!isOwner) {
           var myMember = members.find(function(m) { var mid = m.user_id || m.guest_id; return mid === (currentUser ? (currentUser.id || currentUser.guestId) : null); });
           if (myMember) {
             var myDiv = document.createElement('div');
-            myDiv.style.cssText = 'margin-top:12px;padding:8px 12px;background:rgba(212,168,36,0.08);border:1px solid rgba(212,168,36,0.2);border-radius:6px;font-size:12px;color:var(--text-secondary,#a89880)';
-            myDiv.textContent = 'Your role: ' + (myMember.role === 'editor' ? '\u270F\uFE0F Can Edit' : '\uD83D\uDC41 View Only');
+            myDiv.style.cssText = 'margin-top:10px;padding:6px 10px;background:rgba(212,168,36,0.06);border:1px solid rgba(212,168,36,0.15);border-radius:6px;font-size:11px;color:var(--text-secondary,#a89880);text-align:center';
+            myDiv.textContent = 'Your role: ' + (myMember.role === 'editor' ? 'Can Edit' : 'View Only');
             div.appendChild(myDiv);
           }
         }
+        
+        // Wire up owner controls
         if (isOwner) {
           div.querySelectorAll('.perm-select').forEach(function(sel) {
             sel.addEventListener('change', function() {
@@ -450,7 +474,7 @@
                 .catch(function(err) { alert('Error: ' + err.message); });
             });
           });
-          div.querySelectorAll('.perm-cb input').forEach(function(cb) {
+          div.querySelectorAll('.perm-hidden-cb').forEach(function(cb) {
             cb.addEventListener('change', function() {
               apiRequest('/craftrooms/' + roomId + '/permissions', { method: 'PUT', body: JSON.stringify({ targetUserId: cb.dataset.uid || undefined, targetGuestId: cb.dataset.gid || undefined, canViewHidden: cb.checked }) })
                 .catch(function(err) { alert('Error: ' + err.message); });
@@ -458,7 +482,7 @@
           });
           div.querySelectorAll('.perm-kick').forEach(function(btn) {
             btn.addEventListener('click', function() {
-              if (confirm('Kick ' + btn.dataset.name + ' from this room?')) {
+              if (confirm('Kick ' + btn.dataset.name + '?')) {
                 apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: btn.dataset.uid ? btn.dataset.uid : undefined, guestId: btn.dataset.gid ? btn.dataset.gid : undefined }) })
                   .then(function() { refreshMembers(); window.openSettingsModal(); })
                   .catch(function(err) { alert('Failed: ' + err.message); });

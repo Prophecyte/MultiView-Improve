@@ -60,22 +60,26 @@ export const handler = async (event) => {
       const [room] = await sql`
         INSERT INTO craft_rooms (owner_id, name, description, state)
         VALUES (${user.id}, ${name.trim()}, ${description || null}, ${JSON.stringify({
-          boards: [{ id: 'board_default', name: 'Main Board', cards: [], connections: [] }],
+          boards: [{ id: 'board_default', name: 'Board 1', cards: [], connections: [] }],
           currentBoardId: 'board_default',
-          maps: [{ id: 'map_default', name: 'World Map', pins: [], image: null }],
+          maps: [{ id: 'map_default', name: 'Map 1', pins: [], image: null }],
           currentMapId: 'map_default',
-          chapters: [{ id: 'ch_default', title: 'Chapter 1', content: '' }],
+          chapters: [{ id: 'ch_default', label: 'Chapter 1', title: 'Chapter 1', content: '', words: 0 }],
           currentChapterId: 'ch_default',
           associations: [],
           destinationMarkers: [],
           currentView: 'board',
           diceHistory: [],
-          viewSettings: { board: true, write: true, map: false, timeline: false, combat: false, factions: false, mindmap: false, soundboard: false },
+          viewSettings: { board: true, write: true, map: true, timeline: true, combat: true, factions: true, mindmap: true, soundboard: true },
+          combatants: [], combatRound: 0, combatTurnIndex: -1, combatActive: false, savedEncounters: [],
+          factions: [], contacts: [], organizations: [],
+          timelines: [],
+          mmNodes: [], mmEdges: [],
           sbSoundscapes: [],
           sbPlaylists: [],
           sbCustomSounds: []
         })})
-        RETURNING id, name, description, created_at
+        RETURNING id, name, description, owner_id, created_at
       `;
       // Auto-join as owner
       await sql`
@@ -91,7 +95,8 @@ export const handler = async (event) => {
       const rooms = await sql`
         SELECT cr.id, cr.name, cr.description, cr.owner_id, cr.created_at, cr.updated_at,
                u.display_name as owner_name,
-               (SELECT COUNT(*) FROM craft_room_members WHERE craft_room_id = cr.id) as member_count
+               (SELECT COUNT(*) FROM craft_room_members WHERE craft_room_id = cr.id) as member_count,
+               (SELECT COUNT(*) FROM craft_room_presence WHERE craft_room_id = cr.id AND last_seen > NOW() - INTERVAL '30 seconds') as online_count
         FROM craft_rooms cr
         JOIN users u ON cr.owner_id = u.id
         WHERE cr.owner_id = ${user.id}

@@ -7,14 +7,14 @@ const MAX_UNDO = 50;
 let cardClipboard = null;
 
 let boards = [
-  { id: 'board-1', name: 'Your Board', cards: [], connections: [] },
+  { id: 'board-1', name: 'Board 1', cards: [], connections: [] },
 ];
 let currentBoardId = 'board-1';
 
 let maps = [
   {
     id: 'map-1',
-    name: 'World Map',
+    name: 'Map 1',
     imageUrl: '',
     pins: [],
     scale: { pixels: 100, distance: 1, unit: 'miles' }
@@ -26,7 +26,7 @@ let chapters = [
   {
     id: 'chapter-1',
     label: 'Chapter 1',
-    title: 'Your Writing',
+    title: 'New Chapter',
     content: '',
     words: 0,
   },
@@ -13207,10 +13207,26 @@ window.craftGetState = function() {
     currentView: currentView,
     diceHistory: JSON.parse(JSON.stringify(diceHistory)),
     viewSettings: viewSettings ? JSON.parse(JSON.stringify(viewSettings)) : null,
+    // Timeline
+    timelines: JSON.parse(JSON.stringify(timelines)),
+    currentTimelineId: currentTimelineId,
+    // Combat
+    combatants: JSON.parse(JSON.stringify(combatants)),
+    combatRound: combatRound,
+    combatTurnIndex: combatTurnIndex,
+    combatActive: combatActive,
+    savedEncounters: JSON.parse(JSON.stringify(savedEncounters)),
+    // Factions
+    factions: JSON.parse(JSON.stringify(factions)),
+    contacts: JSON.parse(JSON.stringify(contacts)),
+    organizations: JSON.parse(JSON.stringify(organizations)),
+    // Mind Map
+    mmNodes: JSON.parse(JSON.stringify(mmNodes)),
+    mmEdges: JSON.parse(JSON.stringify(mmEdges)),
+    // Soundscape
     sbSoundscapes: JSON.parse(JSON.stringify(sbSoundscapes)),
     sbPlaylists: JSON.parse(JSON.stringify(sbPlaylists)),
     sbCustomSounds: sbCustomSounds.filter(s => s.type !== 'file').map(s => JSON.parse(JSON.stringify(s))),
-    // Active sound channels for sync (which sounds are playing + volumes)
     sbActiveMix: (function() {
       try {
         var mix = {};
@@ -13221,16 +13237,13 @@ window.craftGetState = function() {
       } catch(e) { return {}; }
     })(),
     sbMasterVol: Math.round(sbMasterVol * 100),
-    // Note: file-type sounds with dataURLs are excluded from sync (too large)
-    // They are local-only. URL and YouTube sounds sync fine.
   };
 };
 
 window.craftSetState = function(state, skipRender) {
   if (!state) return;
   
-  // Sound sync is handled per-channel below instead of stopping all
-  
+  // Core data
   if (state.boards) boards = state.boards;
   if (state.currentBoardId) currentBoardId = state.currentBoardId;
   if (state.maps) maps = state.maps;
@@ -13245,62 +13258,70 @@ window.craftSetState = function(state, skipRender) {
     viewSettings = state.viewSettings;
     if (viewSettings) localStorage.setItem('craftViewSettings', JSON.stringify(viewSettings));
   }
+  
+  // Timeline
+  if (state.timelines) timelines = state.timelines;
+  if (state.currentTimelineId !== undefined) currentTimelineId = state.currentTimelineId;
+  
+  // Combat
+  if (state.combatants) combatants = state.combatants;
+  if (state.combatRound !== undefined) combatRound = state.combatRound;
+  if (state.combatTurnIndex !== undefined) combatTurnIndex = state.combatTurnIndex;
+  if (state.combatActive !== undefined) combatActive = state.combatActive;
+  if (state.savedEncounters) savedEncounters = state.savedEncounters;
+  
+  // Factions
+  if (state.factions) factions = state.factions;
+  if (state.contacts) contacts = state.contacts;
+  if (state.organizations) organizations = state.organizations;
+  
+  // Mind Map
+  if (state.mmNodes) mmNodes = state.mmNodes;
+  if (state.mmEdges) mmEdges = state.mmEdges;
+  
+  // Soundscape data
   if (state.sbSoundscapes) sbSoundscapes = state.sbSoundscapes;
   if (state.sbPlaylists) sbPlaylists = state.sbPlaylists;
   if (state.sbCustomSounds) {
-    // Merge: keep local file-type sounds, replace URL/YT sounds from sync
     const localFiles = sbCustomSounds.filter(s => s.type === 'file');
     const synced = state.sbCustomSounds || [];
     sbCustomSounds = [...localFiles, ...synced];
   }
   
-  // Sound sync: wrapped in try/catch to never break state rendering
+  // Sound playback sync (try/catch to never break rendering)
   try {
-    // Only auto-play/stop sounds for non-owners (owners control their own sounds)
     if (state.sbActiveMix !== undefined && !window.craftIsOwner) {
       const mix = state.sbActiveMix || {};
       const currentIds = new Set(Object.keys(sbActiveChannels).filter(id => sbActiveChannels[id] && sbActiveChannels[id].playing));
       const targetIds = new Set(Object.keys(mix));
-      
-      // Stop sounds not in target mix
-      currentIds.forEach(id => {
-        if (!targetIds.has(id)) sbStop(id);
-      });
-      
-      // Start sounds in target mix that aren't playing
+      currentIds.forEach(id => { if (!targetIds.has(id)) sbStop(id); });
       targetIds.forEach(id => {
         const def = sbGetAll().find(s => s.id === id);
         if (!def) return;
-        if (!currentIds.has(id)) {
-          sbActiveChannels[id] = { volume: mix[id].volume };
-          sbStart(id);
-        }
+        if (!currentIds.has(id)) { sbActiveChannels[id] = { volume: mix[id].volume }; sbStart(id); }
         sbSetVol(id, mix[id].volume);
       });
     }
-    
-    // Apply master volume from sync for non-owners
     if (state.sbMasterVol !== undefined && !window.craftIsOwner && sbMasterGain && sbAudioCtx) {
       sbMasterVol = state.sbMasterVol / 100;
       sbMasterGain.gain.setTargetAtTime(sbMasterVol * sbPersonalVol, sbAudioCtx.currentTime, 0.02);
-      const mSlider = document.getElementById('sbMasterVol');
-      const mVal = document.getElementById('sbMasterVolVal');
-      if (mSlider) mSlider.value = state.sbMasterVol;
-      if (mVal) mVal.textContent = Math.round(state.sbMasterVol) + '%';
+      const ms = document.getElementById('sbMasterVol'), mv = document.getElementById('sbMasterVolVal');
+      if (ms) ms.value = state.sbMasterVol;
+      if (mv) mv.textContent = Math.round(state.sbMasterVol) + '%';
     }
-  } catch(soundErr) {
-    console.warn('Sound sync error (non-fatal):', soundErr);
-  }
+  } catch(e) { console.warn('Sound sync (non-fatal):', e); }
   
   if (!skipRender) {
-    // Re-render everything
     try {
       renderBoardsList();
       renderMapsList();
       renderChaptersList();
       updateCanvas();
       applyViewSettings();
-      switchView(currentView);
+      // Re-render current view without switching
+      if (currentView === 'timeline' && typeof renderTimelineView === 'function') renderTimelineView();
+      if (currentView === 'combat' && typeof renderCombatants === 'function') renderCombatants();
+      if (currentView === 'factions' && typeof renderFactionsSidebar === 'function') { renderFactionsSidebar(); renderFactionGrid(); }
       if (typeof sbRenderChannels === 'function') sbRenderChannels();
       if (typeof sbRenderSidebar === 'function') sbRenderSidebar();
     } catch(e) {
