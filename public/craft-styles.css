@@ -58,6 +58,78 @@
   --transition-normal: 0.25s ease;
 }
 
+/* Theme: Gold (default) */
+[data-theme="gold"] {
+  --gold: #d4a824;
+  --gold-light: #f0d050;
+  --gold-dark: #a07810;
+  --gold-glow: rgba(212, 168, 36, 0.4);
+  --gold-subtle: rgba(212, 168, 36, 0.1);
+}
+
+/* Theme: Ember Red */
+[data-theme="ember"] {
+  --gold: #ef4444;
+  --gold-light: #f87171;
+  --gold-dark: #b91c1c;
+  --gold-glow: rgba(239, 68, 68, 0.4);
+  --gold-subtle: rgba(239, 68, 68, 0.1);
+}
+
+/* Theme: Forest Green */
+[data-theme="forest"] {
+  --gold: #22c55e;
+  --gold-light: #4ade80;
+  --gold-dark: #16a34a;
+  --gold-glow: rgba(34, 197, 94, 0.4);
+  --gold-subtle: rgba(34, 197, 94, 0.1);
+}
+
+/* Theme: Ocean Blue */
+[data-theme="ocean"] {
+  --gold: #3b82f6;
+  --gold-light: #60a5fa;
+  --gold-dark: #2563eb;
+  --gold-glow: rgba(59, 130, 246, 0.4);
+  --gold-subtle: rgba(59, 130, 246, 0.1);
+}
+
+/* Theme: Royal Purple */
+[data-theme="purple"] {
+  --gold: #a855f7;
+  --gold-light: #c084fc;
+  --gold-dark: #9333ea;
+  --gold-glow: rgba(168, 85, 247, 0.4);
+  --gold-subtle: rgba(168, 85, 247, 0.1);
+}
+
+/* Theme: Sunset Orange */
+[data-theme="sunset"] {
+  --gold: #f97316;
+  --gold-light: #fb923c;
+  --gold-dark: #ea580c;
+  --gold-glow: rgba(249, 115, 22, 0.4);
+  --gold-subtle: rgba(249, 115, 22, 0.1);
+}
+
+/* Theme: Rose Pink */
+[data-theme="rose"] {
+  --gold: #ec4899;
+  --gold-light: #f472b6;
+  --gold-dark: #db2777;
+  --gold-glow: rgba(236, 72, 153, 0.4);
+  --gold-subtle: rgba(236, 72, 153, 0.1);
+}
+
+/* Theme: Cyan */
+[data-theme="cyan"] {
+  --gold: #06b6d4;
+  --gold-light: #22d3ee;
+  --gold-dark: #0891b2;
+  --gold-glow: rgba(6, 182, 212, 0.4);
+  --gold-subtle: rgba(6, 182, 212, 0.1);
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
@@ -8039,7 +8111,6 @@ body.mm-dragging .mindmap-canvas {
   background: rgba(212,168,36,0.08);
   border-color: var(--gold);
   color: var(--gold);
-  width: auto;
 }
 .sb-browse-btn:hover {
   background: rgba(212,168,36,0.18);
