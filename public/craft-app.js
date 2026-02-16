@@ -218,11 +218,125 @@
     }, SYNC_INTERVAL);
   }
 
+  // ─── Guest Join UI ───
+  function showGuestJoinUI(rid) {
+    var header = document.getElementById('craftHeader');
+    if (header) header.innerHTML = '';
+    document.body.style.cssText = '';
+    
+    var container = document.createElement('div');
+    container.className = 'craft-auth-needed';
+    container.innerHTML = '<div style="font-size:48px">⚔️</div>' +
+      '<h2 style="color:#d4a824;font-family:Cinzel,serif;margin:8px 0 4px;">Join Craft Room</h2>' +
+      '<p>Enter a display name to join as a guest</p>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;width:260px;margin-top:12px;">' +
+        '<input type="text" id="guestNameInput" placeholder="Your name" style="padding:10px 14px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-size:14px;text-align:center;outline:none;" />' +
+        '<button id="guestJoinBtn" style="padding:10px 14px;background:#d4a824;color:#060606;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Join</button>' +
+        '<div style="text-align:center;color:#555;font-size:12px;margin-top:4px;">or</div>' +
+        '<a href="/" style="text-align:center;color:#d4a824;font-size:13px;">Sign in / Create Account</a>' +
+      '</div>';
+    
+    // Clear the page and show join UI
+    var dashboard = document.querySelector('.dashboard');
+    if (dashboard) dashboard.style.display = 'none';
+    document.body.appendChild(container);
+    
+    var input = container.querySelector('#guestNameInput');
+    var btn = container.querySelector('#guestJoinBtn');
+    input.focus();
+    
+    function doJoin() {
+      var name = input.value.trim();
+      if (!name) { input.style.borderColor = '#ef4444'; return; }
+      btn.textContent = 'Joining...';
+      btn.disabled = true;
+      
+      var guestId = getGuestId();
+      apiRequest('/craftrooms/' + rid + '/join', {
+        method: 'POST',
+        body: JSON.stringify({ displayName: name, guestId: guestId })
+      }).then(function() {
+        container.remove();
+        if (dashboard) dashboard.style.display = '';
+        currentUser = { id: null, displayName: name, guestId: guestId };
+        
+        // Get room info
+        return apiRequest('/craftrooms/' + rid);
+      }).then(function(data) {
+        roomInfo = data.room;
+        isOwner = false;
+        renderHeader();
+        startSync();
+      }).catch(function(err) {
+        btn.textContent = 'Join';
+        btn.disabled = false;
+        alert('Failed to join: ' + err.message);
+      });
+    }
+    
+    btn.addEventListener('click', doJoin);
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') doJoin(); });
+  }
+  
+  // ─── Start as authenticated user ───
+  function startAuthenticated(rid) {
+    apiRequest('/auth/me')
+      .then(function(data) {
+        currentUser = data.user;
+
+        // Apply user's theme
+        var userTheme = localStorage.getItem('theme_' + currentUser.id) || 'gold';
+        document.documentElement.setAttribute('data-theme', userTheme);
+
+        // Get room info
+        return apiRequest('/craftrooms/' + rid);
+      })
+      .then(function(data) {
+        roomInfo = data.room;
+        isOwner = roomInfo.owner_id === currentUser.id;
+        renderHeader();
+
+        // Join room
+        return apiRequest('/craftrooms/' + rid + '/join', {
+          method: 'POST',
+          body: JSON.stringify({ displayName: currentUser.displayName })
+        });
+      })
+      .then(function() {
+        startSync();
+      })
+      .catch(function(err) {
+        console.error('Init error:', err);
+        document.body.innerHTML = '<div class="craft-auth-needed">' +
+          '<div style="font-size:48px">⚔️</div>' +
+          '<p>Error: ' + err.message + '</p>' +
+          '<a href="/">← Go to Home</a>' +
+          '</div>';
+      });
+  }
+  
+  // ─── Start sync engine (used by both auth and guest flows) ───
+  function startSync() {
+    function onReady() {
+      pullState();
+      syncInterval = setInterval(pollVersion, SYNC_INTERVAL);
+      sendHeartbeat();
+      heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
+      startChangeDetection();
+      setInterval(function() {
+        apiRequest('/craftrooms/' + roomId + '/members')
+          .then(function(data) { members = data.members || []; renderMembers(); })
+          .catch(function() {});
+      }, 10000);
+    }
+    if (window.craftReady) { onReady(); }
+    else { window.onCraftReady = onReady; }
+  }
+
   // ─── Initialize ───
   function init() {
     var roomUrl = parseRoomUrl();
     if (!roomUrl) {
-      // No room in URL, show error
       document.body.innerHTML = '<div class="craft-auth-needed">' +
         '<div style="font-size:48px">⚔️</div>' +
         '<p>No craft room specified</p>' +
@@ -234,77 +348,13 @@
     roomId = roomUrl.roomId;
     renderHeader();
 
-    // Check auth
     var token = getToken();
     if (!token) {
-      document.body.innerHTML = '<div class="craft-auth-needed">' +
-        '<div style="font-size:48px">⚔️</div>' +
-        '<p>Please log in to access craft rooms</p>' +
-        '<a href="/">← Log in</a>' +
-        '</div>';
+      showGuestJoinUI(roomId);
       return;
     }
 
-    // Get current user
-    apiRequest('/auth/me')
-      .then(function(data) {
-        currentUser = data.user;
-
-        // Apply user's theme
-        var userTheme = localStorage.getItem('theme_' + currentUser.id) || 'gold';
-        document.documentElement.setAttribute('data-theme', userTheme);
-
-        // Get room info
-        return apiRequest('/craftrooms/' + roomId);
-      })
-      .then(function(data) {
-        roomInfo = data.room;
-        isOwner = roomInfo.owner_id === currentUser.id;
-        renderHeader();
-
-        // Join room
-        return apiRequest('/craftrooms/' + roomId + '/join', {
-          method: 'POST',
-          body: JSON.stringify({ displayName: currentUser.display_name })
-        });
-      })
-      .then(function() {
-        // Initial state pull - wait for craft room to be ready
-        function onReady() {
-          pullState();
-
-          // Start sync polling
-          syncInterval = setInterval(pollVersion, SYNC_INTERVAL);
-
-          // Start heartbeat
-          sendHeartbeat();
-          heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
-
-          // Start change detection for pushing local changes
-          startChangeDetection();
-
-          // Refresh members periodically
-          setInterval(function() {
-            apiRequest('/craftrooms/' + roomId + '/members')
-              .then(function(data) { members = data.members || []; renderMembers(); })
-              .catch(function() {});
-          }, 10000);
-        }
-
-        if (window.craftReady) {
-          onReady();
-        } else {
-          window.onCraftReady = onReady;
-        }
-      })
-      .catch(function(err) {
-        console.error('Init error:', err);
-        document.body.innerHTML = '<div class="craft-auth-needed">' +
-          '<div style="font-size:48px">⚔️</div>' +
-          '<p>Error: ' + err.message + '</p>' +
-          '<a href="/">← Go to Home</a>' +
-          '</div>';
-      });
+    startAuthenticated(roomId);
   }
 
   // Clean up on leave
