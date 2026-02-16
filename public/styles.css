@@ -4375,7 +4375,7 @@ body {
 }
 
 .craft-card {
-
+  /* no highlight border */
 }
 
 .visited-card .room-card-content h3::before {
