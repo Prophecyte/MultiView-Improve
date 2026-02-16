@@ -104,7 +104,14 @@
         updateMyRole();
         checkKickedFromMembers();
         if (d.state && window.craftSetState) {
-          window.craftSetState(d.state);
+          // Don't force view switch on non-owners - let them browse pages independently
+          if (!isOwner && d.state.currentView) {
+            var syncState = Object.assign({}, d.state);
+            delete syncState.currentView;
+            window.craftSetState(syncState);
+          } else {
+            window.craftSetState(d.state);
+          }
           lastPushedHash = getStateHash();
         }
         setSyncStatus('synced');
@@ -268,7 +275,7 @@
   }
 
   // ═══ USER SETTINGS MODAL (matches video room exactly) ═══
-  // Tabs: Profile, Email, Password, Theme, Account + Logout button
+  // Tabs: Profile, Email, Password, Theme, Account
   function openUserSettings() {
     if (!currentUser || !currentUser.id) return;
     var old = document.getElementById('craftUserSettingsOverlay'); if (old) old.remove();
@@ -292,18 +299,9 @@
         clearMsg();
         renderUserTab(t.toLowerCase());
       });
-      tabsEl.appendChild(b);
+      // Tabs: Profile, Email, Password, Theme, Account
+    tabsEl.appendChild(b);
     });
-    // Logout tab — matches video room's .settings-tab.logout
-    var logoutBtn = document.createElement('button');
-    logoutBtn.className = 'settings-tab logout';
-    logoutBtn.textContent = 'Logout';
-    logoutBtn.addEventListener('click', function() {
-      apiRequest('/auth/logout', { method: 'POST' }).catch(function(){});
-      localStorage.removeItem('mv_token');
-      window.location.href = '/';
-    });
-    tabsEl.appendChild(logoutBtn);
 
     renderUserTab('profile');
   }
@@ -515,25 +513,37 @@
     }
   }
 
-  // ═══ GUEST JOIN MODAL ═══
+  // ═══ GUEST JOIN MODAL (with returning guest support like video room) ═══
   function showGuestJoinModal() {
     var c = document.getElementById('craftGuestModal'); if (!c) return;
     var dash = document.querySelector('.dashboard'); if (dash) dash.style.display = 'none';
-    c.innerHTML = '<div class="modal-overlay" style="z-index:10000"><div class="modal guest-modal" onclick="event.stopPropagation()"><div class="guest-modal-icon">\uD83D\uDC09</div><h2>Join Craft Room</h2><p>Enter a display name to join</p><div class="modal-input-group"><input type="text" id="guestNameInput" placeholder="Your name (optional)" style="text-align:center;font-size:16px" /></div><button class="btn primary" id="guestJoinBtn" style="width:100%;margin-bottom:8px">Join as Guest</button><div class="guest-modal-divider"><span>or</span></div><button class="btn" id="guestLoginBtn" style="width:100%;background:var(--bg-hover);color:var(--text-secondary)">Sign in / Create Account</button></div></div>';
-    var input = document.getElementById('guestNameInput'), btn = document.getElementById('guestJoinBtn');
-    input.focus();
-    input.addEventListener('input', function() { var n = input.value.trim(); btn.textContent = n ? 'Join as ' + n : 'Join as Guest'; });
-    function doJoin() {
-      var name = input.value.trim() || ('Guest ' + Math.floor(Math.random() * 9000 + 1000));
-      btn.textContent = 'Joining...'; btn.disabled = true; var gid = getGuestId();
-      apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: name, guestId: gid }) })
-        .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; return apiRequest('/craftrooms/' + roomId); })
-        .then(function(d) { roomInfo = d.room; setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu(); startSync(); })
-        .catch(function(err) { btn.textContent = 'Join as Guest'; btn.disabled = false; alert('Failed: ' + err.message); });
+    var isReturning = false;
+    function render() {
+      c.innerHTML = '<div class="modal-overlay" style="z-index:10000"><div class="modal guest-modal" onclick="event.stopPropagation()"><div class="guest-modal-icon">\uD83D\uDC09</div><h2>Join Craft Room</h2><p>' + (isReturning ? 'Enter your previous guest name to continue' : 'Enter a display name or join anonymously') + '</p><div class="modal-input-group"><input type="text" id="guestNameInput" placeholder="' + (isReturning ? 'Your previous guest name' : 'Your name (optional)') + '" style="text-align:center;font-size:16px" /></div><button class="btn primary" id="guestJoinBtn" style="width:100%;margin-bottom:8px">' + (isReturning ? 'Continue' : 'Join as Guest') + '</button><div class="guest-modal-divider"><span>or</span></div><button class="btn" id="guestToggleBtn" style="width:100%;background:var(--bg-hover);color:var(--text-secondary)">' + (isReturning ? 'Join as new guest' : 'I was here before') + '</button><div class="guest-modal-divider"><span>or</span></div><button class="btn" id="guestLoginBtn" style="width:100%;background:var(--bg-hover);color:var(--text-secondary)">Sign in / Create Account</button></div></div>';
+      var input = document.getElementById('guestNameInput'), btn = document.getElementById('guestJoinBtn');
+      input.focus();
+      input.addEventListener('input', function() {
+        var n = input.value.trim();
+        if (isReturning) btn.textContent = n ? 'Continue as ' + n : 'Continue';
+        else btn.textContent = n ? 'Join as ' + n : 'Join as Guest';
+      });
+      function doJoin() {
+        var name = input.value.trim() || ('Guest ' + Math.floor(Math.random() * 9000 + 1000));
+        btn.textContent = 'Joining...'; btn.disabled = true; var gid = getGuestId();
+        if (isReturning && name) {
+          localStorage.setItem('craft_returning_guest_' + roomId, name);
+        }
+        apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: name, guestId: gid, returning: isReturning }) })
+          .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; return apiRequest('/craftrooms/' + roomId); })
+          .then(function(d) { roomInfo = d.room; setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu(); startSync(); })
+          .catch(function(err) { btn.textContent = isReturning ? 'Continue' : 'Join as Guest'; btn.disabled = false; alert('Failed: ' + err.message); });
+      }
+      btn.addEventListener('click', doJoin);
+      input.addEventListener('keydown', function(e) { if (e.key === 'Enter') doJoin(); });
+      document.getElementById('guestToggleBtn').addEventListener('click', function() { isReturning = !isReturning; render(); });
+      document.getElementById('guestLoginBtn').addEventListener('click', function() { window.location.href = '/'; });
     }
-    btn.addEventListener('click', doJoin);
-    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') doJoin(); });
-    document.getElementById('guestLoginBtn').addEventListener('click', function() { window.location.href = '/'; });
+    render();
   }
 
   // ═══ INIT ═══

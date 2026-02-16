@@ -3619,108 +3619,110 @@ function HomePage(props) {
         React.createElement('p', null, 'Watch together and craft adventures with friends')
       ),
       
-      // ─── Video Rooms Section ───
-      React.createElement('div', { className: 'rooms-section video-rooms-section' },
-        React.createElement('div', { className: 'rooms-header' },
-          React.createElement('h2', null, React.createElement('span', { className: 'section-icon' }, '🎬'), ' Video Rooms'),
-          React.createElement('button', { className: 'btn primary', onClick: function() { setShowCreate(true); } }, React.createElement(Icon, { name: 'plus', size: 'sm' }), ' New Room')
-        ),
-        showCreate && React.createElement('div', { className: 'create-room-form' },
-          React.createElement('input', { type: 'text', value: newRoomName, onChange: function(e) { setNewRoomName(e.target.value); }, placeholder: 'Room name', autoFocus: true, onKeyDown: function(e) { if (e.key === 'Enter') createRoom(); } }),
-          React.createElement('button', { className: 'btn primary', onClick: createRoom }, 'Create'),
-          React.createElement('button', { className: 'btn', onClick: function() { setShowCreate(false); } }, 'Cancel')
-        ),
-        rooms.length === 0 && !showCreate && React.createElement('div', { className: 'empty-section' },
-          React.createElement('div', { className: 'empty-icon' }, '🎬'),
-          'Create a Video Room to watch together with friends'
-        ),
-        React.createElement('div', { className: 'rooms-grid' },
-          rooms.map(function(room) {
-            return React.createElement('div', { key: room.id, className: 'room-card video-card' },
-              React.createElement('div', { className: 'room-card-content' },
-                editingRoom === room.id 
-                  ? React.createElement('input', { type: 'text', value: editName, onChange: function(e) { setEditName(e.target.value); }, onBlur: function() { renameRoom(room.id); }, onKeyDown: function(e) { if (e.key === 'Enter') renameRoom(room.id); if (e.key === 'Escape') setEditingRoom(null); }, autoFocus: true, className: 'room-edit-input' })
-                  : React.createElement('h3', null, room.name),
-                React.createElement('div', { className: 'room-meta' },
-                  React.createElement('span', { className: 'room-owner' }, 'Owner'),
-                  room.onlineCount > 0 && React.createElement('span', { className: 'online-badge' }, room.onlineCount + ' online')
-                ),
-                React.createElement('div', { className: 'room-card-actions' },
-                  React.createElement('button', { className: 'btn primary', onClick: function() { props.onEnterRoom(room); } }, React.createElement(Icon, { name: 'enter', size: 'sm' }), ' Enter'),
-                  React.createElement('button', { className: 'icon-btn', onClick: function() { copyShareLink(room.id); }, title: 'Share' }, React.createElement(Icon, { name: 'share', size: 'sm' })),
-                  React.createElement('button', { className: 'icon-btn', onClick: function() { setEditingRoom(room.id); setEditName(room.name); }, title: 'Rename' }, React.createElement(Icon, { name: 'edit', size: 'sm' })),
-                  React.createElement('button', { className: 'icon-btn danger', onClick: function() { deleteRoom(room.id); }, title: 'Delete' }, React.createElement(Icon, { name: 'trash', size: 'sm' }))
+      // ─── 3-Column Layout ───
+      React.createElement('div', { className: 'rooms-columns' },
+        
+        // ─── Video Rooms Column ───
+        React.createElement('div', { className: 'rooms-section video-rooms-section' },
+          React.createElement('div', { className: 'rooms-header' },
+            React.createElement('h2', null, 'Video Rooms'),
+            React.createElement('button', { className: 'btn primary', onClick: function() { setShowCreate(true); } }, React.createElement(Icon, { name: 'plus', size: 'sm' }), ' New Room')
+          ),
+          showCreate && React.createElement('div', { className: 'create-room-form' },
+            React.createElement('input', { type: 'text', value: newRoomName, onChange: function(e) { setNewRoomName(e.target.value); }, placeholder: 'Room name', autoFocus: true, onKeyDown: function(e) { if (e.key === 'Enter') createRoom(); } }),
+            React.createElement('button', { className: 'btn primary', onClick: createRoom }, 'Create'),
+            React.createElement('button', { className: 'btn', onClick: function() { setShowCreate(false); } }, 'Cancel')
+          ),
+          rooms.length === 0 && !showCreate && React.createElement('div', { className: 'empty-section' },
+            'Create a Video Room to watch together with friends'
+          ),
+          React.createElement('div', { className: 'rooms-grid' },
+            rooms.map(function(room) {
+              return React.createElement('div', { key: room.id, className: 'room-card video-card' },
+                React.createElement('div', { className: 'room-card-content' },
+                  editingRoom === room.id 
+                    ? React.createElement('input', { type: 'text', value: editName, onChange: function(e) { setEditName(e.target.value); }, onBlur: function() { renameRoom(room.id); }, onKeyDown: function(e) { if (e.key === 'Enter') renameRoom(room.id); if (e.key === 'Escape') setEditingRoom(null); }, autoFocus: true, className: 'room-edit-input' })
+                    : React.createElement('h3', null, room.name),
+                  React.createElement('div', { className: 'room-meta' },
+                    React.createElement('span', { className: 'room-owner' }, 'Owner'),
+                    room.onlineCount > 0 && React.createElement('span', { className: 'online-badge' }, room.onlineCount + ' online')
+                  ),
+                  React.createElement('div', { className: 'room-card-actions' },
+                    React.createElement('button', { className: 'btn primary', onClick: function() { props.onEnterRoom(room); } }, React.createElement(Icon, { name: 'enter', size: 'sm' }), ' Enter'),
+                    React.createElement('button', { className: 'icon-btn', onClick: function() { copyShareLink(room.id); }, title: 'Share' }, React.createElement(Icon, { name: 'share', size: 'sm' })),
+                    React.createElement('button', { className: 'icon-btn', onClick: function() { setEditingRoom(room.id); setEditName(room.name); }, title: 'Rename' }, React.createElement(Icon, { name: 'edit', size: 'sm' })),
+                    React.createElement('button', { className: 'icon-btn danger', onClick: function() { deleteRoom(room.id); }, title: 'Delete' }, React.createElement(Icon, { name: 'trash', size: 'sm' }))
+                  )
                 )
-              )
-            );
-          })
-        )
-      ),
-      
-      // ─── Craft Rooms Section ───
-      React.createElement('div', { className: 'rooms-section craft-rooms-section' },
-        React.createElement('div', { className: 'rooms-header' },
-          React.createElement('h2', null, React.createElement('span', { className: 'section-icon' }, '⚔️'), ' Craft Rooms'),
-          React.createElement('button', { className: 'btn primary', onClick: function() { setShowCreateCraft(true); } }, React.createElement(Icon, { name: 'plus', size: 'sm' }), ' New Craft Room')
+              );
+            })
+          )
         ),
-        showCreateCraft && React.createElement('div', { className: 'create-room-form' },
-          React.createElement('input', { type: 'text', value: newCraftName, onChange: function(e) { setNewCraftName(e.target.value); }, placeholder: 'Craft room name', autoFocus: true, onKeyDown: function(e) { if (e.key === 'Enter') createCraftRoom(); } }),
-          React.createElement('button', { className: 'btn primary', onClick: createCraftRoom }, 'Create'),
-          React.createElement('button', { className: 'btn', onClick: function() { setShowCreateCraft(false); } }, 'Cancel')
-        ),
-        craftRooms.length === 0 && !showCreateCraft && React.createElement('div', { className: 'empty-section' },
-          React.createElement('div', { className: 'empty-icon' }, '⚔️'),
-          'Create a Craft Room for character sheets, writing, soundscapes, and more'
-        ),
-        React.createElement('div', { className: 'rooms-grid' },
-          craftRooms.map(function(room) {
-            var isMine = room.owner_id === user.id;
-            return React.createElement('div', { key: room.id, className: 'room-card craft-card' },
-              React.createElement('div', { className: 'room-card-content' },
-                editingCraftRoom === room.id
-                  ? React.createElement('input', { type: 'text', value: editCraftName, onChange: function(e) { setEditCraftName(e.target.value); }, onBlur: function() { renameCraftRoom(room.id); }, onKeyDown: function(e) { if (e.key === 'Enter') renameCraftRoom(room.id); if (e.key === 'Escape') setEditingCraftRoom(null); }, autoFocus: true, className: 'room-edit-input' })
-                  : React.createElement('h3', { className: 'craft-card-title' }, room.name),
-                React.createElement('div', { className: 'room-meta' },
-                  isMine
-                    ? React.createElement('span', { className: 'room-owner' }, 'Owner')
-                    : React.createElement('span', { className: 'room-joined-badge' }, 'Joined'),
-                  !isMine && React.createElement('span', { className: 'room-owner' }, 'by ' + (room.owner_name || 'Unknown')),
-                  room.member_count > 1 && React.createElement('span', { className: 'online-badge' }, room.member_count + ' members')
-                ),
-                React.createElement('div', { className: 'room-card-actions' },
-                  React.createElement('button', { className: 'btn primary', onClick: function() { window.location.href = '/craft.html#/room/' + (room.owner_id || user.id) + '/' + room.id; } }, React.createElement(Icon, { name: 'enter', size: 'sm' }), ' Enter'),
-                  React.createElement('button', { className: 'icon-btn', onClick: function() { copyCraftShareLink(room.id, room.owner_id || user.id); }, title: 'Share' }, React.createElement(Icon, { name: 'share', size: 'sm' })),
-                  isMine && React.createElement('button', { className: 'icon-btn', onClick: function() { setEditingCraftRoom(room.id); setEditCraftName(room.name); }, title: 'Rename' }, React.createElement(Icon, { name: 'edit', size: 'sm' })),
-                  isMine && React.createElement('button', { className: 'icon-btn danger', onClick: function() { deleteCraftRoom(room.id); }, title: 'Delete' }, React.createElement(Icon, { name: 'trash', size: 'sm' }))
+        
+        // ─── Craft Rooms Column ───
+        React.createElement('div', { className: 'rooms-section craft-rooms-section' },
+          React.createElement('div', { className: 'rooms-header' },
+            React.createElement('h2', null, 'Craft Rooms'),
+            React.createElement('button', { className: 'btn primary', onClick: function() { setShowCreateCraft(true); } }, React.createElement(Icon, { name: 'plus', size: 'sm' }), ' New Craft Room')
+          ),
+          showCreateCraft && React.createElement('div', { className: 'create-room-form' },
+            React.createElement('input', { type: 'text', value: newCraftName, onChange: function(e) { setNewCraftName(e.target.value); }, placeholder: 'Craft room name', autoFocus: true, onKeyDown: function(e) { if (e.key === 'Enter') createCraftRoom(); } }),
+            React.createElement('button', { className: 'btn primary', onClick: createCraftRoom }, 'Create'),
+            React.createElement('button', { className: 'btn', onClick: function() { setShowCreateCraft(false); } }, 'Cancel')
+          ),
+          craftRooms.length === 0 && !showCreateCraft && React.createElement('div', { className: 'empty-section' },
+            'Create a Craft Room for character sheets, writing, soundscapes, and more'
+          ),
+          React.createElement('div', { className: 'rooms-grid' },
+            craftRooms.map(function(room) {
+              var isMine = room.owner_id === user.id;
+              return React.createElement('div', { key: room.id, className: 'room-card craft-card' },
+                React.createElement('div', { className: 'room-card-content' },
+                  editingCraftRoom === room.id
+                    ? React.createElement('input', { type: 'text', value: editCraftName, onChange: function(e) { setEditCraftName(e.target.value); }, onBlur: function() { renameCraftRoom(room.id); }, onKeyDown: function(e) { if (e.key === 'Enter') renameCraftRoom(room.id); if (e.key === 'Escape') setEditingCraftRoom(null); }, autoFocus: true, className: 'room-edit-input' })
+                    : React.createElement('h3', { className: 'craft-card-title' }, room.name),
+                  React.createElement('div', { className: 'room-meta' },
+                    isMine
+                      ? React.createElement('span', { className: 'room-owner' }, 'Owner')
+                      : React.createElement('span', { className: 'room-joined-badge' }, 'Joined'),
+                    !isMine && React.createElement('span', { className: 'room-owner' }, 'by ' + (room.owner_name || 'Unknown')),
+                    room.member_count > 1 && React.createElement('span', { className: 'online-badge' }, room.member_count + ' members')
+                  ),
+                  React.createElement('div', { className: 'room-card-actions' },
+                    React.createElement('button', { className: 'btn primary', onClick: function() { window.location.href = '/craft.html#/room/' + (room.owner_id || user.id) + '/' + room.id; } }, React.createElement(Icon, { name: 'enter', size: 'sm' }), ' Enter'),
+                    React.createElement('button', { className: 'icon-btn', onClick: function() { copyCraftShareLink(room.id, room.owner_id || user.id); }, title: 'Share' }, React.createElement(Icon, { name: 'share', size: 'sm' })),
+                    isMine && React.createElement('button', { className: 'icon-btn', onClick: function() { setEditingCraftRoom(room.id); setEditCraftName(room.name); }, title: 'Rename' }, React.createElement(Icon, { name: 'edit', size: 'sm' })),
+                    isMine && React.createElement('button', { className: 'icon-btn danger', onClick: function() { deleteCraftRoom(room.id); }, title: 'Delete' }, React.createElement(Icon, { name: 'trash', size: 'sm' }))
+                  )
                 )
-              )
-            );
-          })
-        )
-      ),
-      
-      // ─── Visited Video Rooms ───
-      visitedRooms.length > 0 && React.createElement('div', { className: 'rooms-section visited-rooms-section' },
-        React.createElement('div', { className: 'rooms-header' },
-          React.createElement('h2', null, React.createElement('span', { className: 'section-icon' }, '🕐'), ' Recently Visited')
+              );
+            })
+          )
         ),
-        React.createElement('div', { className: 'rooms-grid' },
-          visitedRooms.map(function(room) {
-            return React.createElement('div', { key: room.id, className: 'room-card visited-card' },
-              React.createElement('div', { className: 'room-card-content' },
-                React.createElement('h3', null, room.name),
-                React.createElement('div', { className: 'room-meta' },
-                  React.createElement('span', { className: 'room-owner' }, 'by ' + room.ownerName),
-                  room.onlineCount > 0 && React.createElement('span', { className: 'online-badge' }, room.onlineCount + ' online'),
-                  React.createElement('span', { className: 'last-visited' }, formatTimeAgo(room.lastVisited))
-                ),
-                React.createElement('div', { className: 'room-card-actions' },
-                  React.createElement('button', { className: 'btn primary', onClick: function() { enterVisitedRoom(room); } }, React.createElement(Icon, { name: 'enter', size: 'sm' }), ' Join'),
-                  React.createElement('button', { className: 'icon-btn danger', onClick: function() { removeVisitedRoom(room.id); }, title: 'Remove from history' }, React.createElement(Icon, { name: 'x', size: 'sm' }))
+        
+        // ─── Recently Visited Column (only if has rooms) ───
+        visitedRooms.length > 0 && React.createElement('div', { className: 'rooms-section visited-rooms-section' },
+          React.createElement('div', { className: 'rooms-header' },
+            React.createElement('h2', null, 'Recently Visited')
+          ),
+          React.createElement('div', { className: 'rooms-grid' },
+            visitedRooms.map(function(room) {
+              return React.createElement('div', { key: room.id, className: 'room-card visited-card' },
+                React.createElement('div', { className: 'room-card-content' },
+                  React.createElement('h3', null, room.name),
+                  React.createElement('div', { className: 'room-meta' },
+                    React.createElement('span', { className: 'room-owner' }, 'by ' + room.ownerName),
+                    room.onlineCount > 0 && React.createElement('span', { className: 'online-badge' }, room.onlineCount + ' online'),
+                    React.createElement('span', { className: 'last-visited' }, formatTimeAgo(room.lastVisited))
+                  ),
+                  React.createElement('div', { className: 'room-card-actions' },
+                    React.createElement('button', { className: 'btn primary', onClick: function() { enterVisitedRoom(room); } }, React.createElement(Icon, { name: 'enter', size: 'sm' }), ' Join'),
+                    React.createElement('button', { className: 'icon-btn danger', onClick: function() { removeVisitedRoom(room.id); }, title: 'Remove from history' }, React.createElement(Icon, { name: 'x', size: 'sm' }))
+                  )
                 )
-              )
-            );
-          })
+              );
+            })
+          )
         )
       )
     ),
