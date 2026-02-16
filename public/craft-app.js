@@ -76,6 +76,8 @@
     clearInterval(heartbeatTimer);
     clearInterval(memberTimer);
     clearTimeout(pushTimer);
+    // Clear guest ID so they can rejoin with a fresh identity
+    localStorage.removeItem('mv_guest_id');
     alert('You have been removed from this room.');
     window.location.href = '/';
   }
@@ -414,7 +416,7 @@
           var uid = m.user_id || '', gid = m.guest_id || '', role = m.role || 'viewer', canHidden = m.can_view_hidden || false;
           var statusCls = m.status === 'online' ? 'online' : 'offline';
           var row = document.createElement('div'); row.className = 'perm-row';
-          row.innerHTML = '<div class="perm-info"><span class="perm-name">' + esc(m.display_name) + (m.guest_id ? ' <span style="opacity:0.5;font-size:10px">(guest)</span>' : '') + '</span><span class="perm-status ' + statusCls + '">' + (statusCls === 'online' ? '\u25CF Online' : '\u25CB Offline') + '</span></div><div class="perm-controls"><select class="perm-select" data-uid="' + uid + '" data-gid="' + gid + '"><option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>\uD83D\uDC41 View Only</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>\u270F\uFE0F Can Edit</option></select><label class="perm-cb"><input type="checkbox" data-uid="' + uid + '" data-gid="' + gid + '"' + (canHidden ? ' checked' : '') + ' /><span>See hidden</span></label></div>';
+          row.innerHTML = '<div class="perm-info"><span class="perm-name">' + esc(m.display_name) + (m.guest_id ? ' <span style="opacity:0.5;font-size:10px">(guest)</span>' : '') + '</span><span class="perm-status ' + statusCls + '">' + (statusCls === 'online' ? '\u25CF Online' : '\u25CB Offline') + '</span></div><div class="perm-controls"><select class="perm-select" data-uid="' + uid + '" data-gid="' + gid + '"><option value="viewer"' + (role === 'viewer' ? ' selected' : '') + '>\uD83D\uDC41 View Only</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>\u270F\uFE0F Can Edit</option></select><label class="perm-cb"><input type="checkbox" data-uid="' + uid + '" data-gid="' + gid + '"' + (canHidden ? ' checked' : '') + ' /><span>See hidden</span></label><button class="perm-kick" data-uid="' + uid + '" data-gid="' + gid + '" data-name="' + esc(m.display_name) + '" title="Kick user" style="background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:4px">Kick</button></div>';
           div.appendChild(row);
         });
         div.querySelectorAll('.perm-select').forEach(function(sel) {
@@ -430,86 +432,31 @@
               .catch(function(err) { alert('Error: ' + err.message); });
           });
         });
+        div.querySelectorAll('.perm-kick').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            if (confirm('Kick ' + btn.dataset.name + ' from this room?')) {
+              apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: btn.dataset.uid ? btn.dataset.uid : undefined, guestId: btn.dataset.gid ? btn.dataset.gid : undefined }) })
+                .then(function() { refreshMembers(); var overlay = document.getElementById('craftUserSettingsOverlay'); if (overlay) overlay.remove(); })
+                .catch(function(err) { alert('Failed: ' + err.message); });
+            }
+          });
+        });
       }
       modalBody.appendChild(div);
     };
   }
 
-  // ═══ CONNECTED BAR (matches video room connected-users-section design) ═══
+  // ═══ CONNECTED BAR REMOVED - sync pill in status bar, users in cogwheel ═══
   var activeCtx = null;
   function closeCtx() { if (activeCtx) { activeCtx.remove(); activeCtx = null; } }
   document.addEventListener('click', closeCtx);
 
   function renderConnectedBar() {
-    var bar = document.getElementById('craftConnectedBar'); if (!bar || !roomId) return;
-    bar.style.display = '';
-    var myId = currentUser ? (currentUser.id || currentUser.guestId) : null;
-    updateMyRole();
-
-    var onlineMembers = [];
-    var offlineMembers = [];
-    members.forEach(function(m) {
-      if (m.status === 'online') onlineMembers.push(m);
-      else offlineMembers.push(m);
-    });
-
-    bar.innerHTML = '<div class="connected-header"><h4><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> Connected</h4><span class="online-count"><span class="count">' + onlineMembers.length + '</span> online</span><span class="sync-pill ' + syncStatus + '" id="craftSyncPill">' + (syncStatus === 'synced' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing...' : 'Offline') + '</span></div><div class="users-list" id="barUsersList"></div>';
-
-    var container = document.getElementById('barUsersList');
-
-    function renderBadge(m) {
-      var uid = m.user_id || m.guest_id;
-      var isYou = uid === myId;
-      var online = m.status === 'online';
-      var isGuest = !!m.guest_id;
-
-      var chip = document.createElement('div');
-      var cls = 'user-badge ' + (online ? 'online' : 'offline');
-      if (isYou) cls += ' is-you';
-      if (m.is_owner) cls += ' is-owner';
-      chip.className = cls;
-
-      chip.innerHTML =
-        (m.is_owner ? '<span class="owner-crown">\uD83D\uDC51</span>' : '') +
-        '<span class="status-indicator ' + (online ? 'online' : 'offline') + '"></span>' +
-        '<span class="badge-name">' + esc(m.display_name) + '</span>' +
-        (isYou ? '<span class="you-tag">(you)</span>' : '') +
-        (isGuest && !isYou ? '<span class="guest-tag-badge">(guest)</span>' : '') +
-        (m.role && !m.is_owner ? '<span class="role-chip">' + (m.role === 'editor' ? '\u270F\uFE0F' : '\uD83D\uDC41') + '</span>' : '');
-
-      if (isOwner && !isYou) {
-        chip.style.cursor = 'context-menu';
-        chip.addEventListener('contextmenu', function(e) {
-          e.preventDefault(); e.stopPropagation(); closeCtx();
-          var menu = document.createElement('div');
-          menu.className = 'context-menu';
-          menu.style.cssText = 'position:fixed;left:' + Math.min(e.clientX, window.innerWidth - 170) + 'px;top:' + e.clientY + 'px;z-index:10000';
-          menu.innerHTML = '<button class="context-menu-item danger">\u2715 Kick ' + esc(m.display_name) + '</button>';
-          menu.querySelector('.context-menu-item').addEventListener('click', function() {
-            if (confirm('Kick ' + m.display_name + ' from this room?')) {
-              apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: m.user_id || undefined, guestId: m.guest_id || undefined }) })
-                .then(function() { refreshMembers(); })
-                .catch(function(err) { alert('Failed: ' + err.message); });
-            }
-            closeCtx();
-          });
-          document.body.appendChild(menu); activeCtx = menu;
-        });
-      }
-      return chip;
-    }
-
-    if (onlineMembers.length === 0 && offlineMembers.length === 0) {
-      container.innerHTML = '<div class="no-users">No one here yet</div>';
-    } else {
-      onlineMembers.forEach(function(m) { container.appendChild(renderBadge(m)); });
-      if (offlineMembers.length > 0) {
-        var divider = document.createElement('div');
-        divider.className = 'offline-divider';
-        divider.textContent = 'Offline';
-        container.appendChild(divider);
-        offlineMembers.forEach(function(m) { container.appendChild(renderBadge(m)); });
-      }
+    // No bottom bar - just update sync pill in status bar
+    var pill = document.getElementById('craftSyncPill');
+    if (pill) {
+      pill.className = 'sync-pill ' + syncStatus;
+      pill.textContent = syncStatus === 'synced' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing...' : 'Offline';
     }
   }
 
