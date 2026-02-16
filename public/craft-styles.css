@@ -8039,6 +8039,7 @@ body.mm-dragging .mindmap-canvas {
   background: rgba(212,168,36,0.08);
   border-color: var(--gold);
   color: var(--gold);
+  width: auto;
 }
 .sb-browse-btn:hover {
   background: rgba(212,168,36,0.18);
