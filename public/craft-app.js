@@ -112,6 +112,13 @@
             delete syncState.currentView;
             window.craftSetState(syncState);
           } else {
+            // For owners, don't let synced viewSettings overwrite local settings
+            if (isOwner && d.state.viewSettings) {
+              var localVS = localStorage.getItem('craftViewSettings');
+              if (localVS) {
+                d.state.viewSettings = JSON.parse(localVS);
+              }
+            }
             window.craftSetState(d.state);
           }
           lastPushedHash = getStateHash();

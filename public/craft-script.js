@@ -9646,15 +9646,21 @@ function initViewSettings() {
     settingsInitialized = true;
     applyViewSettings();
   } else {
-    // First time — show settings modal only for room owner
+    // Default: all views enabled so nothing is hidden
     viewSettings = {};
-    VIEW_CONFIG.forEach(v => { viewSettings[v.key] = (v.key === 'board' || v.key === 'write'); });
-    settingsInitialized = false;
-    // Delay check so craft-app.js can set window.craftIsOwner after auth
-    setTimeout(() => {
-      if (window.craftIsOwner) window.openSettingsModal();
-      else { applyViewSettings(); settingsInitialized = true; }
-    }, 500);
+    VIEW_CONFIG.forEach(v => { viewSettings[v.key] = true; });
+    settingsInitialized = true;
+    applyViewSettings();
+    // Show settings popup for room owner so they can customize
+    // Keep checking until craftIsOwner is determined (auth is async)
+    let checks = 0;
+    const checkOwner = setInterval(() => {
+      checks++;
+      if (window.craftIsOwner !== undefined || checks > 20) {
+        clearInterval(checkOwner);
+        if (window.craftIsOwner) window.openSettingsModal();
+      }
+    }, 250);
   }
 }
 
@@ -13206,11 +13212,13 @@ window.craftGetState = function() {
     sbCustomSounds: sbCustomSounds.filter(s => s.type !== 'file').map(s => JSON.parse(JSON.stringify(s))),
     // Active sound channels for sync (which sounds are playing + volumes)
     sbActiveMix: (function() {
-      var mix = {};
-      Object.entries(sbActiveChannels).forEach(function([id, ch]) {
-        if (ch.playing) mix[id] = { volume: ch.volume };
-      });
-      return mix;
+      try {
+        var mix = {};
+        Object.entries(sbActiveChannels).forEach(function([id, ch]) {
+          if (ch && ch.playing) mix[id] = { volume: ch.volume };
+        });
+        return mix;
+      } catch(e) { return {}; }
     })(),
     sbMasterVol: Math.round(sbMasterVol * 100),
     // Note: file-type sounds with dataURLs are excluded from sync (too large)
@@ -13246,44 +13254,42 @@ window.craftSetState = function(state, skipRender) {
     sbCustomSounds = [...localFiles, ...synced];
   }
   
-  // Apply active sound mix from sync (don't stop/restart if already matching)
-  if (state.sbActiveMix !== undefined) {
-    const mix = state.sbActiveMix || {};
-    const currentIds = new Set(Object.keys(sbActiveChannels).filter(id => sbActiveChannels[id]?.playing));
-    const targetIds = new Set(Object.keys(mix));
+  // Sound sync: wrapped in try/catch to never break state rendering
+  try {
+    // Only auto-play/stop sounds for non-owners (owners control their own sounds)
+    if (state.sbActiveMix !== undefined && !window.craftIsOwner) {
+      const mix = state.sbActiveMix || {};
+      const currentIds = new Set(Object.keys(sbActiveChannels).filter(id => sbActiveChannels[id] && sbActiveChannels[id].playing));
+      const targetIds = new Set(Object.keys(mix));
+      
+      // Stop sounds not in target mix
+      currentIds.forEach(id => {
+        if (!targetIds.has(id)) sbStop(id);
+      });
+      
+      // Start sounds in target mix that aren't playing
+      targetIds.forEach(id => {
+        const def = sbGetAll().find(s => s.id === id);
+        if (!def) return;
+        if (!currentIds.has(id)) {
+          sbActiveChannels[id] = { volume: mix[id].volume };
+          sbStart(id);
+        }
+        sbSetVol(id, mix[id].volume);
+      });
+    }
     
-    // Stop sounds not in target mix
-    currentIds.forEach(id => {
-      if (!targetIds.has(id)) sbStop(id);
-    });
-    
-    // Start sounds in target mix that aren't playing, adjust volumes
-    targetIds.forEach(id => {
-      const def = sbGetAll().find(s => s.id === id);
-      if (!def) return;
-      if (!currentIds.has(id)) {
-        sbActiveChannels[id] = { volume: mix[id].volume };
-        sbStart(id);
-      }
-      // Apply synced volume (with personal override)
-      const vol = mix[id].volume;
-      sbSetVol(id, vol);
-      const sl = document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol`);
-      const vl = document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol-val`);
-      if (sl) sl.value = vol;
-      if (vl) vl.textContent = vol + '%';
-    });
-  }
-  
-  // Apply master volume from sync (but personal volume overrides locally)
-  if (state.sbMasterVol !== undefined && !window.craftIsOwner) {
-    const mv = state.sbMasterVol / 100;
-    sbMasterVol = mv;
-    if (sbMasterGain) sbMasterGain.gain.setTargetAtTime(sbMasterVol * sbPersonalVol, sbAudioCtx.currentTime, 0.02);
-    const mSlider = document.getElementById('sbMasterVol');
-    const mVal = document.getElementById('sbMasterVolVal');
-    if (mSlider) mSlider.value = state.sbMasterVol;
-    if (mVal) mVal.textContent = Math.round(state.sbMasterVol) + '%';
+    // Apply master volume from sync for non-owners
+    if (state.sbMasterVol !== undefined && !window.craftIsOwner && sbMasterGain && sbAudioCtx) {
+      sbMasterVol = state.sbMasterVol / 100;
+      sbMasterGain.gain.setTargetAtTime(sbMasterVol * sbPersonalVol, sbAudioCtx.currentTime, 0.02);
+      const mSlider = document.getElementById('sbMasterVol');
+      const mVal = document.getElementById('sbMasterVolVal');
+      if (mSlider) mSlider.value = state.sbMasterVol;
+      if (mVal) mVal.textContent = Math.round(state.sbMasterVol) + '%';
+    }
+  } catch(soundErr) {
+    console.warn('Sound sync error (non-fatal):', soundErr);
   }
   
   if (!skipRender) {
