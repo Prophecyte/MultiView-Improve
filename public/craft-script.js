@@ -4546,8 +4546,8 @@ function addCard(type) {
 function handleCardClick(cardEl, event) {
   if (currentTool === 'connect') {
     handleConnectionClick(cardEl);
-  } else if (event && event.shiftKey) {
-    // Shift+click: toggle this card in multi-selection
+  } else if (event && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+    // Shift/Ctrl/Cmd+click: toggle this card in multi-selection
     addToMultiSelect(cardEl);
   } else {
     selectCard(cardEl);
@@ -6877,20 +6877,30 @@ function handleKeyboard(e) {
     case 'Delete':
     case 'Backspace':
       if (currentView === 'board' && (multiSelectedCards.size > 0 || multiSelectedConnections.length > 0)) {
+        const cardCount = multiSelectedCards.size;
+        const connCount = multiSelectedConnections.length;
+        const parts = [];
+        if (cardCount > 0) parts.push(cardCount + ' card' + (cardCount > 1 ? 's' : ''));
+        if (connCount > 0) parts.push(connCount + ' connection' + (connCount > 1 ? 's' : ''));
+        if (!confirm('Delete ' + parts.join(' and ') + '?')) break;
         saveUndoState();
-        multiSelectedCards.forEach(cardId => deleteCard(cardId));
+        // Collect IDs before iterating (deleteCard calls deselectAll which clears the Set)
+        const cardIds = [...multiSelectedCards];
+        const conns = [...multiSelectedConnections];
         multiSelectedCards.clear();
-        if (multiSelectedConnections.length > 0) {
+        multiSelectedConnections = [];
+        cardIds.forEach(cardId => deleteCard(cardId));
+        if (conns.length > 0) {
           const board = getCurrentBoard();
           if (board) {
-            multiSelectedConnections.forEach(mc => {
+            conns.forEach(mc => {
               board.connections = board.connections.filter(c => !(c.from === mc.from && c.to === mc.to));
             });
-            multiSelectedConnections = [];
             renderConnections();
           }
         }
         setToolbarMode('none');
+        showNotif('Deleted ' + parts.join(' and '));
       } else if (currentView === 'board' && selectedCard) {
         saveUndoState();
         deleteCard(selectedCard.id);
