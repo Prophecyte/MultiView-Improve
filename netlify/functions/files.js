@@ -174,7 +174,7 @@ export const handler = async (event, context) => {
 
     // POST /files/complete - Register uploaded file in database
     if (event.httpMethod === 'POST' && path === '/complete') {
-      const { fileId, fileKey, filename, publicUrl, category, size, roomId } = body;
+      const { fileId, fileKey, filename, publicUrl, category, size, roomId, contentType } = body;
 
       if (!fileId || !publicUrl || !roomId) {
         return {
@@ -185,11 +185,44 @@ export const handler = async (event, context) => {
       }
 
       const user = await getUserFromToken(event.headers.authorization || event.headers.Authorization);
+      const safeContentType = contentType || 'application/octet-stream';
+      const safeSize = size || 0;
 
-      // Store file reference in database (not the file data itself)
+      // 1) If it's a video "room"
+      const [videoRoom] = await sql`SELECT id FROM rooms WHERE id = ${roomId}::uuid`;
+      if (videoRoom) {
+        await sql`
+          INSERT INTO uploaded_files (id, room_id, filename, content_type, category, data, size, uploaded_by)
+          VALUES (${fileId}, ${roomId}::uuid, ${filename}, ${safeContentType}, ${category}, ${publicUrl}, ${safeSize}, ${user ? user.id : null})
+        `;
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            fileId,
+            url: publicUrl,
+            filename,
+            category
+          })
+        };
+      }
+
+      // 2) Otherwise, treat it as a craft room
+      const [craftRoom] = await sql`SELECT id FROM craft_rooms WHERE id = ${roomId}::uuid`;
+      if (!craftRoom) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Invalid roomId (not found in rooms or craft_rooms)' })
+        };
+      }
+
+      // Note: requires craft_uploaded_files table
       await sql`
-        INSERT INTO uploaded_files (id, room_id, filename, content_type, category, data, size, uploaded_by)
-        VALUES (${fileId}, ${roomId}::uuid, ${filename}, ${category}, ${category}, ${publicUrl}, ${size || 0}, ${user ? user.id : null})
+        INSERT INTO craft_uploaded_files (id, craft_room_id, filename, content_type, category, url, size, uploaded_by)
+        VALUES (${fileId}, ${roomId}::uuid, ${filename}, ${safeContentType}, ${category}, ${publicUrl}, ${safeSize}, ${user ? user.id : null})
       `;
 
       return {
@@ -205,7 +238,7 @@ export const handler = async (event, context) => {
       };
     }
 
-    // GET /files/:fileId - Get file info (redirect to R2 URL)
+    // GET /files/:fileId - Get file info (redirect to R2 URL) (video rooms only)
     const fileMatch = path.match(/^\/([a-zA-Z0-9_-]+)$/);
     if (event.httpMethod === 'GET' && fileMatch) {
       const fileId = fileMatch[1];
@@ -231,7 +264,7 @@ export const handler = async (event, context) => {
       };
     }
 
-    // DELETE /files/:fileId
+    // DELETE /files/:fileId (video rooms only)
     const deleteMatch = path.match(/^\/([a-zA-Z0-9_-]+)$/);
     if (event.httpMethod === 'DELETE' && deleteMatch) {
       await sql`DELETE FROM uploaded_files WHERE id = ${deleteMatch[1]}`;
