@@ -2343,13 +2343,31 @@ body {
 }
 
 .card.design-worn {
-  background: linear-gradient(145deg, #1f1b16 0%, #17140f 40%, #1a1610 60%, #1e1912 100%);
+  background: #17140f;
   border: 1px solid rgba(140, 115, 75, 0.25);
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(200, 170, 120, 0.04), 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+.card.design-worn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('https://i.imgur.com/yJlDnag.png') center/cover no-repeat;
+  opacity: 0.3;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+.card.design-worn .card-content {
+  position: relative;
+  z-index: 1;
 }
 .card.design-worn .card-type-indicator {
   background: linear-gradient(90deg, #6b5a3e, #8b7355, #6b5a3e);
   opacity: 0.7;
+  position: relative;
+  z-index: 1;
 }
 
 .card.design-frost {
@@ -2568,24 +2586,21 @@ select optgroup {
 }
 
 .card.design-parchment {
-  background:
-    repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(120, 100, 60, 0.03) 18px, rgba(120, 100, 60, 0.03) 19px),
-    linear-gradient(135deg, #2d2418 0%, #241f16 30%, #2a2318 50%, #211c14 70%, #28221a 100%);
+  background: #1e1a14;
   border: 1px solid rgba(168, 140, 100, 0.3);
   box-shadow:
     inset 0 0 30px rgba(0, 0, 0, 0.25),
-    inset 0 0 8px rgba(168, 140, 100, 0.06),
     0 4px 12px rgba(0, 0, 0, 0.4);
-  border-image: none;
+  position: relative;
+  overflow: hidden;
 }
 .card.design-parchment::before {
   content: '';
   position: absolute;
   inset: 0;
+  background: url('https://i.imgur.com/p7iuMYE.png') center/cover no-repeat;
+  opacity: 0.35;
   border-radius: inherit;
-  background:
-    radial-gradient(ellipse at 10% 10%, rgba(168, 140, 100, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 90% 90%, rgba(100, 80, 50, 0.06) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
@@ -2596,6 +2611,8 @@ select optgroup {
 
 .card.design-parchment .card-type-indicator {
   background: linear-gradient(90deg, #8b6914, #c49b2a, #8b6914);
+  position: relative;
+  z-index: 1;
 }
 
 /* New Fantasy Designs */
@@ -2663,6 +2680,56 @@ select optgroup {
 }
 .card.design-void:hover {
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(50, 50, 100, 0.05), 0 12px 40px rgba(0, 0, 0, 0.8);
+}
+
+.card.design-scifi {
+  background: linear-gradient(180deg, #050a12 0%, #0a1628 40%, #061020 100%);
+  border: 1px solid rgba(0, 200, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 200, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 200, 255, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+.card.design-scifi::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(0deg, transparent 49%, rgba(0, 200, 255, 0.02) 49.5%, rgba(0, 200, 255, 0.02) 50.5%, transparent 51%),
+    repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0, 200, 255, 0.012) 3px, rgba(0, 200, 255, 0.012) 4px);
+  pointer-events: none;
+  z-index: 0;
+}
+.card.design-scifi::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0, 200, 255, 0.4) 20%, rgba(0, 200, 255, 0.6) 50%, rgba(0, 200, 255, 0.4) 80%, transparent 100%);
+  z-index: 2;
+}
+.card.design-scifi .card-content {
+  position: relative;
+  z-index: 1;
+}
+.card.design-scifi .card-type-indicator {
+  background: linear-gradient(90deg, #003050, #00c8ff, #003050);
+  box-shadow: 0 0 10px rgba(0, 200, 255, 0.4);
+  position: relative;
+  z-index: 1;
+}
+.card.design-scifi:hover {
+  border-color: rgba(0, 200, 255, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 200, 255, 0.12),
+    0 0 20px rgba(0, 200, 255, 0.06),
+    0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.card.design-scifi.selected {
+  border-color: rgba(0, 200, 255, 0.5);
+  box-shadow: 0 0 25px rgba(0, 200, 255, 0.12), 0 0 4px 1px rgba(0, 200, 255, 0.2);
 }
 
 /* Card edge styles */
@@ -8189,7 +8256,7 @@ body.mm-dragging .mindmap-canvas {
 /* MultiView connected indicator */
 #sbMvConnectBtn.mv-connected { color: var(--gold); border-color: var(--gold); }
 #sbMvConnectBtn.mv-connected::after { content: ''; width: 5px; height: 5px; background: #22c55e; border-radius: 50%; position: absolute; top: 2px; right: 2px; }
-#sbMvConnectBtn { position: relative;
+#sbMvConnectBtn {  position: relative;
     display: flex;
     align-items: center;
     gap: 4px;
