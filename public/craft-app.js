@@ -58,6 +58,7 @@
 
   var roomId = null, roomInfo = null, currentUser = null;
   var isOwner = false, myRole = 'viewer';
+  document.body.classList.add('craft-not-owner');
   var members = [];
   var localVersion = 0, lastPushedHash = '';
   var syncTimer = null, heartbeatTimer = null, pushTimer = null, memberTimer = null;
@@ -226,6 +227,7 @@
         myRole = members[i].is_owner ? 'owner' : (members[i].role || 'viewer');
         isOwner = !!members[i].is_owner;
         window.craftIsOwner = isOwner;
+        document.body.classList.toggle('craft-not-owner', !isOwner);
         return;
       }
     }
@@ -634,7 +636,7 @@
           localStorage.setItem('craft_returning_guest_' + roomId, name);
         }
         apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: name, guestId: gid, returning: isReturning }) })
-          .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; return apiRequest('/craftrooms/' + roomId); })
+          .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; document.body.classList.add('craft-not-owner'); return apiRequest('/craftrooms/' + roomId); })
           .then(function(d) { roomInfo = d.room; setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu(); startSync(); })
           .catch(function(err) { btn.textContent = isReturning ? 'Continue' : 'Join as Guest'; btn.disabled = false; alert('Failed: ' + err.message); });
       }
@@ -657,6 +659,7 @@
       roomInfo = d.room;
       isOwner = (roomInfo.owner_id === currentUser.id);
       window.craftIsOwner = isOwner;
+      document.body.classList.toggle('craft-not-owner', !isOwner);
       myRole = isOwner ? 'owner' : 'viewer';
       setRoomTitle(roomInfo.name);
       renderShareBtn();

@@ -1084,7 +1084,7 @@
         </div>
         <div class="context-menu-item" data-action="renameMap">Rename Map</div>
         <div class="context-menu-divider"></div>
-        <div class="context-menu-item" data-action="toggleHideMap">Toggle Hidden</div>
+        <div class="context-menu-item owner-only" data-action="toggleHideMap">Toggle Hidden</div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" data-action="deleteMap">
           Delete Map
@@ -1397,7 +1397,7 @@
       <div class="context-menu hidden" id="contextMenu">
         <div class="context-menu-item" data-action="edit">Edit Details</div>
         <div class="context-menu-item" data-action="duplicate">Duplicate</div>
-        <div class="context-menu-item" data-action="toggleHideCard">Toggle Hidden</div>
+        <div class="context-menu-item owner-only" data-action="toggleHideCard">Toggle Hidden</div>
         <div class="context-menu-item" data-action="rollDice">
           Insert Dice Roll
         </div>
@@ -2976,7 +2976,7 @@
           <div class="context-menu-item" data-action="dupCombatant3">Duplicate ×3</div>
           <div class="context-menu-item" data-action="dupCombatant5">Duplicate ×5</div>
           <div class="context-menu-divider"></div>
-          <div class="context-menu-item" data-action="toggleHideCombatant">Toggle Hidden</div>
+          <div class="context-menu-item owner-only" data-action="toggleHideCombatant">Toggle Hidden</div>
           <div class="context-menu-divider"></div>
           <div class="context-menu-item danger" data-action="delCombatant">Delete</div>
         </div>
@@ -2991,14 +2991,14 @@
         <!-- Faction/Contact Context Menu -->
         <div class="context-menu hidden" id="facContactContextMenu">
           <div class="context-menu-item" data-action="dupFacItem">Duplicate</div>
-          <div class="context-menu-item" data-action="toggleHideFacItem">Toggle Hidden</div>
+          <div class="context-menu-item owner-only" data-action="toggleHideFacItem">Toggle Hidden</div>
           <div class="context-menu-divider"></div>
           <div class="context-menu-item danger" data-action="delFacItem">Delete</div>
         </div>
 
         <!-- Chapter Context Menu -->
         <div class="context-menu hidden" id="chapterContextMenu">
-          <div class="context-menu-item" onclick="toggleHideChapterCtx()">Toggle Hidden</div>
+          <div class="context-menu-item owner-only" onclick="toggleHideChapterCtx()">Toggle Hidden</div>
           <div class="context-menu-divider"></div>
           <div class="context-menu-item danger" onclick="deleteChapterCtx()">Delete Chapter</div>
         </div>
@@ -3009,7 +3009,7 @@
           <div class="context-menu-item" onclick="editCalendarCtx()">Edit Calendar</div>
           <div class="context-menu-item" onclick="setTlImageCtx()">Set Image</div>
           <div class="context-menu-divider"></div>
-          <div class="context-menu-item" onclick="toggleHideTimelineCtx()">Toggle Hidden</div>
+          <div class="context-menu-item owner-only" onclick="toggleHideTimelineCtx()">Toggle Hidden</div>
           <div class="context-menu-divider"></div>
           <div class="context-menu-item danger" onclick="deleteTimelineCtx()">Delete Timeline</div>
         </div>
@@ -3020,7 +3020,7 @@
           <div class="context-menu-item" onclick="duplicateEventCtx()">Duplicate Event</div>
           <div class="context-menu-item" onclick="moveEventToCurrentDateCtx()">Move to Current Date</div>
           <div class="context-menu-divider"></div>
-          <div class="context-menu-item" onclick="toggleHideEventCtx()">Toggle Hidden</div>
+          <div class="context-menu-item owner-only" onclick="toggleHideEventCtx()">Toggle Hidden</div>
           <div class="context-menu-divider"></div>
           <div class="context-menu-item danger" onclick="deleteEventCtx()">Delete Event</div>
         </div>

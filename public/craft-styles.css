@@ -6892,12 +6892,24 @@ select optgroup {
 /* ============================================ */
 /* Hidden Items */
 /* ============================================ */
+/* Owner sees hidden items at reduced opacity */
 .item-hidden { opacity: 0.4; }
 .item-hidden:hover { opacity: 0.7; }
 .card-hidden { opacity: 0.35; outline: 1px dashed rgba(255,255,255,0.15); }
 .card-hidden:hover { opacity: 0.6; }
 .ct-hidden { opacity: 0.4; }
 .ct-hidden:hover { opacity: 0.7; }
+
+/* Non-owners cannot see hidden items at all */
+body.craft-not-owner .card-hidden,
+body.craft-not-owner .item-hidden,
+body.craft-not-owner .ct-hidden {
+  display: none !important;
+}
+/* Hide owner-only context menu items from non-owners */
+body.craft-not-owner .owner-only {
+  display: none !important;
+}
 .hidden-badge {
   font-size: 10px; opacity: 0.6; margin-right: 4px; flex-shrink: 0;
 }

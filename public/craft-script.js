@@ -6074,6 +6074,9 @@ function renderConnections() {
     const toCard = document.getElementById(conn.to);
     if (!fromCard || !toCard) return;
 
+    // Non-owners: skip connections involving hidden cards
+    if (!window.craftIsOwner && (fromCard.classList.contains('card-hidden') || toCard.classList.contains('card-hidden'))) return;
+
     // Use edge points instead of card centers so markers aren't hidden behind cards
     const toCenterX = parseFloat(toCard.style.left) + toCard.offsetWidth / 2;
     const toCenterY = parseFloat(toCard.style.top) + toCard.offsetHeight / 2;
@@ -13448,6 +13451,29 @@ window.craftSetState = function(state, skipRender) {
   
   if (!skipRender) {
     try {
+      // Non-owners: auto-switch away from hidden containers
+      if (!window.craftIsOwner) {
+        const curMap = maps.find(m => m.id === currentMapId);
+        if (curMap && curMap.hidden) {
+          const vis = maps.find(m => !m.hidden);
+          if (vis) currentMapId = vis.id;
+        }
+        if (typeof chapters !== 'undefined') {
+          const curCh = chapters.find(c => c.id === currentChapterId);
+          if (curCh && curCh.hidden) {
+            const vis = chapters.find(c => !c.hidden);
+            if (vis) currentChapterId = vis.id;
+          }
+        }
+        if (typeof timelines !== 'undefined') {
+          const curTl = timelines.find(t => t.id === currentTimelineId);
+          if (curTl && curTl.hidden) {
+            const vis = timelines.find(t => !t.hidden);
+            if (vis) currentTimelineId = vis.id;
+          }
+        }
+      }
+
       // Always render sidebar lists for all tabs
       renderBoardsList();
       renderMapsList();
