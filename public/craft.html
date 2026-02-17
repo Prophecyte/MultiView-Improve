@@ -1841,6 +1841,9 @@
             <button class="zoom-btn" id="zoomFitBtn" title="Fit to View">
               ◻
             </button>
+            <button class="zoom-btn" id="snapToggleBtn" title="Toggle Snap to Grid (G)" style="font-size:11px;opacity:0.5">
+              ⊞
+            </button>
           </div>
 
           <div class="canvas-tools">
@@ -2522,6 +2525,7 @@
             <button class="write-tool-btn" data-command="justifyCenter" title="Center"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm3 4h12v2H6V8zm-3 4h18v2H3v-2zm3 4h12v2H6v-2zm-3 4h18v2H3v-2z"/></svg></button>
             <button class="write-tool-btn" data-command="justifyRight" title="Align Right"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 4h12v2H9V8zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/></svg></button>
             <button class="write-tool-btn" id="indentToggleBtn" title="First-Line Indent"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 4h12v2H9V8zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/><path d="M3 7l4 2.5L3 12V7z"/></svg></button>
+            <button class="write-tool-btn" id="justifyToggleBtn" title="Justify Text"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg></button>
             <div class="write-toolbar-divider"></div>
             <button class="write-tool-btn" data-command="h1" title="Heading 1"><span class="write-tool-text">H1</span></button>
             <button class="write-tool-btn" data-command="h2" title="Heading 2"><span class="write-tool-text">H2</span></button>
@@ -3347,8 +3351,14 @@
                   <button class="align-btn" data-align="right" title="Right">
                     ⬱
                   </button>
+                  <button class="align-btn" data-align="justify" title="Justify">
+                    ≡
+                  </button>
                 </div>
               </div>
+
+              <!-- Dynamic Type Fields -->
+              <div class="detail-section hidden" id="typeFieldsSection"></div>
 
               <div
                 class="detail-section standard-description"

@@ -2468,10 +2468,10 @@ body {
 .card-description {
   font-size: 12px;
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
   overflow: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: none;
   flex: 1;
 }
 
@@ -2526,9 +2526,13 @@ body {
 /* Image Card */
 .card-image {
   width: 100%;
-  height: auto;
+  max-height: 150px;
+  object-fit: cover;
   display: block;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.card.image .card-image {
+  max-height: none;
 }
 
 /* Chart Card */
@@ -3276,7 +3280,7 @@ select optgroup {
   border: 1px solid;
   border-radius: 3px;
   font-weight: 600;
-  align-self: flex-start;
+  align-self: center;
   margin-bottom: 4px;
 }
 .attr-profile-row {
@@ -3284,6 +3288,7 @@ select optgroup {
   gap: 8px;
   padding: 3px 0;
   border-bottom: 1px solid rgba(168, 152, 128, 0.08);
+  align-items: baseline;
 }
 .attr-profile-row:last-child { border-bottom: none; }
 .attr-profile-label {
@@ -3292,7 +3297,7 @@ select optgroup {
   letter-spacing: 0.06em;
   color: var(--gold);
   font-weight: 600;
-  width: 72px;
+  min-width: 50px;
   flex-shrink: 0;
   padding-top: 1px;
 }
@@ -3300,7 +3305,9 @@ select optgroup {
   font-size: 11px;
   line-height: 1.3;
   flex: 1;
+  min-width: 0;
   word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 .attr-edit-row {
   display: flex;
@@ -7161,7 +7168,36 @@ body.craft-not-owner .owner-only {
   background: rgba(168,152,128,0.12); color: var(--text-muted);
   margin-bottom: 4px;
 }
-.ability-desc { font-size: 11px; color: var(--text-secondary); margin: 4px 0; line-height: 1.4; }
+.ability-desc { font-size: 11px; color: var(--text-secondary); margin: 4px 0; line-height: 1.4; word-wrap: break-word; overflow-wrap: break-word; }
+
+/* Character Card */
+.character-card-content { padding: 2px 0; }
+.char-field-row { display: flex; gap: 6px; padding: 2px 0; border-bottom: 1px solid rgba(168, 152, 128, 0.08); align-items: baseline; }
+.char-field-row:last-child { border-bottom: none; }
+.char-field-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--cyan); font-weight: 600; min-width: 50px; flex-shrink: 0; }
+.char-field-value { font-size: 11px; line-height: 1.3; flex: 1; min-width: 0; word-wrap: break-word; }
+.char-bio { font-size: 10px; line-height: 1.4; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(168, 152, 128, 0.1); font-style: italic; opacity: 0.8; }
+
+/* Location Card */
+.location-card-content { padding: 2px 0; }
+.loc-field-row { display: flex; gap: 6px; padding: 2px 0; border-bottom: 1px solid rgba(168, 152, 128, 0.08); align-items: baseline; }
+.loc-field-row:last-child { border-bottom: none; }
+.loc-field-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--green); font-weight: 600; min-width: 50px; flex-shrink: 0; }
+.loc-field-value { font-size: 11px; line-height: 1.3; flex: 1; min-width: 0; }
+.loc-section { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(168, 152, 128, 0.1); }
+.loc-section-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gold); font-weight: 600; display: block; margin-bottom: 2px; }
+
+/* Quest Card */
+.quest-card-content { padding: 2px 0; }
+.quest-status-badge { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; padding: 1px 6px; border-radius: 3px; font-weight: 600; display: inline-block; margin-bottom: 4px; }
+.quest-meta { font-size: 10px; line-height: 1.4; margin-bottom: 3px; word-wrap: break-word; }
+.quest-meta span { font-weight: 600; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; }
+.quest-steps { margin-top: 4px; }
+.quest-step { display: flex; gap: 4px; align-items: flex-start; padding: 1px 0; font-size: 10px; cursor: pointer; }
+.quest-step.done { opacity: 0.5; text-decoration: line-through; }
+.quest-check { font-size: 12px; line-height: 1; flex-shrink: 0; }
+.quest-progress-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.quest-progress-bar > div { height: 100%; border-radius: 2px; transition: width 0.3s; }
 .ability-uses {
   display: flex; align-items: center; gap: 4px; margin-top: 6px;
 }
@@ -8502,6 +8538,13 @@ body.mm-dragging .mindmap-canvas {
   text-indent: 0;
 }
 #indentToggleBtn.active { color: var(--gold); background: rgba(212,168,36,0.15); }
+/* Justify mode */
+.write-editor.justify-mode { text-align: justify; }
+.write-editor.justify-mode p,
+.write-editor.justify-mode div:not(.editor-image-wrapper):not(.editor-columns):not(.editor-column):not(.dice-roll-badge) {
+  text-align: justify;
+}
+#justifyToggleBtn.active { color: var(--gold); background: rgba(212,168,36,0.15); }
 
 /* ============================================
    Write: Thesaurus Popup

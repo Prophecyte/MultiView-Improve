@@ -76,6 +76,9 @@ let isDragging = false;
 let isDraggingPin = false;
 let isResizing = false;
 let dragOffset = { x: 0, y: 0 };
+let snapEnabled = false;
+const SNAP_GRID = 20;
+const SNAP_THRESHOLD = 12;
 let currentView = 'board';
 let connectingFrom = null;
 let lastDiceResult = null;
@@ -184,6 +187,7 @@ function initEventListeners() {
   document.getElementById('zoomInBtn').addEventListener('click', zoomIn);
   document.getElementById('zoomOutBtn').addEventListener('click', zoomOut);
   document.getElementById('zoomFitBtn').addEventListener('click', zoomFit);
+  document.getElementById('snapToggleBtn')?.addEventListener('click', toggleSnap);
 
   // Zoom controls (map)
   document.getElementById('mapZoomInBtn').addEventListener('click', mapZoomIn);
@@ -396,7 +400,7 @@ function initEventListeners() {
     btn.addEventListener('click', () => execFormatCommand(btn.dataset.command));
   });
 
-  // Font selects (apply to selection if text is selected, otherwise set default)
+  // Font selects (apply to selection if text is selected, or if editor is empty — never change whole chapter with existing content)
   document.getElementById('fontFamily').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
     const selection = window.getSelection();
@@ -408,10 +412,11 @@ function initEventListeners() {
       span.style.fontFamily = e.target.value;
       range.surroundContents(span);
       saveCurrentChapter();
-    } else {
-      // No selection - set default for editor
+    } else if (!editor.textContent.trim()) {
+      // Editor is empty - set default for new content
       editor.style.fontFamily = e.target.value;
     }
+    // If editor has content but nothing selected, do nothing
     editor.focus();
   });
 
@@ -426,8 +431,8 @@ function initEventListeners() {
       span.style.fontSize = e.target.value + 'px';
       range.surroundContents(span);
       saveCurrentChapter();
-    } else {
-      // No selection - set default for editor
+    } else if (!editor.textContent.trim()) {
+      // Editor is empty - set default for new content
       editor.style.fontSize = e.target.value + 'px';
     }
     editor.focus();
@@ -456,6 +461,8 @@ function initEventListeners() {
 
   // Indent toggle
   document.getElementById('indentToggleBtn')?.addEventListener('click', toggleFirstLineIndent);
+  // Justify toggle
+  document.getElementById('justifyToggleBtn')?.addEventListener('click', toggleJustify);
   // Thesaurus
   document.getElementById('thesaurusBtn')?.addEventListener('click', openThesaurus);
   // Export
@@ -3478,6 +3485,7 @@ function createCardElement(cardData) {
   card.style.top = `${cardData.y}px`;
   if (cardData.width) card.style.width = `${cardData.width}px`;
   if (cardData.height) card.style.height = `${cardData.height}px`;
+  if (cardData.fontFamily && cardData.fontFamily !== 'Inter') card.style.fontFamily = cardData.fontFamily;
   if (cardData.bgColor && cardData.bgColor !== '#0a0a0a') card.style.background = cardData.bgColor;
   if (cardData.borderStyle && cardData.borderStyle !== 'none') {
     card.style.borderStyle = cardData.borderStyle;
@@ -3551,6 +3559,12 @@ function createCardElement(cardData) {
     content += renderRandomizerCard(cardData);
   } else if (cardData.type === 'ability') {
     content += renderAbilityCard(cardData);
+  } else if (cardData.type === 'character') {
+    content += renderCharacterCard(cardData);
+  } else if (cardData.type === 'location') {
+    content += renderLocationCard(cardData);
+  } else if (cardData.type === 'quest') {
+    content += renderQuestCard(cardData);
   } else if (cardData.type !== 'text' && cardData.type !== 'image' && cardData.description) {
     content += `<div class="card-description" style="color: ${textColor}; font-family: ${fontFamily}; font-size: ${fontSize}px; text-align: ${textAlign}">${parseWikiLinks(cardData.description)}</div>`;
   }
@@ -4374,6 +4388,69 @@ function renderRandomizerEntriesList(cardData) {
 // ============================================
 // Ability / Spell / Feat Card
 // ============================================
+// ============================================
+// Character Card Rendering
+// ============================================
+function renderCharacterCard(cardData) {
+  const fields = cardData.charFields || [];
+  const textColor = cardData.textColor || '#a89880';
+  const titleColor = cardData.titleColor || '#f5ede0';
+  const bio = cardData.charBio || '';
+  return `<div class="character-card-content">
+    ${fields.map(f => `<div class="char-field-row">
+      <span class="char-field-label">${f.label}</span>
+      <span class="char-field-value" style="color:${titleColor}">${f.value || '—'}</span>
+    </div>`).join('')}
+    ${bio ? `<div class="char-bio" style="color:${textColor}">${bio}</div>` : ''}
+  </div>`;
+}
+
+// ============================================
+// Location Card Rendering
+// ============================================
+function renderLocationCard(cardData) {
+  const fields = cardData.locFields || [];
+  const textColor = cardData.textColor || '#a89880';
+  const titleColor = cardData.titleColor || '#f5ede0';
+  const landmarks = cardData.locLandmarks || '';
+  const secrets = cardData.locSecrets || '';
+  return `<div class="location-card-content">
+    ${fields.map(f => `<div class="loc-field-row">
+      <span class="loc-field-label">${f.label}</span>
+      <span class="loc-field-value" style="color:${titleColor}">${f.value || '—'}</span>
+    </div>`).join('')}
+    ${landmarks ? `<div class="loc-section"><span class="loc-section-label">Landmarks</span><div style="color:${textColor};font-size:11px;line-height:1.4">${landmarks}</div></div>` : ''}
+    ${secrets ? `<div class="loc-section"><span class="loc-section-label" style="color:#ef4444">Secrets</span><div style="color:${textColor};font-size:11px;line-height:1.4;font-style:italic">${secrets}</div></div>` : ''}
+  </div>`;
+}
+
+// ============================================
+// Quest Card Rendering
+// ============================================
+function renderQuestCard(cardData) {
+  const textColor = cardData.textColor || '#a89880';
+  const titleColor = cardData.titleColor || '#f5ede0';
+  const status = cardData.questStatus || 'active';
+  const statusColors = { active: '#22c55e', completed: '#3b82f6', failed: '#ef4444', pending: '#f59e0b' };
+  const steps = cardData.questSteps || [];
+  const doneCount = steps.filter(s => s.done).length;
+  return `<div class="quest-card-content">
+    <div class="quest-status-badge" style="background:${statusColors[status] || '#22c55e'}22;color:${statusColors[status] || '#22c55e'}">${status}</div>
+    ${cardData.questGiver ? `<div class="quest-meta" style="color:${textColor}"><span style="color:${titleColor}">Quest Giver:</span> ${cardData.questGiver}</div>` : ''}
+    ${cardData.questObjective ? `<div class="quest-meta" style="color:${textColor}"><span style="color:${titleColor}">Objective:</span> ${cardData.questObjective}</div>` : ''}
+    ${steps.length > 0 ? `<div class="quest-steps">${steps.map((s, i) => `<div class="quest-step ${s.done ? 'done' : ''}" onclick="event.stopPropagation();toggleQuestStep('${cardData.id}',${i})"><span class="quest-check">${s.done ? '☑' : '☐'}</span><span style="color:${textColor}">${s.text || 'Step ' + (i+1)}</span></div>`).join('')}<div class="quest-progress-bar"><div style="width:${steps.length ? (doneCount/steps.length*100) : 0}%;background:${statusColors[status]}"></div></div></div>` : ''}
+    ${cardData.questReward ? `<div class="quest-meta" style="color:${titleColor}">⭐ ${cardData.questReward}</div>` : ''}
+  </div>`;
+}
+
+function toggleQuestStep(cardId, index) {
+  const board = getCurrentBoard(); if (!board) return;
+  const card = board.cards.find(c => c.id === cardId); if (!card) return;
+  if (!card.questSteps || !card.questSteps[index]) return;
+  card.questSteps[index].done = !card.questSteps[index].done;
+  refreshCardElement(card);
+}
+
 function renderAbilityCard(cardData) {
   const textColor = cardData.textColor || '#a89880';
   const titleColor = cardData.titleColor || '#f5ede0';
@@ -4411,7 +4488,7 @@ function renderAbilityCard(cardData) {
   return `<div class="ability-card-content">
     <div class="ability-type-badge" style="background:${typeColor}22;color:${typeColor};">${aType}</div>
     ${metaHtml}
-    ${desc ? `<div class="ability-desc" style="color:${textColor}">${desc.length > 120 ? desc.substring(0,120)+'…' : desc}</div>` : ''}
+    ${desc ? `<div class="ability-desc" style="color:${textColor}">${desc}</div>` : ''}
     ${usesHtml}
   </div>`;
 }
@@ -4434,6 +4511,99 @@ function adjustAbilityCounter(cardId, delta) {
 // ============================================
 // Add Card
 // ============================================
+// ============================================
+// Character/Location/Quest Detail Renderers
+// ============================================
+function renderCharFieldsInDetail(cardData) {
+  const sec = document.getElementById('typeFieldsSection');
+  sec.classList.remove('hidden');
+  const fields = cardData.charFields || [];
+  sec.innerHTML = `<label class="detail-label">Character Info</label>
+    <div id="charFieldsList">${fields.map((f, i) => `<div class="attr-edit-row">
+      <input class="detail-input sm" value="${(f.label||'').replace(/"/g,'&quot;')}" data-idx="${i}" data-k="label" placeholder="Label" style="width:80px" />
+      <input class="detail-input" value="${(f.value||'').replace(/"/g,'&quot;')}" data-idx="${i}" data-k="value" placeholder="Value" style="flex:1" />
+      <button class="remove-btn" onclick="removeCharField(${i})">×</button>
+    </div>`).join('')}</div>
+    <button class="add-item-btn" onclick="addCharField()" style="margin-top:4px">+ Add Field</button>`;
+  sec.querySelectorAll('.detail-input').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const idx = parseInt(e.target.dataset.idx);
+      const k = e.target.dataset.k;
+      if (cardData.charFields[idx]) { cardData.charFields[idx][k] = e.target.value; refreshCardElement(cardData); }
+    });
+  });
+}
+function addCharField() {
+  if (!selectedCard) return; const board = getCurrentBoard(); const cd = board.cards.find(c => c.id === selectedCard.id); if (!cd) return;
+  if (!cd.charFields) cd.charFields = [];
+  cd.charFields.push({ label: '', value: '' });
+  renderCharFieldsInDetail(cd); refreshCardElement(cd);
+}
+function removeCharField(idx) {
+  if (!selectedCard) return; const board = getCurrentBoard(); const cd = board.cards.find(c => c.id === selectedCard.id); if (!cd) return;
+  cd.charFields.splice(idx, 1); renderCharFieldsInDetail(cd); refreshCardElement(cd);
+}
+
+function renderLocFieldsInDetail(cardData) {
+  const sec = document.getElementById('typeFieldsSection');
+  sec.classList.remove('hidden');
+  const fields = cardData.locFields || [];
+  sec.innerHTML = `<label class="detail-label">Location Details</label>
+    <div id="locFieldsList">${fields.map((f, i) => `<div class="attr-edit-row">
+      <input class="detail-input sm" value="${(f.label||'').replace(/"/g,'&quot;')}" data-idx="${i}" data-k="label" placeholder="Label" style="width:80px" />
+      <input class="detail-input" value="${(f.value||'').replace(/"/g,'&quot;')}" data-idx="${i}" data-k="value" placeholder="Value" style="flex:1" />
+      <button class="remove-btn" onclick="removeLocField(${i})">×</button>
+    </div>`).join('')}</div>
+    <button class="add-item-btn" onclick="addLocField()" style="margin-top:4px">+ Add Field</button>
+    <label class="detail-label" style="margin-top:8px">Landmarks</label>
+    <textarea class="detail-textarea" id="locLandmarksInput" placeholder="Notable landmarks...">${cardData.locLandmarks || ''}</textarea>`;
+  sec.querySelectorAll('.detail-input').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const idx = parseInt(e.target.dataset.idx);
+      const k = e.target.dataset.k;
+      if (cardData.locFields[idx]) { cardData.locFields[idx][k] = e.target.value; refreshCardElement(cardData); }
+    });
+  });
+  document.getElementById('locLandmarksInput')?.addEventListener('input', (e) => { cardData.locLandmarks = e.target.value; refreshCardElement(cardData); });
+}
+function addLocField() {
+  if (!selectedCard) return; const board = getCurrentBoard(); const cd = board.cards.find(c => c.id === selectedCard.id); if (!cd) return;
+  if (!cd.locFields) cd.locFields = [];
+  cd.locFields.push({ label: '', value: '' }); renderLocFieldsInDetail(cd); refreshCardElement(cd);
+}
+function removeLocField(idx) {
+  if (!selectedCard) return; const board = getCurrentBoard(); const cd = board.cards.find(c => c.id === selectedCard.id); if (!cd) return;
+  cd.locFields.splice(idx, 1); renderLocFieldsInDetail(cd); refreshCardElement(cd);
+}
+
+function renderQuestFieldsInDetail(cardData) {
+  const sec = document.getElementById('typeFieldsSection');
+  sec.classList.remove('hidden');
+  const steps = cardData.questSteps || [];
+  sec.innerHTML = `<label class="detail-label">Quest Info</label>
+    <div class="attr-edit-row"><label style="width:70px;font-size:10px;color:var(--gold)">Status</label>
+      <select class="detail-input" id="questStatusSel"><option value="active"${cardData.questStatus==='active'?' selected':''}>Active</option><option value="pending"${cardData.questStatus==='pending'?' selected':''}>Pending</option><option value="completed"${cardData.questStatus==='completed'?' selected':''}>Completed</option><option value="failed"${cardData.questStatus==='failed'?' selected':''}>Failed</option></select></div>
+    <div class="attr-edit-row"><label style="width:70px;font-size:10px;color:var(--gold)">Giver</label><input class="detail-input" id="questGiverInput" value="${(cardData.questGiver||'').replace(/"/g,'&quot;')}" placeholder="Who gave this quest?" style="flex:1" /></div>
+    <div class="attr-edit-row"><label style="width:70px;font-size:10px;color:var(--gold)">Reward</label><input class="detail-input" id="questRewardInput" value="${(cardData.questReward||'').replace(/"/g,'&quot;')}" placeholder="Gold, items, favor..." style="flex:1" /></div>
+    <label class="detail-label" style="margin-top:8px">Steps</label>
+    <div id="questStepsList">${steps.map((s, i) => `<div class="attr-edit-row"><input type="checkbox" ${s.done ? 'checked' : ''} data-step="${i}" class="quest-step-chk" /><input class="detail-input" value="${(s.text||'').replace(/"/g,'&quot;')}" data-step="${i}" data-k="text" placeholder="Step ${i+1}" style="flex:1" /><button class="remove-btn" onclick="removeQuestStep(${i})">×</button></div>`).join('')}</div>
+    <button class="add-item-btn" onclick="addQuestStep()" style="margin-top:4px">+ Add Step</button>`;
+  document.getElementById('questStatusSel')?.addEventListener('change', (e) => { cardData.questStatus = e.target.value; refreshCardElement(cardData); });
+  document.getElementById('questGiverInput')?.addEventListener('input', (e) => { cardData.questGiver = e.target.value; refreshCardElement(cardData); });
+  document.getElementById('questRewardInput')?.addEventListener('input', (e) => { cardData.questReward = e.target.value; refreshCardElement(cardData); });
+  sec.querySelectorAll('.quest-step-chk').forEach(chk => { chk.addEventListener('change', (e) => { const i = parseInt(e.target.dataset.step); if (cardData.questSteps[i]) { cardData.questSteps[i].done = e.target.checked; refreshCardElement(cardData); } }); });
+  sec.querySelectorAll('input[data-k="text"]').forEach(inp => { inp.addEventListener('input', (e) => { const i = parseInt(e.target.dataset.step); if (cardData.questSteps[i]) { cardData.questSteps[i].text = e.target.value; refreshCardElement(cardData); } }); });
+}
+function addQuestStep() {
+  if (!selectedCard) return; const board = getCurrentBoard(); const cd = board.cards.find(c => c.id === selectedCard.id); if (!cd) return;
+  if (!cd.questSteps) cd.questSteps = [];
+  cd.questSteps.push({ text: '', done: false }); renderQuestFieldsInDetail(cd); refreshCardElement(cd);
+}
+function removeQuestStep(idx) {
+  if (!selectedCard) return; const board = getCurrentBoard(); const cd = board.cards.find(c => c.id === selectedCard.id); if (!cd) return;
+  cd.questSteps.splice(idx, 1); renderQuestFieldsInDetail(cd); refreshCardElement(cd);
+}
+
 function addCard(type) {
   const board = getCurrentBoard();
   if (!board) return;
@@ -4467,11 +4637,11 @@ function addCard(type) {
     id,
     type,
     title: titles[type],
-    description: ['text', 'image', 'bar', 'stress', 'injury', 'body', 'chart', 'personality', 'attributes', 'inventory', 'currency', 'mood', 'randomizer', 'ability'].includes(type) ? '' : (type === 'item' ? '' : 'Click to edit...'),
+    description: ['text', 'image', 'bar', 'stress', 'injury', 'body', 'chart', 'personality', 'attributes', 'inventory', 'currency', 'mood', 'randomizer', 'ability', 'character', 'location', 'quest'].includes(type) ? '' : (type === 'item' ? '' : 'Click to edit...'),
     tags: [],
     x: 100 - panOffset.x / zoom + Math.random() * 200,
     y: 100 - panOffset.y / zoom + Math.random() * 200,
-    width: type === 'text' ? 250 : type === 'body' ? 180 : type === 'inventory' ? 220 : type === 'chart' ? 140 : type === 'stress' ? 130 : type === 'ability' ? 200 : null,
+    width: type === 'text' ? 250 : type === 'body' ? 180 : type === 'inventory' ? 220 : type === 'chart' ? 140 : type === 'stress' ? 130 : type === 'ability' ? 200 : type === 'character' ? 220 : type === 'location' ? 240 : type === 'quest' ? 240 : type === 'note' ? 200 : type === 'image' ? 250 : 220,
     height: type === 'body' ? 320 : null,
     titleColor: '#f5ede0',
     textColor: '#a89880',
@@ -4481,7 +4651,36 @@ function addCard(type) {
     textAlign: 'left',
   };
 
-  if (type === 'statblock') {
+  if (type === 'character') {
+    newCard.charFields = [
+      { label: 'Race', value: '' },
+      { label: 'Class', value: '' },
+      { label: 'Level', value: '' },
+      { label: 'Background', value: '' },
+      { label: 'Alignment', value: '' },
+    ];
+    newCard.charBio = '';
+  } else if (type === 'location') {
+    newCard.locFields = [
+      { label: 'Region', value: '' },
+      { label: 'Type', value: '' },
+      { label: 'Population', value: '' },
+      { label: 'Atmosphere', value: '' },
+    ];
+    newCard.locSecrets = '';
+    newCard.locLandmarks = '';
+  } else if (type === 'quest') {
+    newCard.questStatus = 'active';
+    newCard.questObjective = '';
+    newCard.questReward = '';
+    newCard.questGiver = '';
+    newCard.questSteps = [
+      { text: '', done: false },
+    ];
+  } else if (type === 'note') {
+    newCard.description = '';
+    newCard.width = 200;
+  } else if (type === 'statblock') {
     newCard.stats = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 };
   } else if (type === 'chart') {
     newCard.chartType = 'pie';
@@ -4674,7 +4873,7 @@ function selectCard(cardEl) {
     'injurySection', 'bodySection', 'textStyleSection', 'imageUploadSection',
     'standardDescSection', 'textAlignSection', 'itemSection',
     'personalitySection', 'attributesSection', 'inventorySection',
-    'currencySection', 'moodSection', 'randomizerSection', 'abilitySection'
+    'currencySection', 'moodSection', 'randomizerSection', 'abilitySection', 'typeFieldsSection'
   ];
   sections.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
   document.getElementById('detailImagePreview').classList.add('hidden');
@@ -4769,6 +4968,22 @@ function selectCard(cardEl) {
       document.getElementById('abilityMaxUses').value = cardData.abilityMaxUses || 3;
       document.getElementById('abilityDesc').value = cardData.description || '';
     }
+  } else if (cardData.type === 'character') {
+    document.getElementById('standardDescSection').classList.remove('hidden');
+    // Re-purpose standard desc for character bio
+    document.getElementById('detailDescription').value = cardData.charBio || '';
+    document.getElementById('detailDescription').placeholder = 'Character backstory / notes...';
+    renderCharFieldsInDetail(cardData);
+  } else if (cardData.type === 'location') {
+    document.getElementById('standardDescSection').classList.remove('hidden');
+    document.getElementById('detailDescription').value = cardData.locSecrets || '';
+    document.getElementById('detailDescription').placeholder = 'Hidden secrets of this location...';
+    renderLocFieldsInDetail(cardData);
+  } else if (cardData.type === 'quest') {
+    document.getElementById('standardDescSection').classList.remove('hidden');
+    document.getElementById('detailDescription').value = cardData.questObjective || '';
+    document.getElementById('detailDescription').placeholder = 'Quest objective...';
+    renderQuestFieldsInDetail(cardData);
   } else if (cardData.type === 'image') {
     // Image cards don't use the standard description field
   } else {
@@ -4862,7 +5077,12 @@ function updateSelectedCard() {
   // Sync with toolbar title
   const toolbarTitleEl = document.getElementById('toolbarCardTitle');
   if (toolbarTitleEl) toolbarTitleEl.value = cardData.title;
-  cardData.description = document.getElementById('detailDescription').value;
+  // Save description to correct field based on card type
+  const descVal = document.getElementById('detailDescription').value;
+  if (cardData.type === 'character') { cardData.charBio = descVal; }
+  else if (cardData.type === 'location') { cardData.locSecrets = descVal; }
+  else if (cardData.type === 'quest') { cardData.questObjective = descVal; }
+  else { cardData.description = descVal; }
   cardData.tags = document.getElementById('detailTags').value.split(',').map((t) => t.trim()).filter((t) => t);
 
   refreshCard(cardData);
@@ -5735,17 +5955,21 @@ function startDrag(e, card) {
     const container = document.getElementById('boardView');
     const containerRect = container.getBoundingClientRect();
 
-    const x = (e.clientX - containerRect.left - panOffset.x - dragOffset.x) / zoom;
-    const y = (e.clientY - containerRect.top - panOffset.y - dragOffset.y) / zoom;
+    let x = (e.clientX - containerRect.left - panOffset.x - dragOffset.x) / zoom;
+    let y = (e.clientY - containerRect.top - panOffset.y - dragOffset.y) / zoom;
 
-    card.style.left = `${Math.max(0, x)}px`;
-    card.style.top = `${Math.max(0, y)}px`;
+    const snapped = snapPosition(x, y, card.id, e.shiftKey);
+    x = Math.max(0, snapped.x);
+    y = Math.max(0, snapped.y);
+
+    card.style.left = `${x}px`;
+    card.style.top = `${y}px`;
 
     const board = getCurrentBoard();
     const cardData = board.cards.find((c) => c.id === card.id);
     if (cardData) {
-      cardData.x = Math.max(0, x);
-      cardData.y = Math.max(0, y);
+      cardData.x = x;
+      cardData.y = y;
     }
 
     renderConnections();
@@ -6699,11 +6923,89 @@ function zoomOut() {
   document.getElementById('zoomLevel').textContent = `${Math.round(zoom * 100)}%`;
 }
 
+function toggleSnap() {
+  snapEnabled = !snapEnabled;
+  const btn = document.getElementById('snapToggleBtn');
+  if (btn) { btn.style.opacity = snapEnabled ? '1' : '0.5'; btn.classList.toggle('active', snapEnabled); }
+}
+
+function snapPosition(x, y, cardId, shiftKey) {
+  if (!snapEnabled && !shiftKey) return { x, y, guides: [] };
+  const board = getCurrentBoard();
+  if (!board) return { x, y, guides: [] };
+  let sx = x, sy = y;
+  const guides = [];
+
+  if (snapEnabled) {
+    // Grid snap
+    sx = Math.round(sx / SNAP_GRID) * SNAP_GRID;
+    sy = Math.round(sy / SNAP_GRID) * SNAP_GRID;
+  }
+
+  if (shiftKey) {
+    // Neighbor alignment snap
+    const el = document.getElementById(cardId);
+    const w = el ? el.offsetWidth : 200;
+    const h = el ? el.offsetHeight : 100;
+    let bestDx = SNAP_THRESHOLD + 1, bestDy = SNAP_THRESHOLD + 1;
+    board.cards.forEach(c => {
+      if (c.id === cardId) return;
+      const cel = document.getElementById(c.id);
+      const cw = cel ? cel.offsetWidth : (c.width || 200);
+      const ch = cel ? cel.offsetHeight : 100;
+      // Left edge alignment
+      const dl = Math.abs(x - c.x); if (dl < Math.abs(bestDx)) { bestDx = x - c.x; }
+      // Right edge alignment
+      const dr = Math.abs((x + w) - (c.x + cw)); if (dr < Math.abs(bestDx)) { bestDx = (x + w) - (c.x + cw); }
+      // Top alignment
+      const dt = Math.abs(y - c.y); if (dt < Math.abs(bestDy)) { bestDy = y - c.y; }
+      // Bottom alignment
+      const db = Math.abs((y + h) - (c.y + ch)); if (db < Math.abs(bestDy)) { bestDy = (y + h) - (c.y + ch); }
+      // Center X
+      const dcx = Math.abs((x + w/2) - (c.x + cw/2)); if (dcx < Math.abs(bestDx)) { bestDx = (x + w/2) - (c.x + cw/2); }
+      // Center Y
+      const dcy = Math.abs((y + h/2) - (c.y + ch/2)); if (dcy < Math.abs(bestDy)) { bestDy = (y + h/2) - (c.y + ch/2); }
+    });
+    if (Math.abs(bestDx) <= SNAP_THRESHOLD) { sx = x - bestDx; }
+    if (Math.abs(bestDy) <= SNAP_THRESHOLD) { sy = y - bestDy; }
+  }
+
+  return { x: sx, y: sy, guides };
+}
+
 function zoomFit() {
-  zoom = 1;
-  panOffset = { x: 0, y: 0 };
+  const board = getCurrentBoard();
+  if (!board || !board.cards.length) {
+    zoom = 1; panOffset = { x: 0, y: 0 };
+    applyCanvasTransform();
+    document.getElementById('zoomLevel').textContent = '100%';
+    return;
+  }
+  // Calculate bounding box of all cards
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  board.cards.forEach(c => {
+    const el = document.getElementById(c.id);
+    const w = el ? el.offsetWidth : (c.width || 220);
+    const h = el ? el.offsetHeight : 120;
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.x + w > maxX) maxX = c.x + w;
+    if (c.y + h > maxY) maxY = c.y + h;
+  });
+  const pad = 60;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const bw = maxX - minX;
+  const bh = maxY - minY;
+  const container = document.getElementById('boardView');
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  zoom = Math.min(cw / bw, ch / bh, 2);
+  panOffset = {
+    x: (cw - bw * zoom) / 2 - minX * zoom,
+    y: (ch - bh * zoom) / 2 - minY * zoom
+  };
   applyCanvasTransform();
-  document.getElementById('zoomLevel').textContent = '100%';
+  document.getElementById('zoomLevel').textContent = `${Math.round(zoom * 100)}%`;
 }
 
 // ============================================
@@ -6998,6 +7300,9 @@ function handleKeyboard(e) {
       break;
     case 'c':
       if (currentView === 'board') setTool('connect');
+      break;
+    case 'g':
+      if (currentView === 'board') toggleSnap();
       break;
     case 'h':
       if (currentView === 'board') setTool('pan');
@@ -12120,6 +12425,7 @@ function mvSwitchToItem(panelIdx, viewType, itemId) {
 // Write: First-Line Indent Toggle
 // ============================================
 let writeIndentMode = false;
+let writeJustifyMode = false;
 
 function toggleFirstLineIndent() {
   writeIndentMode = !writeIndentMode;
@@ -12132,6 +12438,20 @@ function toggleFirstLineIndent() {
     btn.classList.add('active');
   } else {
     editor.classList.remove('indent-mode');
+    btn.classList.remove('active');
+  }
+  editor.focus();
+}
+
+function toggleJustify() {
+  writeJustifyMode = !writeJustifyMode;
+  const editor = document.getElementById('writeEditor');
+  const btn = document.getElementById('justifyToggleBtn');
+  if (writeJustifyMode) {
+    editor.classList.add('justify-mode');
+    btn.classList.add('active');
+  } else {
+    editor.classList.remove('justify-mode');
     btn.classList.remove('active');
   }
   editor.focus();
