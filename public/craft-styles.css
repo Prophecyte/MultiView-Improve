@@ -2343,10 +2343,10 @@ body {
 }
 
 .card.design-worn {
-  background: url('https://i.imgur.com/yJlDnag.png') center/cover no-repeat;
-  border: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  position: relative;
+  background: url('https://i.imgur.com/x3GPkQo.png') repeat;
+  background-size: 256px;
+  border: 1px solid rgba(140, 115, 75, 0.2);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 .card.design-worn .card-content {
   position: relative;
@@ -2574,10 +2574,10 @@ select optgroup {
 }
 
 .card.design-parchment {
-  background: url('https://i.imgur.com/p7iuMYE.png') center/cover no-repeat;
-  border: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  position: relative;
+  background: url('https://i.imgur.com/69c8AAx.jpeg') repeat;
+  background-size: 256px;
+  border: 1px solid rgba(168, 140, 100, 0.25);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 .card.design-parchment .card-content {
   position: relative;
@@ -8231,7 +8231,7 @@ body.mm-dragging .mindmap-canvas {
 /* MultiView connected indicator */
 #sbMvConnectBtn.mv-connected { color: var(--gold); border-color: var(--gold); }
 #sbMvConnectBtn.mv-connected::after { content: ''; width: 5px; height: 5px; background: #22c55e; border-radius: 50%; position: absolute; top: 2px; right: 2px; }
-#sbMvConnectBtn {  position: relative;
+#sbMvConnectBtn { position: relative;
     display: flex;
     align-items: center;
     gap: 4px;
