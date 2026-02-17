@@ -60,8 +60,15 @@
           .then(function(r) {
             if (!r.ok) throw new Error('Upload failed: ' + r.status);
             return apiRequest('/files/complete', { method: 'POST', body: JSON.stringify({
-              fileId: d.fileId, fileKey: d.fileKey, filename: filename, publicUrl: d.publicUrl, category: d.category, size: file.size, roomId: roomId
-            })});
+  fileId: d.fileId,
+  fileKey: d.fileKey,
+  filename: filename,
+  publicUrl: d.publicUrl,
+  category: d.category,
+  size: file.size,
+  roomId: roomId,
+  contentType: d.contentType
+})});
           })
           .then(function(c) { return c.url; });
       });
