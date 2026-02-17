@@ -357,6 +357,40 @@ export const handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
+    // ─── PUT /:id/member - Update member display name / color ───
+    if (event.httpMethod === 'PUT' && subPath === '/member') {
+      const { targetUserId, targetGuestId, displayName, color } = body;
+      // Auth: must be owner, editor, or editing yourself
+      const myId = user ? user.id : null;
+      const myGid = body.myGuestId || null;
+      let allowed = false;
+      if (user) {
+        const [room] = await sql`SELECT owner_id FROM craft_rooms WHERE id = ${roomId}`;
+        if (room && room.owner_id === user.id) allowed = true;
+        const [me] = await sql`SELECT role FROM craft_room_members WHERE craft_room_id = ${roomId} AND user_id = ${user.id}`;
+        if (me && me.role === 'editor') allowed = true;
+        if (targetUserId && targetUserId === user.id) allowed = true;
+      } else if (myGid) {
+        const [me] = await sql`SELECT role FROM craft_room_members WHERE craft_room_id = ${roomId} AND guest_id = ${myGid}`;
+        if (me && me.role === 'editor') allowed = true;
+        if (targetGuestId && targetGuestId === myGid) allowed = true;
+      }
+      if (!allowed) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not allowed' }) };
+
+      if (targetUserId) {
+        await sql`UPDATE craft_room_members SET
+          display_name = COALESCE(${displayName || null}, display_name),
+          color = COALESCE(${color || null}, color)
+          WHERE craft_room_id = ${roomId} AND user_id = ${targetUserId}`;
+      } else if (targetGuestId) {
+        await sql`UPDATE craft_room_members SET
+          display_name = COALESCE(${displayName || null}, display_name),
+          color = COALESCE(${color || null}, color)
+          WHERE craft_room_id = ${roomId} AND guest_id = ${targetGuestId}`;
+      }
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
     // ─── POST /:id/kick - Kick member ───
     if (event.httpMethod === 'POST' && subPath === '/kick') {
       if (!user) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Login required' }) };

@@ -533,8 +533,60 @@
 
   // ═══ CONNECTED BAR (matches video room, inline online/offline, right-click kick) ═══
   var activeCtx = null;
+  var BADGE_COLORS = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#1abc9c', '#3498db', '#9b59b6', '#e91e63', '#607d8b', '#795548', '#00bcd4', '#8bc34a'];
   function closeCtx() { if (activeCtx) { activeCtx.remove(); activeCtx = null; } }
   document.addEventListener('click', closeCtx);
+
+  function canEditMember(m) {
+    var uid = m.user_id || m.guest_id;
+    var myId = currentUser ? (currentUser.id || currentUser.guestId) : null;
+    if (uid === myId) return true;
+    if (isOwner) return true;
+    if (myRole === 'editor') return true;
+    return false;
+  }
+
+  function updateMember(m, data) {
+    var payload = { targetUserId: m.user_id || undefined, targetGuestId: m.guest_id || undefined };
+    if (currentUser && currentUser.guestId) payload.myGuestId = currentUser.guestId;
+    Object.assign(payload, data);
+    apiRequest('/craftrooms/' + roomId + '/member', { method: 'PUT', body: JSON.stringify(payload) })
+      .then(function() { refreshMembers(); })
+      .catch(function(err) { alert('Failed: ' + err.message); });
+  }
+
+  function showRenameModal(m) {
+    closeCtx();
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '10001';
+    overlay.innerHTML = '<div class="modal settings-modal" onclick="event.stopPropagation()"><button class="modal-close" id="renameClose">&times;</button><h2>Change Display Name</h2><div class="settings-content"><div class="modal-input-group"><label>Display Name</label><input type="text" id="renameInput" value="' + esc(m.display_name) + '" placeholder="Enter display name" autofocus /></div><button class="btn primary" id="renameSubmit" style="width:100%">Save</button></div></div>';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    var inp = document.getElementById('renameInput');
+    inp.focus(); inp.select();
+    document.getElementById('renameClose').addEventListener('click', function() { overlay.remove(); });
+    function doRename() { var n = inp.value.trim(); if (n) { updateMember(m, { displayName: n }); } overlay.remove(); }
+    document.getElementById('renameSubmit').addEventListener('click', doRename);
+    inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') doRename(); });
+  }
+
+  function showColorModal(m) {
+    closeCtx();
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '10001';
+    var grid = BADGE_COLORS.map(function(c) {
+      return '<button class="color-option' + (m.color === c ? ' selected' : '') + '" style="background-color:' + c + '" data-color="' + c + '"></button>';
+    }).join('');
+    overlay.innerHTML = '<div class="modal settings-modal" onclick="event.stopPropagation()"><button class="modal-close" id="colorClose">&times;</button><h2>Choose Color</h2><div class="color-picker-grid">' + grid + '</div></div>';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    document.getElementById('colorClose').addEventListener('click', function() { overlay.remove(); });
+    overlay.querySelectorAll('.color-option').forEach(function(btn) {
+      btn.addEventListener('click', function() { updateMember(m, { color: btn.dataset.color }); overlay.remove(); });
+    });
+  }
 
   function renderConnectedBar() {
     var bar = document.getElementById('craftConnectedBar'); if (!bar || !roomId) return;
@@ -571,6 +623,7 @@
       if (isYou) cls += ' is-you';
       if (m.is_owner) cls += ' is-owner';
       chip.className = cls;
+      if (m.color) chip.style.background = m.color;
 
       // View label for online users
       var viewLabel = '';
@@ -588,30 +641,48 @@
         (m.role && !m.is_owner ? '<span class="role-chip">' + (m.role === 'editor' ? '\u270F\uFE0F' : '\uD83D\uDC41') + '</span>' : '') +
         viewLabel;
 
-      // Right-click context menu for kick (owner only)
-      if (isOwner && !isYou) {
+      // Right-click context menu
+      if (canEditMember(m) || (isOwner && !isYou)) {
         chip.addEventListener('contextmenu', function(e) {
           e.preventDefault(); e.stopPropagation(); closeCtx();
           var menu = document.createElement('div');
           menu.className = 'context-menu';
           menu.style.cssText = 'position:fixed;left:' + Math.min(e.clientX, window.innerWidth - 170) + 'px;top:0px;z-index:10000;visibility:hidden';
-          menu.innerHTML = '<button class="context-menu-item danger">\u2715 Kick ' + esc(m.display_name) + '</button>';
-          menu.querySelector('.context-menu-item').addEventListener('click', function() {
-            if (confirm('Kick ' + m.display_name + ' from this room?')) {
-              apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: m.user_id ? m.user_id : undefined, guestId: m.guest_id ? m.guest_id : undefined }) })
-                .then(function() { refreshMembers(); })
-                .catch(function(err) { alert('Failed: ' + err.message); });
-            }
-            closeCtx();
-          });
+          var items = '';
+          if (canEditMember(m)) {
+            items += '<button class="context-menu-item" data-act="rename">Rename</button>';
+            items += '<button class="context-menu-item" data-act="color">Change Color</button>';
+          }
+          if (isOwner && !isYou) {
+            if (items) items += '<div class="context-menu-divider"></div>';
+            items += '<button class="context-menu-item danger" data-act="kick">\u2715 Kick ' + esc(m.display_name) + '</button>';
+          }
+          menu.innerHTML = items;
           document.body.appendChild(menu);
-          // Position after render so we can measure menu height
-          var mh = menu.offsetHeight || 40;
+          // Position to stay on screen
+          var mh = menu.offsetHeight || 80;
           var topPos = e.clientY;
           if (topPos + mh > window.innerHeight - 8) topPos = e.clientY - mh - 4;
           menu.style.top = Math.max(4, topPos) + 'px';
           menu.style.visibility = 'visible';
           activeCtx = menu;
+
+          menu.querySelectorAll('.context-menu-item').forEach(function(btn) {
+            btn.addEventListener('click', function(ev) {
+              ev.stopPropagation();
+              var act = btn.dataset.act;
+              if (act === 'rename') showRenameModal(m);
+              else if (act === 'color') showColorModal(m);
+              else if (act === 'kick') {
+                if (confirm('Kick ' + m.display_name + ' from this room?')) {
+                  apiRequest('/craftrooms/' + roomId + '/kick', { method: 'POST', body: JSON.stringify({ userId: m.user_id ? m.user_id : undefined, guestId: m.guest_id ? m.guest_id : undefined }) })
+                    .then(function() { refreshMembers(); })
+                    .catch(function(err) { alert('Failed: ' + err.message); });
+                }
+                closeCtx();
+              }
+            });
+          });
         });
       }
       return chip;
