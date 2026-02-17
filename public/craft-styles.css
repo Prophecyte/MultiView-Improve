@@ -7412,6 +7412,13 @@ body.mm-dragging .mindmap-canvas {
 }
 .regions-layer .region-group {
   pointer-events: all;
+  cursor: grab;
+}
+.regions-layer .region-group:active {
+  cursor: grabbing;
+}
+.regions-layer .region-group.region-hidden {
+  opacity: 0.35;
 }
 .region-draw-layer {
   position: absolute;

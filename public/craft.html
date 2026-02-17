@@ -2983,9 +2983,11 @@
 
         <!-- Region Context Menu -->
         <div class="context-menu hidden" id="regionContextMenu">
-          <div class="context-item" onclick="editSelectedRegion()">✏️ Edit Region</div>
-          <div class="context-item" onclick="duplicateSelectedRegion()">📋 Duplicate</div>
-          <div class="context-item danger" onclick="deleteSelectedRegion()">🗑️ Delete Region</div>
+          <div class="context-menu-item" onclick="editSelectedRegion()">Edit Region</div>
+          <div class="context-menu-item" onclick="duplicateSelectedRegion()">Duplicate</div>
+          <div class="context-menu-item owner-only" onclick="toggleHideRegionCtx()">Toggle Hidden</div>
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item danger" onclick="deleteSelectedRegion()">Delete Region</div>
         </div>
 
         <!-- Faction/Contact Context Menu -->

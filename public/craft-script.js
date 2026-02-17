@@ -1935,11 +1935,14 @@ function renderRegions() {
   if (!w || !h) return;
 
   regions.forEach(reg => {
+    // Hidden regions: invisible to non-owners, dimmed for owners
+    if (reg.hidden && !window.craftIsOwner) return;
+
     // Create fill patterns
     createRegionPattern(defs, reg);
 
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('class', 'region-group');
+    g.setAttribute('class', 'region-group' + (reg.hidden ? ' region-hidden' : ''));
     g.setAttribute('data-region-id', reg.id);
 
     // Main path
@@ -1987,6 +1990,47 @@ function renderRegions() {
       e.stopPropagation();
       selectedRegionId = reg.id;
       showRegionContextMenu(e.clientX, e.clientY);
+    });
+    // Drag entire region
+    hit.addEventListener('mousedown', (e) => {
+      if (mapTool === 'map-region' || e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const wrapper = document.getElementById('mapImageWrapper');
+      if (!wrapper) return;
+      const wRect = wrapper.getBoundingClientRect();
+      const wW = wRect.width / mapZoom;
+      const wH = wRect.height / mapZoom;
+      if (!wW || !wH) return;
+      let startX = e.clientX;
+      let startY = e.clientY;
+      let dragged = false;
+      let undoSaved = false;
+      const onMove = (me) => {
+        const dx = (me.clientX - startX) / mapZoom;
+        const dy = (me.clientY - startY) / mapZoom;
+        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+        if (!undoSaved) { saveMapUndoState(); undoSaved = true; }
+        dragged = true;
+        const pctX = (dx / wW) * 100;
+        const pctY = (dy / wH) * 100;
+        reg.points.forEach(p => { p.x += pctX; p.y += pctY; });
+        startX = me.clientX;
+        startY = me.clientY;
+        renderRegions();
+        renderRegionEditHandles();
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.classList.remove('mm-dragging');
+        if (!dragged) {
+          selectRegion(reg.id);
+        }
+      };
+      document.body.classList.add('mm-dragging');
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
 
     g.appendChild(path);
@@ -2539,6 +2583,18 @@ function duplicateSelectedRegion() {
   renderRegions();
   selectRegion(dup.id);
   showNotif('Region duplicated');
+}
+
+function toggleHideRegionCtx() {
+  document.getElementById('regionContextMenu')?.classList.add('hidden');
+  const map = getCurrentMap();
+  if (!map || !map.regions) return;
+  const reg = map.regions.find(r => r.id === selectedRegionId);
+  if (!reg) return;
+  saveMapUndoState();
+  reg.hidden = !reg.hidden;
+  renderRegions();
+  showNotif(reg.hidden ? 'Region hidden' : 'Region visible');
 }
 
 function showRegionContextMenu(cx, cy) {
