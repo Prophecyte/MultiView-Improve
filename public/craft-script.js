@@ -406,34 +406,35 @@ function initEventListeners() {
     const selection = window.getSelection();
 
     if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Apply to selection using span with font-family
-      const range = selection.getRangeAt(0);
-      const span = document.createElement('span');
-      span.style.fontFamily = e.target.value;
-      range.surroundContents(span);
+      // Use execCommand for robust cross-element selection handling (like Google Docs)
+      document.execCommand('fontName', false, e.target.value);
       saveCurrentChapter();
     } else if (!editor.textContent.trim()) {
       // Editor is empty - set default for new content
       editor.style.fontFamily = e.target.value;
     }
-    // If editor has content but nothing selected, do nothing
     editor.focus();
   });
 
   document.getElementById('fontSize').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
     const selection = window.getSelection();
+    const sizeVal = e.target.value;
 
     if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Apply to selection using span with font-size
-      const range = selection.getRangeAt(0);
-      const span = document.createElement('span');
-      span.style.fontSize = e.target.value + 'px';
-      range.surroundContents(span);
+      // execCommand fontSize only supports 1-7, so use a marker then restyle
+      document.execCommand('fontSize', false, '7');
+      // Find all font elements with size=7 and convert to span with actual px size
+      editor.querySelectorAll('font[size="7"]').forEach(font => {
+        const span = document.createElement('span');
+        span.style.fontSize = sizeVal + 'px';
+        span.innerHTML = font.innerHTML;
+        font.replaceWith(span);
+      });
       saveCurrentChapter();
     } else if (!editor.textContent.trim()) {
       // Editor is empty - set default for new content
-      editor.style.fontSize = e.target.value + 'px';
+      editor.style.fontSize = sizeVal + 'px';
     }
     editor.focus();
   });
@@ -3566,7 +3567,7 @@ function createCardElement(cardData) {
   } else if (cardData.type === 'quest') {
     content += renderQuestCard(cardData);
   } else if (cardData.type !== 'text' && cardData.type !== 'image' && cardData.description) {
-    content += `<div class="card-description" style="color: ${textColor}; font-family: ${fontFamily}; font-size: ${fontSize}px; text-align: ${textAlign}">${parseWikiLinks(cardData.description)}</div>`;
+    content += `<div class="card-description" style="color: ${textColor}; font-family: ${fontFamily}; font-size: ${fontSize}px; text-align: ${textAlign}; white-space: pre-wrap">${parseWikiLinks(cardData.description)}</div>`;
   }
 
   // Tags
@@ -4125,7 +4126,7 @@ function renderItemCard(cardData) {
   const load = cardData.itemLoad > 0 ? `<span class="item-load">${'■'.repeat(cardData.itemLoad)}${'□'.repeat(Math.max(0, 5 - cardData.itemLoad))}</span>` : '';
   const props = (cardData.itemProperties || []).map(p => `<span class="item-prop-tag">${p}</span>`).join('');
   const effect = cardData.itemEffect ? `<div class="item-effect" style="color:${textColor}">${cardData.itemEffect}</div>` : '';
-  const desc = cardData.description ? `<div class="item-desc" style="color:${textColor}">${cardData.description}</div>` : '';
+  const desc = cardData.description ? `<div class="item-desc" style="color:${textColor};white-space:pre-wrap">${cardData.description}</div>` : '';
 
   return `
     <div class="item-card-content">
@@ -4401,7 +4402,7 @@ function renderCharacterCard(cardData) {
       <span class="char-field-label">${f.label}</span>
       <span class="char-field-value" style="color:${titleColor}">${f.value || '—'}</span>
     </div>`).join('')}
-    ${bio ? `<div class="char-bio" style="color:${textColor}">${bio}</div>` : ''}
+    ${bio ? `<div class="char-bio" style="color:${textColor};white-space:pre-wrap">${bio}</div>` : ''}
   </div>`;
 }
 
@@ -4419,8 +4420,8 @@ function renderLocationCard(cardData) {
       <span class="loc-field-label">${f.label}</span>
       <span class="loc-field-value" style="color:${titleColor}">${f.value || '—'}</span>
     </div>`).join('')}
-    ${landmarks ? `<div class="loc-section"><span class="loc-section-label">Landmarks</span><div style="color:${textColor};font-size:11px;line-height:1.4">${landmarks}</div></div>` : ''}
-    ${secrets ? `<div class="loc-section"><span class="loc-section-label" style="color:#ef4444">Secrets</span><div style="color:${textColor};font-size:11px;line-height:1.4;font-style:italic">${secrets}</div></div>` : ''}
+    ${landmarks ? `<div class="loc-section"><span class="loc-section-label">Landmarks</span><div style="color:${textColor};font-size:11px;line-height:1.4;white-space:pre-wrap">${landmarks}</div></div>` : ''}
+    ${secrets ? `<div class="loc-section"><span class="loc-section-label" style="color:#ef4444">Secrets</span><div style="color:${textColor};font-size:11px;line-height:1.4;font-style:italic;white-space:pre-wrap">${secrets}</div></div>` : ''}
   </div>`;
 }
 
@@ -4488,7 +4489,7 @@ function renderAbilityCard(cardData) {
   return `<div class="ability-card-content">
     <div class="ability-type-badge" style="background:${typeColor}22;color:${typeColor};">${aType}</div>
     ${metaHtml}
-    ${desc ? `<div class="ability-desc" style="color:${textColor}">${desc}</div>` : ''}
+    ${desc ? `<div class="ability-desc" style="color:${textColor};white-space:pre-wrap">${desc}</div>` : ''}
     ${usesHtml}
   </div>`;
 }
@@ -4524,7 +4525,7 @@ function renderCharFieldsInDetail(cardData) {
       <input class="detail-input" value="${(f.value||'').replace(/"/g,'&quot;')}" data-idx="${i}" data-k="value" placeholder="Value" style="flex:1" />
       <button class="remove-btn" onclick="removeCharField(${i})">×</button>
     </div>`).join('')}</div>
-    <button class="add-item-btn" onclick="addCharField()" style="margin-top:4px">+ Add Field</button>`;
+    <button class="add-btn-full" onclick="addCharField()">+ Add Field</button>`;
   sec.querySelectorAll('.detail-input').forEach(inp => {
     inp.addEventListener('input', (e) => {
       const idx = parseInt(e.target.dataset.idx);
@@ -4554,7 +4555,7 @@ function renderLocFieldsInDetail(cardData) {
       <input class="detail-input" value="${(f.value||'').replace(/"/g,'&quot;')}" data-idx="${i}" data-k="value" placeholder="Value" style="flex:1" />
       <button class="remove-btn" onclick="removeLocField(${i})">×</button>
     </div>`).join('')}</div>
-    <button class="add-item-btn" onclick="addLocField()" style="margin-top:4px">+ Add Field</button>
+    <button class="add-btn-full" onclick="addLocField()">+ Add Field</button>
     <label class="detail-label" style="margin-top:8px">Landmarks</label>
     <textarea class="detail-textarea" id="locLandmarksInput" placeholder="Notable landmarks...">${cardData.locLandmarks || ''}</textarea>`;
   sec.querySelectorAll('.detail-input').forEach(inp => {
@@ -4587,7 +4588,7 @@ function renderQuestFieldsInDetail(cardData) {
     <div class="attr-edit-row"><label style="width:70px;font-size:10px;color:var(--gold)">Reward</label><input class="detail-input" id="questRewardInput" value="${(cardData.questReward||'').replace(/"/g,'&quot;')}" placeholder="Gold, items, favor..." style="flex:1" /></div>
     <label class="detail-label" style="margin-top:8px">Steps</label>
     <div id="questStepsList">${steps.map((s, i) => `<div class="attr-edit-row"><input type="checkbox" ${s.done ? 'checked' : ''} data-step="${i}" class="quest-step-chk" /><input class="detail-input" value="${(s.text||'').replace(/"/g,'&quot;')}" data-step="${i}" data-k="text" placeholder="Step ${i+1}" style="flex:1" /><button class="remove-btn" onclick="removeQuestStep(${i})">×</button></div>`).join('')}</div>
-    <button class="add-item-btn" onclick="addQuestStep()" style="margin-top:4px">+ Add Step</button>`;
+    <button class="add-btn-full" onclick="addQuestStep()">+ Add Step</button>`;
   document.getElementById('questStatusSel')?.addEventListener('change', (e) => { cardData.questStatus = e.target.value; refreshCardElement(cardData); });
   document.getElementById('questGiverInput')?.addEventListener('input', (e) => { cardData.questGiver = e.target.value; refreshCardElement(cardData); });
   document.getElementById('questRewardInput')?.addEventListener('input', (e) => { cardData.questReward = e.target.value; refreshCardElement(cardData); });
