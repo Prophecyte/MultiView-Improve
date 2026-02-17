@@ -2343,29 +2343,17 @@ body {
 }
 
 .card.design-worn {
-  background: #17140f;
-  border: 1px solid rgba(140, 115, 75, 0.25);
-  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.4);
-  position: relative;
-  overflow: hidden;
-}
-.card.design-worn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
   background: url('https://i.imgur.com/yJlDnag.png') center/cover no-repeat;
-  opacity: 0.3;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 0;
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  position: relative;
 }
 .card.design-worn .card-content {
   position: relative;
   z-index: 1;
 }
 .card.design-worn .card-type-indicator {
-  background: linear-gradient(90deg, #6b5a3e, #8b7355, #6b5a3e);
-  opacity: 0.7;
+  background: linear-gradient(90deg, rgba(107,90,62,0.6), rgba(139,115,85,0.6), rgba(107,90,62,0.6));
   position: relative;
   z-index: 1;
 }
@@ -2586,23 +2574,10 @@ select optgroup {
 }
 
 .card.design-parchment {
-  background: #1e1a14;
-  border: 1px solid rgba(168, 140, 100, 0.3);
-  box-shadow:
-    inset 0 0 30px rgba(0, 0, 0, 0.25),
-    0 4px 12px rgba(0, 0, 0, 0.4);
-  position: relative;
-  overflow: hidden;
-}
-.card.design-parchment::before {
-  content: '';
-  position: absolute;
-  inset: 0;
   background: url('https://i.imgur.com/p7iuMYE.png') center/cover no-repeat;
-  opacity: 0.35;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 0;
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  position: relative;
 }
 .card.design-parchment .card-content {
   position: relative;
@@ -2610,7 +2585,7 @@ select optgroup {
 }
 
 .card.design-parchment .card-type-indicator {
-  background: linear-gradient(90deg, #8b6914, #c49b2a, #8b6914);
+  background: linear-gradient(90deg, rgba(139,105,20,0.6), rgba(196,155,42,0.6), rgba(139,105,20,0.6));
   position: relative;
   z-index: 1;
 }
