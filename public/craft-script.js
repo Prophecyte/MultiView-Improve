@@ -44,6 +44,23 @@ let selectedPin = null;
 let currentTool = 'select';
 let mapTool = 'map-select';
 
+// Utility: upload image file to R2, returns promise with URL. Falls back to base64 on failure.
+function uploadFileImage(file, callback) {
+  if (window.craftUploadImage) {
+    window.craftUploadImage(file)
+      .then(url => callback(url))
+      .catch(() => {
+        const r = new FileReader();
+        r.onload = () => callback(r.result);
+        r.readAsDataURL(file);
+      });
+  } else {
+    const r = new FileReader();
+    r.onload = () => callback(r.result);
+    r.readAsDataURL(file);
+  }
+}
+
 // Destination markers (map view)
 let destinationMarkers = [];
 let selectedDestinationId = null;
@@ -792,8 +809,7 @@ function switchView(view) {
       updateMapView();
       updateMapStatusBar();
       renderTagsCloud();
-      // Ensure any pending transforms re-apply after becoming visible
-      applyMapTransform();
+      centerMapOnLoad();
     });
     return;
   }
@@ -980,7 +996,9 @@ function handleFileSelect(e) {
   if (file) previewFile(file);
 }
 
+let pendingImageFile = null;
 function previewFile(file) {
+  pendingImageFile = file;
   const reader = new FileReader();
   reader.onload = (e) => {
     document.getElementById('previewImg').src = e.target.result;
@@ -991,6 +1009,7 @@ function previewFile(file) {
 }
 
 function clearImagePreview() {
+  pendingImageFile = null;
   document.getElementById('previewImg').src = '';
   document.getElementById('fileDropZone').classList.remove('hidden');
   document.getElementById('filePreview').classList.add('hidden');
@@ -1012,31 +1031,41 @@ function confirmImageUpload() {
     return;
   }
 
-  if (imageUploadTarget === 'card' && selectedCard) {
-    const board = getCurrentBoard();
-    const cardData = board.cards.find((c) => c.id === selectedCard.id);
-    if (cardData) {
-      cardData.imageUrl = imageUrl;
-      document.getElementById('detailImagePreview').classList.remove('hidden');
-      document.getElementById('detailImage').src = imageUrl;
-      refreshCard(cardData);
-    }
-  } else if (imageUploadTarget === 'editor') {
-    restoreEditorSelection();
-    const imgWrapper = `
-      <div class="editor-image-wrapper" contenteditable="false">
-        <img src="${imageUrl}" class="editor-image">
-        <div class="image-resize-handle"></div>
-      </div>
+  function applyImage(url) {
+    if (imageUploadTarget === 'card' && selectedCard) {
+      const board = getCurrentBoard();
+      const cardData = board.cards.find((c) => c.id === selectedCard.id);
+      if (cardData) {
+        cardData.imageUrl = url;
+        document.getElementById('detailImagePreview').classList.remove('hidden');
+        document.getElementById('detailImage').src = url;
+        refreshCard(cardData);
+      }
+    } else if (imageUploadTarget === 'editor') {
+      restoreEditorSelection();
+      const imgWrapper = `
+        <div class="editor-image-wrapper" contenteditable="false">
+          <img src="${url}" class="editor-image">
+          <div class="image-resize-handle"></div>
+        </div>
     `;
     document.execCommand('insertHTML', false, imgWrapper);
     saveCurrentChapter();
-
-    // Add resize handlers
     setupEditorImageResize();
   }
+    closeImageModal();
+    pendingImageFile = null;
+  }
 
-  closeImageModal();
+  // Upload file to R2 if available, otherwise use image directly
+  if (pendingImageFile && window.craftUploadImage) {
+    showNotif('Uploading image...');
+    window.craftUploadImage(pendingImageFile)
+      .then(url => { applyImage(url); showNotif('Image uploaded'); })
+      .catch(err => { console.error('Image upload failed:', err); applyImage(imageUrl); showNotif('Upload failed, using local image'); });
+  } else {
+    applyImage(imageUrl);
+  }
 }
 
 // ============================================
@@ -1065,7 +1094,9 @@ function handleMapFileSelect(e) {
   if (file) previewMapFile(file);
 }
 
+let pendingMapFile = null;
 function previewMapFile(file) {
+  pendingMapFile = file;
   const reader = new FileReader();
   reader.onload = (e) => {
     document.getElementById('mapPreviewImg').src = e.target.result;
@@ -1076,6 +1107,7 @@ function previewMapFile(file) {
 }
 
 function clearMapPreview() {
+  pendingMapFile = null;
   document.getElementById('mapPreviewImg').src = '';
   document.getElementById('mapDropZone').classList.remove('hidden');
   document.getElementById('mapFilePreview').classList.add('hidden');
@@ -1089,28 +1121,36 @@ function confirmMapUpload() {
     return;
   }
 
-  const currentMap = getCurrentMap();
-  if (currentMap) {
-    currentMap.imageUrl = previewSrc;
-    updateMapView();
-    centerMapOnLoad();
-  } else {
-    // Create new map
-    const newId = `map-${Date.now()}`;
-    maps.push({
-      id: newId,
-      name: 'New Map',
-      imageUrl: previewSrc,
-      pins: [],
-      scale: { pixels: 100, distance: 1, unit: 'miles' }
-    });
-    currentMapId = newId;
-    renderMapsList();
-    updateMapView();
-    centerMapOnLoad();
+  function applyMapImage(url) {
+    const currentMap = getCurrentMap();
+    if (currentMap) {
+      currentMap.imageUrl = url;
+      updateMapView();
+      centerMapOnLoad();
+    } else {
+      const newId = `map-${Date.now()}`;
+      maps.push({
+        id: newId, name: 'New Map', imageUrl: url,
+        pins: [], scale: { pixels: 100, distance: 1, unit: 'miles' }
+      });
+      currentMapId = newId;
+      renderMapsList();
+      updateMapView();
+      centerMapOnLoad();
+    }
+    closeMapUploadModal();
+    pendingMapFile = null;
   }
 
-  closeMapUploadModal();
+  // Upload file to R2 if available, otherwise use preview src directly
+  if (pendingMapFile && window.craftUploadImage) {
+    showNotif('Uploading image...');
+    window.craftUploadImage(pendingMapFile)
+      .then(url => { applyMapImage(url); showNotif('Map image uploaded'); })
+      .catch(err => { console.error('Map upload failed:', err); applyMapImage(previewSrc); showNotif('Upload failed, using local image'); });
+  } else {
+    applyMapImage(previewSrc);
+  }
 }
 
 function centerMapOnLoad() {
@@ -1118,22 +1158,25 @@ function centerMapOnLoad() {
   const mapImg = document.getElementById('mapImage');
   if (!mapCanvas || !mapImg) return;
 
-  // Wait for image to load then center it
+  // Wait for image to load then fit to container width and center
   const img = new Image();
   img.onload = () => {
     const canvasRect = mapCanvas.getBoundingClientRect();
     const imgW = img.naturalWidth;
     const imgH = img.naturalHeight;
+    if (!imgW || !imgH || !canvasRect.width) return;
 
-    // Fit image to canvas
-    const scaleX = canvasRect.width / imgW;
-    const scaleY = canvasRect.height / imgH;
-    mapZoom = Math.min(scaleX, scaleY, 1) * 0.9;
+    // Fit to container width
+    mapZoom = canvasRect.width / imgW;
 
-    const scaledW = imgW * mapZoom;
     const scaledH = imgH * mapZoom;
-    mapPanOffset.x = (canvasRect.width - scaledW) / 2;
-    mapPanOffset.y = (canvasRect.height - scaledH) / 2;
+    mapPanOffset.x = 0;
+    // Center vertically if image is shorter than container
+    if (scaledH < canvasRect.height) {
+      mapPanOffset.y = (canvasRect.height - scaledH) / 2;
+    } else {
+      mapPanOffset.y = 0;
+    }
 
     applyMapTransform();
     document.getElementById('mapZoomLevel').textContent = `${Math.round(mapZoom * 100)}%`;
@@ -1513,6 +1556,7 @@ function deleteMap(mapId) {
 }
 
 function selectMap(mapId) {
+  const changed = currentMapId !== mapId;
   currentMapId = mapId;
   renderMapsList();
   updateMapView();
@@ -1520,6 +1564,7 @@ function selectMap(mapId) {
   deselectPin();
   deselectRegion();
   cancelRegionDrawing();
+  if (changed) centerMapOnLoad();
 }
 
 function getCurrentMap() {
@@ -3386,10 +3431,14 @@ function mapZoomWidth() {
   if (!mapImg.naturalWidth) return;
 
   const containerWidth = mapCanvas.clientWidth;
+  const containerHeight = mapCanvas.clientHeight;
   const imageWidth = mapImg.naturalWidth;
+  const imageHeight = mapImg.naturalHeight;
 
   mapZoom = containerWidth / imageWidth;
-  mapPanOffset = { x: 0, y: 0 };
+  const scaledH = imageHeight * mapZoom;
+  mapPanOffset.x = 0;
+  mapPanOffset.y = scaledH < containerHeight ? (containerHeight - scaledH) / 2 : 0;
   applyMapTransform();
   document.getElementById('mapZoomLevel').textContent = `${Math.round(mapZoom * 100)}%`;
 }
@@ -6877,30 +6926,32 @@ function handleKeyboard(e) {
     case 'Delete':
     case 'Backspace':
       if (currentView === 'board' && (multiSelectedCards.size > 0 || multiSelectedConnections.length > 0)) {
+        e.preventDefault();
         const cardCount = multiSelectedCards.size;
         const connCount = multiSelectedConnections.length;
         const parts = [];
         if (cardCount > 0) parts.push(cardCount + ' card' + (cardCount > 1 ? 's' : ''));
         if (connCount > 0) parts.push(connCount + ' connection' + (connCount > 1 ? 's' : ''));
-        if (!confirm('Delete ' + parts.join(' and ') + '?')) break;
-        saveUndoState();
-        // Collect IDs before iterating (deleteCard calls deselectAll which clears the Set)
-        const cardIds = [...multiSelectedCards];
-        const conns = [...multiSelectedConnections];
-        multiSelectedCards.clear();
-        multiSelectedConnections = [];
-        cardIds.forEach(cardId => deleteCard(cardId));
-        if (conns.length > 0) {
-          const board = getCurrentBoard();
-          if (board) {
-            conns.forEach(mc => {
-              board.connections = board.connections.filter(c => !(c.from === mc.from && c.to === mc.to));
-            });
-            renderConnections();
+        siteConfirm('Delete Items', 'Delete ' + parts.join(' and ') + '? This can be undone with Ctrl+Z.', 'Delete', true).then(ok => {
+          if (!ok) return;
+          saveUndoState();
+          const cardIds = [...multiSelectedCards];
+          const conns = [...multiSelectedConnections];
+          multiSelectedCards.clear();
+          multiSelectedConnections = [];
+          cardIds.forEach(cardId => deleteCard(cardId));
+          if (conns.length > 0) {
+            const board = getCurrentBoard();
+            if (board) {
+              conns.forEach(mc => {
+                board.connections = board.connections.filter(c => !(c.from === mc.from && c.to === mc.to));
+              });
+              renderConnections();
+            }
           }
-        }
-        setToolbarMode('none');
-        showNotif('Deleted ' + parts.join(' and '));
+          setToolbarMode('none');
+          showNotif('Deleted ' + parts.join(' and '));
+        });
       } else if (currentView === 'board' && selectedCard) {
         saveUndoState();
         deleteCard(selectedCard.id);
@@ -7122,16 +7173,18 @@ function closeMapEditorModal() {
   editingMapId = null;
 }
 
+let pendingMapEditorFile = null;
 function handleMapEditorFileSelect(e) {
   const file = e.target.files[0];
   if (!file || !file.type.startsWith('image/')) return;
+  pendingMapEditorFile = file;
 
   const reader = new FileReader();
   reader.onload = (event) => {
     const previewImg = document.getElementById('mapEditorPreviewImg');
     previewImg.src = event.target.result;
     previewImg.classList.remove('hidden');
-    previewImg.dataset.newImage = event.target.result;
+    previewImg.dataset.newImage = 'pending';
   };
   reader.readAsDataURL(file);
 }
@@ -7153,10 +7206,18 @@ function saveMapChanges() {
 
   // Check if there's a new image
   const previewImg = document.getElementById('mapEditorPreviewImg');
-  if (previewImg.dataset.newImage) {
+  if (previewImg.dataset.newImage && pendingMapEditorFile && window.craftUploadImage) {
+    showNotif('Uploading image...');
+    window.craftUploadImage(pendingMapEditorFile)
+      .then(url => { map.imageUrl = url; renderMapsList(); updateMapView(); updateMapStatusBar(); showNotif('Map image uploaded'); })
+      .catch(err => { console.error('Upload failed:', err); showNotif('Upload failed'); });
+    delete previewImg.dataset.newImage;
+    pendingMapEditorFile = null;
+  } else if (previewImg.dataset.newImage && previewImg.dataset.newImage !== 'pending') {
     map.imageUrl = previewImg.dataset.newImage;
     delete previewImg.dataset.newImage;
   }
+  pendingMapEditorFile = null;
 
   renderMapsList();
   updateMapView();
@@ -9217,7 +9278,7 @@ function editEventCtx(){const e=ctxEventId,t=ctxEventTlId;hideAllContextMenus();
 function duplicateEventCtx(){const ei=ctxEventId,ti=ctxEventTlId;hideAllContextMenus();if(!ti)return;const tl=timelines.find(t=>t.id===ti);if(!tl)return;const src=tl.events.find(e=>e.id===ei);if(!src)return;const dup=JSON.parse(JSON.stringify(src));dup.id='evt_'+Date.now()+'_'+Math.floor(Math.random()*10000);dup.title=src.title+' (Copy)';tl.events.push(dup);renderTimelineView();showNotif('Event duplicated');}
 function moveEventToCurrentDateCtx(){const ei=ctxEventId,ti=ctxEventTlId;hideAllContextMenus();if(!ti)return;const tl=timelines.find(t=>t.id===ti);if(!tl)return;const evt=tl.events.find(e=>e.id===ei);if(!evt)return;evt.date={...tl.currentDate};if(evt.endDate)evt.endDate=null;renderTimelineView();showNotif('Event moved');}
 function deleteEventCtx(){const ei=ctxEventId,ti=ctxEventTlId;hideAllContextMenus();if(!ti)return;const tl=timelines.find(t=>t.id===ti);if(!tl)return;tl.events=tl.events.filter(e=>e.id!==ei);if(selectedEventId===ei)deselectTlEvent();renderTimelineView();showNotif('Event deleted');}
-function handleTlImageUpload(e){const tl=getCurrentTimeline();if(!tl)return;const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=function(ev){tl.image=ev.target.result;renderTimelineView();showTlDetailsPanel();showNotif('Image set');};r.readAsDataURL(file);e.target.value='';}
+function handleTlImageUpload(e){const tl=getCurrentTimeline();if(!tl)return;const file=e.target.files[0];if(!file)return;if(window.craftUploadImage){showNotif('Uploading image...');window.craftUploadImage(file).then(function(url){tl.image=url;renderTimelineView();showTlDetailsPanel();showNotif('Image uploaded');}).catch(function(err){console.error('Upload failed:',err);const r=new FileReader();r.onload=function(ev){tl.image=ev.target.result;renderTimelineView();showTlDetailsPanel();showNotif('Upload failed, using local');};r.readAsDataURL(file);});}else{const r=new FileReader();r.onload=function(ev){tl.image=ev.target.result;renderTimelineView();showTlDetailsPanel();showNotif('Image set');};r.readAsDataURL(file);}e.target.value='';}
 
 // ---- EVENT EDITOR ----
 function openEventEditor(eventId){const tl=getCurrentTimeline();if(!tl)return;populateMonthSelects();editingEventId=eventId||null;const evt=eventId?tl.events.find(e=>e.id===eventId):null;document.getElementById('eventEditorTitle').textContent=evt?'Edit Event':'Add Event';document.getElementById('eventTitle').value=evt?evt.title:'';document.getElementById('eventDay').value=evt?evt.date.day:(tl.currentDate.day||1);document.getElementById('eventMonth').value=evt?evt.date.month:(tl.currentDate.month||0);document.getElementById('eventYear').value=evt?evt.date.year:(tl.currentDate.year||1);document.getElementById('eventDesc').value=evt?(evt.description||''):'';document.getElementById('eventEra').value=evt?(evt.era||''):'';document.getElementById('deleteEventBtn').style.display=evt?'':'none';const hr=evt&&evt.endDate;document.getElementById('eventRangeToggle').checked=!!hr;document.getElementById('eventEndDateRow').style.display=hr?'':'none';document.getElementById('eventEndDay').value=hr?evt.endDate.day:(evt?evt.date.day:tl.currentDate.day||1);document.getElementById('eventEndMonth').value=hr?evt.endDate.month:(evt?evt.date.month:tl.currentDate.month||0);document.getElementById('eventEndYear').value=hr?evt.endDate.year:(evt?evt.date.year:tl.currentDate.year||1);const color=evt?evt.color:'#d4a824';document.querySelectorAll('#eventColorOptions .pin-color-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.color===color));editingEventTags=evt&&evt.tags?[...evt.tags]:[];document.getElementById('eventTagsInput').value='';renderEventTagPills();document.getElementById('eventEditorModal').classList.remove('hidden');}
@@ -9626,12 +9687,10 @@ function removeCombatantImage() {
 
 function handleCombatantImageUpload(e) {
   const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
+  uploadFileImage(file, (url) => {
     const c = combatants.find(cb => cb.id === selectedCombatantId);
-    if (c) { c.image = ev.target.result; renderCombatants(); showCombatantDetail(); }
-  };
-  reader.readAsDataURL(file);
+    if (c) { c.image = url; renderCombatants(); showCombatantDetail(); }
+  });
   e.target.value = '';
 }
 
@@ -10285,13 +10344,11 @@ function removeFactionClaim(facId, idx) {
 // ---- Image Upload ----
 function handleFacImageUpload(e) {
   const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
+  uploadFileImage(file, (url) => {
     const f = factions.find(fc => fc.id === selectedFactionId); if (!f) return;
-    f.image = reader.result;
+    f.image = url;
     showFacDetail(); renderFactionGrid();
-  };
-  reader.readAsDataURL(file);
+  });
   e.target.value = '';
 }
 function removeFacImage() {
@@ -10300,13 +10357,11 @@ function removeFacImage() {
 }
 function handleConImageUpload(e) {
   const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
+  uploadFileImage(file, (url) => {
     const c = contacts.find(co => co.id === selectedContactId); if (!c) return;
-    c.image = reader.result;
+    c.image = url;
     showContactDetail(); renderContactsGrid();
-  };
-  reader.readAsDataURL(file);
+  });
   e.target.value = '';
 }
 function removeConImage() {
@@ -11640,9 +11695,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('orgImageUpload')?.addEventListener('change', (e) => {
     const file = e.target.files[0]; if (!file) return;
     const o = organizations.find(x => x.id === selectedOrgId); if (!o) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => { o.image = ev.target.result; renderOrgsGrid(); showOrgDetail(); };
-    reader.readAsDataURL(file);
+    uploadFileImage(file, (url) => { o.image = url; renderOrgsGrid(); showOrgDetail(); });
     e.target.value = '';
   });
 

@@ -102,13 +102,15 @@ function generatePresignedUrl(bucket, key, contentType, expiresIn = 3600) {
 const ALLOWED_EXTENSIONS = {
   'mp3': 'audio', 'wav': 'audio', 'm4a': 'audio', 'ogg': 'audio',
   'flac': 'audio', 'aac': 'audio', 'webm': 'audio',
-  'mp4': 'video', 'ogv': 'video', 'mov': 'video'
+  'mp4': 'video', 'ogv': 'video', 'mov': 'video',
+  'png': 'image', 'jpg': 'image', 'jpeg': 'image', 'gif': 'image', 'webp': 'image', 'svg': 'image', 'bmp': 'image'
 };
 
 const MIME_TYPES = {
   'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'm4a': 'audio/mp4',
   'ogg': 'audio/ogg', 'flac': 'audio/flac', 'aac': 'audio/aac',
-  'webm': 'video/webm', 'mp4': 'video/mp4', 'ogv': 'video/ogg', 'mov': 'video/quicktime'
+  'webm': 'video/webm', 'mp4': 'video/mp4', 'ogv': 'video/ogg', 'mov': 'video/quicktime',
+  'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml', 'bmp': 'image/bmp'
 };
 
 export const handler = async (event, context) => {

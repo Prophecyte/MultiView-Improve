@@ -50,6 +50,24 @@
       });
   }
 
+  // Upload an image file to R2 storage, returns the public URL
+  function uploadImageToR2(file) {
+    if (!roomId) return Promise.reject(new Error('No room'));
+    var filename = file.name || ('image_' + Date.now() + '.png');
+    return apiRequest('/files/presign', { method: 'POST', body: JSON.stringify({ filename: filename, roomId: roomId }) })
+      .then(function(d) {
+        return fetch(d.uploadUrl, { method: 'PUT', headers: { 'Content-Type': d.contentType }, body: file })
+          .then(function(r) {
+            if (!r.ok) throw new Error('Upload failed: ' + r.status);
+            return apiRequest('/files/complete', { method: 'POST', body: JSON.stringify({
+              fileId: d.fileId, fileKey: d.fileKey, filename: filename, publicUrl: d.publicUrl, category: d.category, size: file.size, roomId: roomId
+            })});
+          })
+          .then(function(c) { return c.url; });
+      });
+  }
+  window.craftUploadImage = uploadImageToR2;
+
   function parseRoomUrl() {
     var m = location.hash.match(/^#\/room\/([a-f0-9-]+)\/([a-f0-9-]+)$/);
     return m ? { hostId: m[1], roomId: m[2] } : null;
