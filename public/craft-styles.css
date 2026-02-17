@@ -2343,7 +2343,7 @@ body {
 }
 
 .card.design-worn {
-  background: url('https://i.imgur.com/x3GPkQo.png') repeat;
+  background: url('https://i.imgur.com/yJlDnag.png') repeat;
   background-size: 256px;
   border: 1px solid rgba(140, 115, 75, 0.2);
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.5);
@@ -2574,7 +2574,7 @@ select optgroup {
 }
 
 .card.design-parchment {
-  background: url('https://i.imgur.com/69c8AAx.jpeg') repeat;
+  background: url('https://i.imgur.com/p7iuMYE.png') repeat;
   background-size: 256px;
   border: 1px solid rgba(168, 140, 100, 0.25);
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.5);
@@ -7592,13 +7592,21 @@ body.mm-dragging .mindmap-canvas {
 .region-edit-handle:active {
   cursor: grabbing;
 }
-.region-edit-handle.curved {
+.region-edit-handle.curved-out {
   background: #f59e0b;
   border-color: #fff;
   border-radius: 2px;
 }
-.region-edit-handle.curved:hover {
+.region-edit-handle.curved-out:hover {
   background: #fbbf24;
+}
+.region-edit-handle.curved-in {
+  background: #8b5cf6;
+  border-color: #fff;
+  border-radius: 2px;
+}
+.region-edit-handle.curved-in:hover {
+  background: #a78bfa;
 }
 .region-edit-handle.region-edge-add {
   width: 16px;
@@ -8741,25 +8749,49 @@ body.mm-dragging .mindmap-canvas {
 .sb-sidebar-list { padding: 4px 0; }
 .sb-sidebar-empty { padding: 10px; font-size: 10px; color: var(--text-muted); text-align: center; }
 .sb-sidebar-item {
-  display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+  display: flex; flex-direction: column; padding: 0;
   font-size: 11px; color: var(--text-secondary); cursor: pointer;
   transition: var(--transition-fast); position: relative;
 }
 .sb-sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
 .sb-sidebar-item.active { color: var(--gold); background: rgba(212,168,36,0.08); border-left: 2px solid var(--gold); }
+.sb-si-header {
+  display: flex; align-items: center; gap: 6px; padding: 5px 10px; width: 100%;
+}
 .sb-sidebar-item .sb-si-count {
   font-size: 9px; color: var(--text-muted); margin-left: auto; min-width: 16px; text-align: right;
 }
 .sb-sidebar-item .sb-si-actions {
-  display: flex; gap: 2px; opacity: 0; transition: var(--transition-fast); position: absolute; right: 4px;
+  display: flex; gap: 2px; opacity: 0; transition: var(--transition-fast);
 }
 .sb-sidebar-item:hover .sb-si-actions { opacity: 1; }
 .sb-si-btn {
   width: 16px; height: 16px; border: none; background: none; color: var(--text-muted);
-  cursor: pointer; font-size: 10px; padding: 0; border-radius: 3px;
+  cursor: pointer; font-size: 10px; padding: 0; border-radius: 3px; flex-shrink: 0;
 }
 .sb-si-btn:hover { color: var(--danger); background: rgba(255,0,0,0.1); }
 .sb-si-btn.sb-si-play:hover { color: var(--gold); background: rgba(212,168,36,0.1); }
+.sb-mix-detail {
+  padding: 2px 8px 6px; border-top: 1px solid var(--border-color);
+}
+.sb-mix-row {
+  display: flex; align-items: center; gap: 6px; padding: 3px 4px; font-size: 10px;
+}
+.sb-mix-name {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-secondary); min-width: 0;
+}
+.sb-mix-vol {
+  width: 60px; height: 3px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0;
+}
+.sb-mix-val {
+  font-size: 9px; color: var(--text-muted); width: 28px; text-align: right; flex-shrink: 0;
+}
+.sb-mix-rm {
+  border: none; background: none; color: var(--text-muted); cursor: pointer;
+  font-size: 10px; padding: 0 2px; opacity: 0.5; flex-shrink: 0;
+}
+.sb-mix-rm:hover { color: var(--danger); opacity: 1; }
 .sb-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .sb-main .sb-channels { flex: 1; overflow-y: auto; }
 

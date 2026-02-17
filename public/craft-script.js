@@ -1537,6 +1537,14 @@ function updateMapView() {
     mapEmptyState.classList.add('hidden');
     renderPins();
     renderRegions();
+    // Re-render after image loads so SVG layer has correct dimensions
+    mapImage.onload = () => {
+      requestAnimationFrame(() => {
+        renderRegions();
+        renderPins();
+        applyMapTransform();
+      });
+    };
   } else {
     mapImage.classList.add('hidden');
     mapEmptyState.classList.remove('hidden');
@@ -1915,8 +1923,15 @@ function renderRegions() {
   defs.innerHTML = '';
 
   const regions = getMapRegions();
-  const w = layer.clientWidth || layer.getBoundingClientRect().width;
-  const h = layer.clientHeight || layer.getBoundingClientRect().height;
+  let w = layer.clientWidth || layer.getBoundingClientRect().width;
+  let h = layer.clientHeight || layer.getBoundingClientRect().height;
+  // Fallback: use map image or wrapper dimensions if SVG layer hasn't been laid out yet
+  if (!w || !h) {
+    const mapImg = document.getElementById('mapImage');
+    const wrapper = document.getElementById('mapImageWrapper') || layer.parentElement;
+    if (mapImg && mapImg.naturalWidth) { w = mapImg.clientWidth || mapImg.naturalWidth; h = mapImg.clientHeight || mapImg.naturalHeight; }
+    else if (wrapper) { w = wrapper.clientWidth; h = wrapper.clientHeight; }
+  }
   if (!w || !h) return;
 
   regions.forEach(reg => {
@@ -2069,7 +2084,8 @@ function buildRegionPath(points, closed, w, h) {
       const my = (prev.y + p.y) / 2;
       const ddx = p.x - prev.x;
       const ddy = p.y - prev.y;
-      d += ` Q ${mx + ddy * 0.25} ${my - ddx * 0.25} ${p.x} ${p.y}`;
+      const dir = points[i].curve === 'in' ? -1 : 1;
+      d += ` Q ${mx + ddy * 0.25 * dir} ${my - ddx * 0.25 * dir} ${p.x} ${p.y}`;
     } else {
       d += ` L ${p.x} ${p.y}`;
     }
@@ -2082,7 +2098,8 @@ function buildRegionPath(points, closed, w, h) {
       const my = (last.y + first.y) / 2;
       const ddx = first.x - last.x;
       const ddy = first.y - last.y;
-      d += ` Q ${mx + ddy * 0.25} ${my - ddx * 0.25} ${first.x} ${first.y}`;
+      const dir = points[0].curve === 'in' ? -1 : 1;
+      d += ` Q ${mx + ddy * 0.25 * dir} ${my - ddx * 0.25 * dir} ${first.x} ${first.y}`;
     }
     d += ' Z';
   }
@@ -2299,7 +2316,7 @@ function renderRegionEditHandles() {
   // Vertex handles
   reg.points.forEach((p, i) => {
     const handle = document.createElement('div');
-    handle.className = 'region-edit-handle' + (p.curve ? ' curved' : '');
+    handle.className = 'region-edit-handle' + (p.curve === 'out' ? ' curved-out' : p.curve === 'in' ? ' curved-in' : (p.curve === true ? ' curved-out' : ''));
     handle.style.left = p.x + '%';
     handle.style.top = p.y + '%';
     const hs = 1 / mapZoom;
@@ -2340,9 +2357,11 @@ function renderRegionEditHandles() {
         document.body.classList.remove('mm-dragging');
 
         if (!dragged) {
-          // Click — toggle curve
+          // Click — cycle curve: off → out → in → off
           saveMapUndoState();
-          p.curve = !p.curve;
+          if (!p.curve) p.curve = 'out';
+          else if (p.curve === 'out') p.curve = 'in';
+          else p.curve = false;
           renderRegions();
           renderRegionEditHandles();
           renderRegionPointsList(reg);
@@ -2448,14 +2467,16 @@ function removeRegionTag(regId, tag) {
 function renderRegionPointsList(reg) {
   const list = document.getElementById('regionPointsList');
   if (!list) return;
-  list.innerHTML = reg.points.map((p, i) =>
-    `<div class="region-point-row">
+  list.innerHTML = reg.points.map((p, i) => {
+    const curveLabel = p.curve === 'out' ? '⌒' : p.curve === 'in' ? '⌓' : '—';
+    const curveClass = p.curve ? ' active' : '';
+    return `<div class="region-point-row">
       <span class="region-point-label">P${i + 1}</span>
       <span class="region-point-coords">${p.x.toFixed(1)}, ${p.y.toFixed(1)}</span>
-      <button class="region-point-curve-btn${p.curve ? ' active' : ''}" onclick="toggleRegionPointCurve('${reg.id}',${i})" title="Toggle curve">⌒</button>
+      <button class="region-point-curve-btn${curveClass}" onclick="toggleRegionPointCurve('${reg.id}',${i})" title="Cycle curve: off → out → in">${curveLabel}</button>
       <button class="region-point-del-btn" onclick="deleteRegionPoint('${reg.id}',${i})" title="Delete point">×</button>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 }
 
 function toggleRegionPointCurve(regId, ptIndex) {
@@ -2463,7 +2484,10 @@ function toggleRegionPointCurve(regId, ptIndex) {
   const reg = regions.find(r => r.id === regId);
   if (!reg) return;
   saveMapUndoState();
-  reg.points[ptIndex].curve = !reg.points[ptIndex].curve;
+  const p = reg.points[ptIndex];
+  if (!p.curve) p.curve = 'out';
+  else if (p.curve === 'out') p.curve = 'in';
+  else p.curve = false;
   renderRegions();
   renderRegionPointsList(reg);
 }
@@ -12739,6 +12763,7 @@ let sbCurrentCat = 'all';
 let sbCustomSounds = [];
 let sbYtPopupOpen = false;
 let sbActiveScapeId = null;
+let sbActivePlaylistId = null;
 
 // MultiView integration
 let mvConnected = false;
@@ -13142,34 +13167,58 @@ async function sbOpenMvBrowse() { sbOpenMvConnect(); }
 function sbRemoveCustom(id){sbStop(id);sbCustomSounds=sbCustomSounds.filter(s=>s.id!==id);sbSoundscapes.forEach(sc=>{delete sc.mix[id];});sbPlaylists.forEach(pl=>{pl.soundIds=pl.soundIds.filter(sid=>sid!==id);});sbRenderChannels();sbRenderSidebar();showNotif('Sound removed');}
 
 // ─── Soundscapes (Save/Load/Delete) ───
-async function sbSaveSoundscape(){const name=await sitePrompt('Save Soundscape','Enter a name for this soundscape...');if(!name)return;const mix={};Object.entries(sbActiveChannels).forEach(([id,ch])=>{mix[id]={volume:ch.volume};});if(!Object.keys(mix).length){showNotif('No active sounds to save');return;}const i=sbSoundscapes.findIndex(s=>s.name===name);if(i>=0){sbSoundscapes[i].mix=mix;sbSoundscapes[i].masterVol=sbMasterVol*100;}else{sbSoundscapes.push({id:'sc_'+Date.now(),name,mix,masterVol:sbMasterVol*100});}sbRenderSidebar();showNotif(`Saved "${name}"`);}
-function sbLoadSoundscape(scId){const sc=sbSoundscapes.find(s=>s.id===scId);if(!sc)return;Object.keys(sbActiveChannels).forEach(id=>sbStop(id));if(sc.masterVol!==undefined){sbMasterVol=sc.masterVol/100;document.getElementById('sbMasterVol').value=sc.masterVol;document.getElementById('sbMasterVolVal').textContent=Math.round(sc.masterVol)+'%';if(sbMasterGain)sbMasterGain.gain.value=sbMasterVol;}Object.entries(sc.mix).forEach(([id,cfg])=>{if(!sbGetAll().find(s=>s.id===id))return;sbActiveChannels[id]={volume:cfg.volume};sbStart(id);const sl=document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol`);const vl=document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol-val`);if(sl)sl.value=cfg.volume;if(vl)vl.textContent=cfg.volume+'%';});sbActiveScapeId=scId;sbRenderSidebar();showNotif(`Loaded "${sc.name}"`);}
+async function sbSaveSoundscape(){const name=await sitePrompt('Save Soundscape','Enter a name for this soundscape...');if(!name)return;const mix={};Object.entries(sbActiveChannels).forEach(([id,ch])=>{mix[id]={volume:ch.volume};});if(!Object.keys(mix).length){showNotif('No active sounds to save');return;}const i=sbSoundscapes.findIndex(s=>s.name===name);if(i>=0){sbSoundscapes[i].mix=mix;sbSoundscapes[i].masterVol=sbMasterVol*100;sbActiveScapeId=sbSoundscapes[i].id;}else{const newId='sc_'+Date.now();sbSoundscapes.push({id:newId,name,mix,masterVol:sbMasterVol*100});sbActiveScapeId=newId;}sbActivePlaylistId=null;sbRenderSidebar();showNotif(`Saved "${name}"`);}
+function sbUpdateActiveVolumes(){if(sbActiveScapeId){const sc=sbSoundscapes.find(s=>s.id===sbActiveScapeId);if(sc){Object.entries(sbActiveChannels).forEach(([id,ch])=>{sc.mix[id]={volume:ch.volume};});sc.masterVol=sbMasterVol*100;sbRenderSidebar();showNotif('Soundscape volumes updated');return;}}if(sbActivePlaylistId){const pl=sbPlaylists.find(p=>p.id===sbActivePlaylistId);if(pl){if(!pl.volumes)pl.volumes={};Object.entries(sbActiveChannels).forEach(([id,ch])=>{if(pl.soundIds.includes(id))pl.volumes[id]=ch.volume;});sbRenderSidebar();showNotif('Playlist volumes updated');return;}}showNotif('No active soundscape or playlist to update');}
+function sbLoadSoundscape(scId){const sc=sbSoundscapes.find(s=>s.id===scId);if(!sc)return;Object.keys(sbActiveChannels).forEach(id=>sbStop(id));if(sc.masterVol!==undefined){sbMasterVol=sc.masterVol/100;document.getElementById('sbMasterVol').value=sc.masterVol;document.getElementById('sbMasterVolVal').textContent=Math.round(sc.masterVol)+'%';if(sbMasterGain)sbMasterGain.gain.value=sbMasterVol;}Object.entries(sc.mix).forEach(([id,cfg])=>{if(!sbGetAll().find(s=>s.id===id))return;sbActiveChannels[id]={volume:cfg.volume};sbStart(id);const sl=document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol`);const vl=document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol-val`);if(sl)sl.value=cfg.volume;if(vl)vl.textContent=cfg.volume+'%';});sbActiveScapeId=scId;sbActivePlaylistId=null;sbRenderSidebar();showNotif(`Loaded "${sc.name}"`);}
 
 async function sbDeleteSoundscape(scId){const sc=sbSoundscapes.find(s=>s.id===scId);if(!sc)return;const ok=await siteConfirm('Delete Soundscape',`Are you sure you want to delete "${sc.name}"? This cannot be undone.`,'Delete',true);if(!ok)return;sbSoundscapes=sbSoundscapes.filter(s=>s.id!==scId);if(sbActiveScapeId===scId)sbActiveScapeId=null;sbRenderSidebar();showNotif(`Deleted "${sc.name}"`);}
 
 // ─── Playlists (Collections of Sound IDs) ───
 async function sbAddPlaylist(){const name=await sitePrompt('New Playlist','Enter a name for this playlist...');if(!name)return;sbPlaylists.push({id:'pl_'+Date.now(),name,soundIds:[]});sbRenderSidebar();showNotif(`Created "${name}"`);}
 async function sbDeletePlaylist(plId){const pl=sbPlaylists.find(p=>p.id===plId);if(!pl)return;const ok=await siteConfirm('Delete Playlist',`Are you sure you want to delete "${pl.name}"? This cannot be undone.`,'Delete',true);if(!ok)return;sbPlaylists=sbPlaylists.filter(p=>p.id!==plId);sbRenderSidebar();showNotif(`Deleted "${pl.name}"`);}
-function sbAddToPlaylist(plId,soundId){const pl=sbPlaylists.find(p=>p.id===plId);if(!pl)return;if(!pl.soundIds.includes(soundId)){pl.soundIds.push(soundId);sbRenderSidebar();showNotif('Added to playlist');}else{showNotif('Already in playlist');}}
+function sbAddToPlaylist(plId,soundId){const pl=sbPlaylists.find(p=>p.id===plId);if(!pl)return;if(!pl.volumes)pl.volumes={};if(!pl.soundIds.includes(soundId)){pl.soundIds.push(soundId);const ch=sbActiveChannels[soundId];pl.volumes[soundId]=ch?.volume??70;sbRenderSidebar();showNotif('Added to playlist');}else{showNotif('Already in playlist');}}
 function sbRemoveFromPlaylist(plId,soundId){const pl=sbPlaylists.find(p=>p.id===plId);if(!pl)return;pl.soundIds=pl.soundIds.filter(id=>id!==soundId);sbRenderSidebar();}
-function sbPlayPlaylist(plId){const pl=sbPlaylists.find(p=>p.id===plId);if(!pl)return;Object.keys(sbActiveChannels).forEach(id=>sbStop(id));pl.soundIds.forEach(id=>{sbActiveChannels[id]={volume:70};sbStart(id);});showNotif(`Playing "${pl.name}"`);}
+function sbPlayPlaylist(plId){const pl=sbPlaylists.find(p=>p.id===plId);if(!pl)return;Object.keys(sbActiveChannels).forEach(id=>sbStop(id));if(!pl.volumes)pl.volumes={};pl.soundIds.forEach(id=>{const vol=pl.volumes[id]??70;sbActiveChannels[id]={volume:vol};sbStart(id);const sl=document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol`);const vl=document.querySelector(`.sb-tile[data-id="${id}"] .sb-tile-vol-val`);if(sl)sl.value=vol;if(vl)vl.textContent=vol+'%';});sbActivePlaylistId=plId;sbRenderSidebar();showNotif(`Playing "${pl.name}"`);}
 
 // ─── Sidebar Rendering ───
 function sbRenderSidebar(){
   const scList=document.getElementById('sbScapeList');
   const plList=document.getElementById('sbPlaylistList');
   if(!scList||!plList)return;
+  const allSounds=sbGetAll();
+  const getName=(id)=>{const s=allSounds.find(x=>x.id===id);return s?s.name:id;};
   // Soundscapes
   if(!sbSoundscapes.length){scList.innerHTML='<div class="sb-sidebar-empty">No saved soundscapes</div>';}
-  else{scList.innerHTML=sbSoundscapes.map(sc=>{const cnt=Object.keys(sc.mix).length;const active=sc.id===sbActiveScapeId?' active':'';return`<div class="sb-sidebar-item${active}" data-sc="${sc.id}"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sc.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-sc="${sc.id}" title="Load">▶</button><button class="sb-si-btn" data-scdel="${sc.id}" title="Delete">×</button></span></div>`;}).join('');}
-  scList.querySelectorAll('[data-sc]').forEach(el=>{if(el.dataset.sc)el.addEventListener('click',e=>{if(e.target.closest('.sb-si-btn'))return;sbLoadSoundscape(el.dataset.sc);});});
-  scList.querySelectorAll('[data-scdel]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();sbDeleteSoundscape(btn.dataset.scdel);});});
+  else{scList.innerHTML=sbSoundscapes.map(sc=>{const cnt=Object.keys(sc.mix).length;const active=sc.id===sbActiveScapeId?' active':'';
+    let detail='';
+    Object.entries(sc.mix).forEach(([id,cfg])=>{
+      detail+=`<div class="sb-mix-row" data-sc="${sc.id}" data-sid="${id}"><span class="sb-mix-name">${getName(id)}</span><input type="range" class="sb-mix-vol" min="0" max="100" value="${cfg.volume}" /><span class="sb-mix-val">${cfg.volume}%</span></div>`;
+    });
+    return`<div class="sb-sidebar-item${active}" data-sc="${sc.id}"><div class="sb-si-header"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sc.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-sc="${sc.id}" title="Load">▶</button><button class="sb-si-btn" data-scupd="${sc.id}" title="Save current volumes">↻</button><button class="sb-si-btn" data-scdel="${sc.id}" title="Delete">×</button></span></div><div class="sb-mix-detail" style="display:none;">${detail||'<div class="sb-sidebar-empty">Empty mix</div>'}</div></div>`;
+  }).join('');}
+  // Soundscape events
+  scList.querySelectorAll('.sb-si-header').forEach(hdr=>{hdr.addEventListener('click',e=>{if(e.target.closest('.sb-si-btn'))return;const item=hdr.closest('.sb-sidebar-item');const det=item.querySelector('.sb-mix-detail');if(det)det.style.display=det.style.display==='none'?'block':'none';});});
   scList.querySelectorAll('.sb-si-play[data-sc]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();sbLoadSoundscape(btn.dataset.sc);});});
+  scList.querySelectorAll('[data-scdel]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();sbDeleteSoundscape(btn.dataset.scdel);});});
+  scList.querySelectorAll('[data-scupd]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();const sc=sbSoundscapes.find(s=>s.id===btn.dataset.scupd);if(!sc)return;Object.entries(sbActiveChannels).forEach(([id,ch])=>{sc.mix[id]={volume:ch.volume};});sc.masterVol=sbMasterVol*100;sbRenderSidebar();showNotif(`Updated "${sc.name}" volumes`);});});
+  scList.querySelectorAll('.sb-mix-vol').forEach(sl=>{sl.addEventListener('input',()=>{const row=sl.closest('.sb-mix-row');const scId=row.dataset.sc,sid=row.dataset.sid;const v=parseInt(sl.value);row.querySelector('.sb-mix-val').textContent=v+'%';const sc=sbSoundscapes.find(s=>s.id===scId);if(sc&&sc.mix[sid])sc.mix[sid].volume=v;if(sbActiveChannels[sid])sbSetVol(sid,v);});});
   // Playlists
   if(!sbPlaylists.length){plList.innerHTML='<div class="sb-sidebar-empty">No playlists yet</div>';}
-  else{plList.innerHTML=sbPlaylists.map(pl=>{const cnt=pl.soundIds.length;return`<div class="sb-sidebar-item" data-pl="${pl.id}"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pl.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-plplay="${pl.id}" title="Play all">▶</button><button class="sb-si-btn" data-pldel="${pl.id}" title="Delete">×</button></span></div>`;}).join('');}
+  else{plList.innerHTML=sbPlaylists.map(pl=>{const cnt=pl.soundIds.length;const active=pl.id===sbActivePlaylistId?' active':'';if(!pl.volumes)pl.volumes={};
+    let detail='';
+    pl.soundIds.forEach(id=>{
+      const vol=pl.volumes[id]??70;
+      detail+=`<div class="sb-mix-row" data-pl="${pl.id}" data-sid="${id}"><span class="sb-mix-name">${getName(id)}</span><input type="range" class="sb-mix-vol" min="0" max="100" value="${vol}" /><span class="sb-mix-val">${vol}%</span><button class="sb-mix-rm" data-plrm="${pl.id}" data-sidrm="${id}" title="Remove">×</button></div>`;
+    });
+    return`<div class="sb-sidebar-item${active}" data-pl="${pl.id}"><div class="sb-si-header"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pl.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-plplay="${pl.id}" title="Play all">▶</button><button class="sb-si-btn" data-plupd="${pl.id}" title="Save current volumes">↻</button><button class="sb-si-btn" data-pldel="${pl.id}" title="Delete">×</button></span></div><div class="sb-mix-detail" style="display:none;">${detail||'<div class="sb-sidebar-empty">No sounds</div>'}</div></div>`;
+  }).join('');}
+  // Playlist events
+  plList.querySelectorAll('.sb-si-header').forEach(hdr=>{hdr.addEventListener('click',e=>{if(e.target.closest('.sb-si-btn'))return;const item=hdr.closest('.sb-sidebar-item');const det=item.querySelector('.sb-mix-detail');if(det)det.style.display=det.style.display==='none'?'block':'none';});});
   plList.querySelectorAll('[data-plplay]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();sbPlayPlaylist(btn.dataset.plplay);});});
   plList.querySelectorAll('[data-pldel]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();sbDeletePlaylist(btn.dataset.pldel);});});
+  plList.querySelectorAll('[data-plupd]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();const pl=sbPlaylists.find(p=>p.id===btn.dataset.plupd);if(!pl)return;if(!pl.volumes)pl.volumes={};Object.entries(sbActiveChannels).forEach(([id,ch])=>{if(pl.soundIds.includes(id))pl.volumes[id]=ch.volume;});sbRenderSidebar();showNotif(`Updated "${pl.name}" volumes`);});});
+  plList.querySelectorAll('.sb-mix-vol').forEach(sl=>{sl.addEventListener('input',()=>{const row=sl.closest('.sb-mix-row');const plId=row.dataset.pl,sid=row.dataset.sid;const v=parseInt(sl.value);row.querySelector('.sb-mix-val').textContent=v+'%';const pl=sbPlaylists.find(p=>p.id===plId);if(pl){if(!pl.volumes)pl.volumes={};pl.volumes[sid]=v;}if(sbActiveChannels[sid])sbSetVol(sid,v);});});
+  plList.querySelectorAll('.sb-mix-rm').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();sbRemoveFromPlaylist(btn.dataset.plrm,btn.dataset.sidrm);});});
 }
 
 // ─── Tile Context Menu: Add to Playlist ───
@@ -13408,7 +13457,13 @@ window.craftSetState = function(state, skipRender) {
       
       // Render current view content
       if (currentView === 'board') { updateCanvas(); }
-      if (currentView === 'map') { if (typeof updateMapView === 'function') updateMapView(); }
+      if (currentView === 'map') {
+        if (typeof updateMapView === 'function') {
+          updateMapView();
+          // Delayed re-render for regions (SVG needs layout dimensions)
+          requestAnimationFrame(() => { if (typeof renderRegions === 'function') renderRegions(); });
+        }
+      }
       if (currentView === 'timeline') { if (typeof renderTimelineView === 'function') renderTimelineView(); }
       if (currentView === 'combat') { if (typeof renderCombatants === 'function') renderCombatants(); }
       if (currentView === 'factions') { if (typeof renderFactionGrid === 'function') renderFactionGrid(); }
