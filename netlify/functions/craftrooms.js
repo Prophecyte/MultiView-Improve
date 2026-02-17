@@ -274,13 +274,11 @@ export const handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
-    // ─── POST /:id/leave - Leave room ───
+    // ─── POST /:id/leave - Leave room (keep membership, just go offline) ───
     if (event.httpMethod === 'POST' && subPath === '/leave') {
       if (user) {
-        await sql`DELETE FROM craft_room_members WHERE craft_room_id = ${roomId} AND user_id = ${user.id} AND is_owner = false`;
         await sql`DELETE FROM craft_room_presence WHERE craft_room_id = ${roomId} AND user_id = ${user.id}`;
       } else if (body.guestId) {
-        await sql`DELETE FROM craft_room_members WHERE craft_room_id = ${roomId} AND guest_id = ${body.guestId}`;
         await sql`DELETE FROM craft_room_presence WHERE craft_room_id = ${roomId} AND guest_id = ${body.guestId}`;
       }
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };

@@ -1935,8 +1935,8 @@ function renderRegions() {
   if (!w || !h) return;
 
   regions.forEach(reg => {
-    // Hidden regions: invisible to non-owners, dimmed for owners
-    if (reg.hidden && !window.craftIsOwner) return;
+    // Hidden regions: invisible to users without hidden access, dimmed for those with access
+    if (reg.hidden && !window.craftCanViewHidden) return;
 
     // Create fill patterns
     createRegionPattern(defs, reg);
@@ -6130,8 +6130,8 @@ function renderConnections() {
     const toCard = document.getElementById(conn.to);
     if (!fromCard || !toCard) return;
 
-    // Non-owners: skip connections involving hidden cards
-    if (!window.craftIsOwner && (fromCard.classList.contains('card-hidden') || toCard.classList.contains('card-hidden'))) return;
+    // Users without hidden access: skip connections involving hidden cards
+    if (!window.craftCanViewHidden && (fromCard.classList.contains('card-hidden') || toCard.classList.contains('card-hidden'))) return;
 
     // Use edge points instead of card centers so markers aren't hidden behind cards
     const toCenterX = parseFloat(toCard.style.left) + toCard.offsetWidth / 2;
@@ -13507,8 +13507,8 @@ window.craftSetState = function(state, skipRender) {
   
   if (!skipRender) {
     try {
-      // Non-owners: auto-switch away from hidden containers
-      if (!window.craftIsOwner) {
+      // Users without hidden access: auto-switch away from hidden containers
+      if (!window.craftCanViewHidden) {
         const curMap = maps.find(m => m.id === currentMapId);
         if (curMap && curMap.hidden) {
           const vis = maps.find(m => !m.hidden);

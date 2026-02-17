@@ -59,6 +59,7 @@
   var roomId = null, roomInfo = null, currentUser = null;
   var isOwner = false, myRole = 'viewer';
   document.body.classList.add('craft-not-owner');
+  document.body.classList.add('craft-no-hidden-access');
   var members = [];
   var localVersion = 0, lastPushedHash = '';
   var syncTimer = null, heartbeatTimer = null, pushTimer = null, memberTimer = null;
@@ -227,7 +228,10 @@
         myRole = members[i].is_owner ? 'owner' : (members[i].role || 'viewer');
         isOwner = !!members[i].is_owner;
         window.craftIsOwner = isOwner;
+        var canSeeHidden = isOwner || !!members[i].can_view_hidden;
+        window.craftCanViewHidden = canSeeHidden;
         document.body.classList.toggle('craft-not-owner', !isOwner);
+        document.body.classList.toggle('craft-no-hidden-access', !canSeeHidden);
         return;
       }
     }
@@ -590,7 +594,7 @@
           e.preventDefault(); e.stopPropagation(); closeCtx();
           var menu = document.createElement('div');
           menu.className = 'context-menu';
-          menu.style.cssText = 'position:fixed;left:' + Math.min(e.clientX, window.innerWidth - 170) + 'px;top:' + e.clientY + 'px;z-index:10000';
+          menu.style.cssText = 'position:fixed;left:' + Math.min(e.clientX, window.innerWidth - 170) + 'px;top:0px;z-index:10000;visibility:hidden';
           menu.innerHTML = '<button class="context-menu-item danger">\u2715 Kick ' + esc(m.display_name) + '</button>';
           menu.querySelector('.context-menu-item').addEventListener('click', function() {
             if (confirm('Kick ' + m.display_name + ' from this room?')) {
@@ -600,7 +604,14 @@
             }
             closeCtx();
           });
-          document.body.appendChild(menu); activeCtx = menu;
+          document.body.appendChild(menu);
+          // Position after render so we can measure menu height
+          var mh = menu.offsetHeight || 40;
+          var topPos = e.clientY;
+          if (topPos + mh > window.innerHeight - 8) topPos = e.clientY - mh - 4;
+          menu.style.top = Math.max(4, topPos) + 'px';
+          menu.style.visibility = 'visible';
+          activeCtx = menu;
         });
       }
       return chip;
@@ -636,7 +647,7 @@
           localStorage.setItem('craft_returning_guest_' + roomId, name);
         }
         apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: name, guestId: gid, returning: isReturning }) })
-          .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; document.body.classList.add('craft-not-owner'); return apiRequest('/craftrooms/' + roomId); })
+          .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; document.body.classList.add('craft-not-owner'); document.body.classList.add('craft-no-hidden-access'); return apiRequest('/craftrooms/' + roomId); })
           .then(function(d) { roomInfo = d.room; setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu(); startSync(); })
           .catch(function(err) { btn.textContent = isReturning ? 'Continue' : 'Join as Guest'; btn.disabled = false; alert('Failed: ' + err.message); });
       }
@@ -660,6 +671,7 @@
       isOwner = (roomInfo.owner_id === currentUser.id);
       window.craftIsOwner = isOwner;
       document.body.classList.toggle('craft-not-owner', !isOwner);
+      document.body.classList.toggle('craft-no-hidden-access', !isOwner);
       myRole = isOwner ? 'owner' : 'viewer';
       setRoomTitle(roomInfo.name);
       renderShareBtn();

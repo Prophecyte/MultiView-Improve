@@ -6900,10 +6900,11 @@ select optgroup {
 .ct-hidden { opacity: 0.4; }
 .ct-hidden:hover { opacity: 0.7; }
 
-/* Non-owners cannot see hidden items at all */
-body.craft-not-owner .card-hidden,
-body.craft-not-owner .item-hidden,
-body.craft-not-owner .ct-hidden {
+/* Non-hidden-access users cannot see hidden items at all */
+body.craft-no-hidden-access .card-hidden,
+body.craft-no-hidden-access .item-hidden,
+body.craft-no-hidden-access .ct-hidden,
+body.craft-no-hidden-access .region-hidden {
   display: none !important;
 }
 /* Hide owner-only context menu items from non-owners */
