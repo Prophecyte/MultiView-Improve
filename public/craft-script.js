@@ -384,12 +384,19 @@ function initEventListeners() {
   writeEditor.addEventListener('input', updateWordCount);
   writeEditor.addEventListener('input', processWikiLinksInEditor);
 
+  // Persist writing on every edit (debounced sync via craft-app.js)
+  writeEditor.addEventListener('input', () => {
+    saveCurrentChapter();
+    if (window.craftSchedulePush) window.craftSchedulePush();
+  });
+
   // Chapter title/label sync
   document.getElementById('writeChapterTitle').addEventListener('input', (e) => {
     const chapter = chapters.find((c) => c.id === currentChapterId);
     if (chapter) {
       chapter.title = e.target.value;
       renderChaptersList();
+      if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -398,6 +405,7 @@ function initEventListeners() {
     if (chapter) {
       chapter.label = e.target.value;
       renderChaptersList();
+      if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
