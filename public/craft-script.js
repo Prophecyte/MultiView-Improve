@@ -32,6 +32,7 @@ let chapters = [
   },
 ];
 let currentChapterId = 'chapter-1';
+let chapterFolders = []; // { id, name, collapsed, hidden }
 
 // Bidirectional associations: { sourceType, sourceId, targetType, targetId }
 let associations = [];
@@ -200,6 +201,7 @@ function initEventListeners() {
   // Add board/chapter/map
   document.getElementById('addBoardBtn').addEventListener('click', addBoard);
   document.getElementById('addChapterBtn').addEventListener('click', addChapter);
+  document.getElementById('addFolderBtn')?.addEventListener('click', addChapterFolder);
   document.getElementById('addMapBtn').addEventListener('click', createNewMap);
 
   // Details inputs
@@ -210,8 +212,12 @@ function initEventListeners() {
   // Card styling
   document.getElementById('cardFontFamily').addEventListener('change', updateCardStyle);
   document.getElementById('cardFontSize').addEventListener('change', updateCardStyle);
-  document.getElementById('toolbarTitleColor')?.addEventListener('input', updateCardStyle);
-  document.getElementById('toolbarTextColor')?.addEventListener('input', updateCardStyle);
+  document.getElementById('toolbarTitleColor')?.addEventListener('input', (e) => { const d = document.getElementById('detailTitleColor'); if (d) d.value = e.target.value; updateCardStyle(); });
+  document.getElementById('toolbarLabelColor')?.addEventListener('input', (e) => { const d = document.getElementById('detailLabelColor'); if (d) d.value = e.target.value; updateCardStyle(); });
+  document.getElementById('toolbarTextColor')?.addEventListener('input', (e) => { const d = document.getElementById('detailTextColor'); if (d) d.value = e.target.value; updateCardStyle(); });
+  document.getElementById('detailLabelColor')?.addEventListener('input', (e) => { const t = document.getElementById('toolbarLabelColor'); if (t) t.value = e.target.value; updateCardStyle(); });
+  document.getElementById('detailTextColor')?.addEventListener('input', (e) => { const t = document.getElementById('toolbarTextColor'); if (t) t.value = e.target.value; updateCardStyle(); });
+  document.getElementById('detailTitleColor')?.addEventListener('input', (e) => { const t = document.getElementById('toolbarTitleColor'); if (t) t.value = e.target.value; updateCardStyle(); });
   document.getElementById('toolbarBgColor')?.addEventListener('input', updateCardStyle);
 
   // Toolbar border, design, hide header/tags
@@ -422,18 +428,20 @@ function initEventListeners() {
     const sizeVal = e.target.value;
 
     if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // execCommand fontSize only supports 1-7, so use a marker then restyle
-      document.execCommand('fontSize', false, '7');
-      // Find all font elements with size=7 and convert to span with actual px size
-      editor.querySelectorAll('font[size="7"]').forEach(font => {
-        const span = document.createElement('span');
-        span.style.fontSize = sizeVal + 'px';
-        span.innerHTML = font.innerHTML;
-        font.replaceWith(span);
-      });
+      // Use span wrapping instead of execCommand to avoid font-family reset
+      const range = selection.getRangeAt(0);
+      const fragment = range.extractContents();
+      const wrapper = document.createElement('span');
+      wrapper.style.fontSize = sizeVal + 'px';
+      wrapper.appendChild(fragment);
+      range.insertNode(wrapper);
+      // Re-select
+      selection.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(wrapper);
+      selection.addRange(newRange);
       saveCurrentChapter();
     } else if (!editor.textContent.trim()) {
-      // Editor is empty - set default for new content
       editor.style.fontSize = sizeVal + 'px';
     }
     editor.focus();
@@ -709,10 +717,15 @@ function initEventListeners() {
 
   // Context menu
   document.addEventListener('contextmenu', handleContextMenu);
-  // Block default browser right-click except on text inputs
+  // Block default browser right-click except on text inputs (but not sidebar list inputs)
   document.addEventListener('contextmenu', (e) => {
     const tag = e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+    // Allow native context menu on general text inputs/textareas/contentEditable, 
+    // but block it on sidebar list items (board names, chapter names, etc.) which have custom context menus
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
+      if (e.target.closest('.board-item, .chapter-item, .folder-header, .map-item, .tl-list-item')) return; // handled by custom menu
+      return;
+    }
     if (!e.defaultPrevented) e.preventDefault();
   });
   document.addEventListener('click', closeContextMenu);
@@ -922,6 +935,17 @@ function switchView(view) {
 
     updateWordCount();
     renderChapterAssociationsList();
+
+    // Restore indent/justify toggles from chapter data
+    const editor = get('writeEditor');
+    writeIndentMode = !!chapter.indentMode;
+    writeJustifyMode = !!chapter.justifyMode;
+    editor?.classList.toggle('indent-mode', writeIndentMode);
+    editor?.classList.toggle('justify-mode', writeJustifyMode);
+    const indentBtn = get('indentToggleBtn');
+    const justifyBtn = get('justifyToggleBtn');
+    if (indentBtn) indentBtn.classList.toggle('active', writeIndentMode);
+    if (justifyBtn) justifyBtn.classList.toggle('active', writeJustifyMode);
 
     // Show chapter details in panel
     get('emptyState')?.classList.add('hidden');
@@ -1451,6 +1475,16 @@ function renderBoardsList() {
       updateStatusBar();
     });
     input.addEventListener('click', (e) => e.stopPropagation());
+    input.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeAllContextMenus();
+      ctxBoardId = board.id;
+      const menu = document.getElementById('boardContextMenu');
+      menu.classList.remove('hidden');
+      menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+      menu.style.top = Math.min(e.clientY, window.innerHeight - 120) + 'px';
+    });
 
     item.querySelector('.delete-item-btn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1463,6 +1497,18 @@ function renderBoardsList() {
     item.addEventListener('drop', (e) => handleListDrop(e, 'board'));
     item.addEventListener('dragend', handleListDragEnd);
 
+    // Right-click context menu
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeAllContextMenus();
+      ctxBoardId = board.id;
+      const menu = document.getElementById('boardContextMenu');
+      menu.classList.remove('hidden');
+      menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+      menu.style.top = Math.min(e.clientY, window.innerHeight - 120) + 'px';
+    });
+
     list.appendChild(item);
   });
 }
@@ -1472,6 +1518,32 @@ function addBoard() {
   boards.push({ id: newId, name: 'New Board', cards: [], connections: [] });
   renderBoardsList();
   selectBoard(newId);
+}
+
+let ctxBoardId = null;
+function duplicateBoardCtx() {
+  closeAllContextMenus();
+  if (!ctxBoardId) return;
+  const src = boards.find(b => b.id === ctxBoardId);
+  if (!src) return;
+  const dup = JSON.parse(JSON.stringify(src));
+  dup.id = `board-${Date.now()}`;
+  dup.name = src.name + ' (Copy)';
+  dup.cards.forEach(c => { c.id = `card-${Date.now()}-${Math.random().toString(36).substr(2,5)}`; });
+  boards.push(dup);
+  renderBoardsList();
+  selectBoard(dup.id);
+  showNotif('Board duplicated');
+}
+function renameBoardCtx() {
+  closeAllContextMenus();
+  if (!ctxBoardId) return;
+  const item = document.querySelector(`.board-item[data-board-id="${ctxBoardId}"] .board-name`);
+  if (item) { item.focus(); item.select(); }
+}
+function deleteBoardCtx() {
+  closeAllContextMenus();
+  if (ctxBoardId) deleteBoard(ctxBoardId);
 }
 
 function deleteBoard(boardId) {
@@ -1590,10 +1662,12 @@ function updateMapView() {
     mapEmptyState.classList.add('hidden');
     renderPins();
     renderRegions();
+    renderMapPaths();
     // Re-render after image loads so SVG layer has correct dimensions
     mapImage.onload = () => {
       requestAnimationFrame(() => {
         renderRegions();
+        renderMapPaths();
         renderPins();
         applyMapTransform();
       });
@@ -2091,9 +2165,11 @@ function renderRegions() {
 
     // Name label
     if (reg.name && !reg.hideText) {
-      const centroid = getRegionCentroid(reg.points);
-      const cx = (centroid.x / 100) * w;
-      const cy = (centroid.y / 100) * h;
+      // Use bounding box center for consistent visual centering
+      let bbMinX = Infinity, bbMinY = Infinity, bbMaxX = -Infinity, bbMaxY = -Infinity;
+      reg.points.forEach(p => { bbMinX = Math.min(bbMinX, p.x); bbMinY = Math.min(bbMinY, p.y); bbMaxX = Math.max(bbMaxX, p.x); bbMaxY = Math.max(bbMaxY, p.y); });
+      const cx = ((bbMinX + bbMaxX) / 2 / 100) * w;
+      const cy = ((bbMinY + bbMaxY) / 2 / 100) * h;
       const tc = reg.textColor || reg.strokeColor;
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', cx);
@@ -2205,8 +2281,30 @@ function buildRegionPath(points, closed, w, h) {
 
 function getRegionCentroid(points) {
   if (!points || points.length === 0) return { x: 50, y: 50 };
-  const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
-  const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+  if (points.length < 3) {
+    // Simple average for < 3 points
+    const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+    const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+    return { x: cx, y: cy };
+  }
+  // Proper polygon centroid using signed area
+  let area = 0, cx = 0, cy = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    const cross = points[i].x * points[j].y - points[j].x * points[i].y;
+    area += cross;
+    cx += (points[i].x + points[j].x) * cross;
+    cy += (points[i].y + points[j].y) * cross;
+  }
+  area /= 2;
+  if (Math.abs(area) < 0.001) {
+    // Degenerate polygon, fall back to average
+    const avgX = points.reduce((s, p) => s + p.x, 0) / points.length;
+    const avgY = points.reduce((s, p) => s + p.y, 0) / points.length;
+    return { x: avgX, y: avgY };
+  }
+  cx /= (6 * area);
+  cy /= (6 * area);
   return { x: cx, y: cy };
 }
 
@@ -2342,6 +2440,163 @@ function cancelRegionDrawing() {
     drawLayer.innerHTML = '';
   }
   document.querySelectorAll('.region-draw-handle').forEach(el => el.remove());
+}
+
+// ---- Map Path Drawing ----
+let mapPathDrawing = null;
+let selectedMapPath = null;
+
+function startMapPathDrawing() {
+  mapPathDrawing = { points: [], active: true };
+}
+
+function addMapPathPoint(xPct, yPct) {
+  if (!mapPathDrawing) return;
+  mapPathDrawing.points.push({ x: xPct, y: yPct });
+  renderMapPathPreview();
+}
+
+function renderMapPathPreview() {
+  let preview = document.getElementById('mapPathPreview');
+  if (!preview) {
+    const wrapper = document.getElementById('mapImageWrapper');
+    if (!wrapper) return;
+    preview = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    preview.id = 'mapPathPreview';
+    preview.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:15;';
+    wrapper.appendChild(preview);
+  }
+  preview.innerHTML = '';
+  if (!mapPathDrawing || mapPathDrawing.points.length < 1) return;
+  const pts = mapPathDrawing.points;
+  // Draw dots
+  pts.forEach(p => {
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', p.x + '%');
+    circle.setAttribute('cy', p.y + '%');
+    circle.setAttribute('r', '4');
+    circle.setAttribute('fill', '#d4a824');
+    circle.setAttribute('stroke', '#000');
+    circle.setAttribute('stroke-width', '1');
+    preview.appendChild(circle);
+  });
+  // Draw curve
+  if (pts.length >= 2) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', buildSmoothPath(pts));
+    path.setAttribute('stroke', '#d4a824');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-dasharray', '6 3');
+    preview.appendChild(path);
+  }
+}
+
+function buildSmoothPath(pts) {
+  if (pts.length < 2) return '';
+  if (pts.length === 2) return `M ${pts[0].x}% ${pts[0].y}% L ${pts[1].x}% ${pts[1].y}%`;
+  // Catmull-Rom spline converted to cubic bezier
+  let d = `M ${pts[0].x}% ${pts[0].y}%`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x}% ${cp1y}%, ${cp2x}% ${cp2y}%, ${p2.x}% ${p2.y}%`;
+  }
+  return d;
+}
+
+function finishMapPath() {
+  if (!mapPathDrawing || mapPathDrawing.points.length < 2) { cancelMapPath(); return; }
+  const map = getCurrentMap();
+  if (!map) { cancelMapPath(); return; }
+  if (!map.paths) map.paths = [];
+  const activeColorBtn = document.querySelector('.pin-color-btn.active');
+  map.paths.push({
+    id: 'path-' + Date.now(),
+    points: mapPathDrawing.points,
+    color: activeColorBtn ? activeColorBtn.dataset.color : '#d4a824',
+    width: 2,
+    style: 'solid',
+    name: 'Path ' + (map.paths.length + 1)
+  });
+  mapPathDrawing = null;
+  const preview = document.getElementById('mapPathPreview');
+  if (preview) preview.remove();
+  renderMapPaths();
+  setMapTool('map-select');
+  showNotif('Path created');
+}
+
+function cancelMapPath() {
+  mapPathDrawing = null;
+  const preview = document.getElementById('mapPathPreview');
+  if (preview) preview.remove();
+}
+
+function renderMapPaths() {
+  const map = getCurrentMap();
+  if (!map || !map.paths) return;
+  let pathLayer = document.getElementById('mapPathLayer');
+  const wrapper = document.getElementById('mapImageWrapper');
+  if (!wrapper) return;
+  if (!pathLayer) {
+    pathLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    pathLayer.id = 'mapPathLayer';
+    pathLayer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+    wrapper.insertBefore(pathLayer, wrapper.querySelector('.map-pin') || null);
+  }
+  pathLayer.innerHTML = '';
+  map.paths.forEach(p => {
+    if (p.points.length < 2) return;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', buildSmoothPath(p.points));
+    path.setAttribute('stroke', p.color || '#d4a824');
+    path.setAttribute('stroke-width', p.width || 2);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    if (p.style === 'dashed') path.setAttribute('stroke-dasharray', '8 4');
+    else if (p.style === 'dotted') path.setAttribute('stroke-dasharray', '2 4');
+    path.style.pointerEvents = 'stroke';
+    path.style.cursor = 'pointer';
+    path.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectMapPath(p.id);
+    });
+    pathLayer.appendChild(path);
+    // Path endpoints
+    [p.points[0], p.points[p.points.length - 1]].forEach(pt => {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', pt.x + '%');
+      dot.setAttribute('cy', pt.y + '%');
+      dot.setAttribute('r', '3');
+      dot.setAttribute('fill', p.color || '#d4a824');
+      dot.setAttribute('stroke', 'rgba(0,0,0,0.5)');
+      dot.setAttribute('stroke-width', '1');
+      pathLayer.appendChild(dot);
+    });
+  });
+}
+
+function selectMapPath(id) {
+  selectedMapPath = id;
+  showNotif('Path selected — press Delete to remove');
+}
+
+function deleteSelectedMapPath() {
+  if (!selectedMapPath) return;
+  const map = getCurrentMap();
+  if (!map || !map.paths) return;
+  map.paths = map.paths.filter(p => p.id !== selectedMapPath);
+  selectedMapPath = null;
+  renderMapPaths();
+  showNotif('Path deleted');
 }
 
 // ---- Region Selection & Editing ----
@@ -2811,7 +3066,7 @@ function renderChaptersList() {
   const list = document.getElementById('chaptersList');
   list.innerHTML = '';
 
-  chapters.forEach((chapter) => {
+  function createChapterItem(chapter) {
     const item = document.createElement('div');
     item.className = `chapter-item${chapter.id === currentChapterId ? ' active' : ''}`;
     item.dataset.chapterId = chapter.id;
@@ -2870,16 +3125,89 @@ function renderChaptersList() {
       ctxChapterId = chapter.id;
       const menu = document.getElementById('chapterContextMenu');
       menu.classList.remove('hidden');
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
+      menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+      menu.style.top = Math.min(e.clientY, window.innerHeight - 140) + 'px';
     });
     if (chapter.hidden) item.classList.add('item-hidden');
+    return item;
+  }
 
+  // Render folders first, then unfiled chapters
+  chapterFolders.forEach(folder => {
+    const folderEl = document.createElement('div');
+    folderEl.className = 'chapter-folder' + (folder.hidden ? ' item-hidden' : '');
+    folderEl.dataset.folderId = folder.id;
+    const folderChapters = chapters.filter(c => c.folderId === folder.id);
+    const wordCount = folderChapters.reduce((s, c) => s + (c.words || 0), 0);
+    folderEl.innerHTML = `<div class="folder-header" data-folder-id="${folder.id}">
+      <span class="folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
+      <span class="folder-icon">📁</span>
+      <input type="text" class="folder-name-input" value="${folder.name}" />
+      <span class="chapter-words">${wordCount}</span>
+    </div>`;
+    const headerEl = folderEl.querySelector('.folder-header');
+    headerEl.addEventListener('click', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      folder.collapsed = !folder.collapsed;
+      renderChaptersList();
+    });
+    headerEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeAllContextMenus();
+      ctxFolderId = folder.id;
+      const menu = document.getElementById('folderContextMenu');
+      if (menu) {
+        menu.classList.remove('hidden');
+        menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+        menu.style.top = Math.min(e.clientY, window.innerHeight - 140) + 'px';
+      }
+    });
+    folderEl.querySelector('.folder-name-input').addEventListener('change', (e) => { folder.name = e.target.value; });
+    folderEl.querySelector('.folder-name-input').addEventListener('click', (e) => e.stopPropagation());
+
+    // Drop on folder to move chapter in
+    folderEl.addEventListener('dragover', (e) => { e.preventDefault(); folderEl.classList.add('drag-over'); });
+    folderEl.addEventListener('dragleave', () => folderEl.classList.remove('drag-over'));
+    folderEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      folderEl.classList.remove('drag-over');
+      const chapterId = e.dataTransfer.getData('text/chapter-id');
+      if (chapterId) {
+        const ch = chapters.find(c => c.id === chapterId);
+        if (ch) { ch.folderId = folder.id; renderChaptersList(); }
+      }
+    });
+
+    list.appendChild(folderEl);
+
+    if (!folder.collapsed) {
+      const folderBody = document.createElement('div');
+      folderBody.className = 'folder-body';
+      folderChapters.forEach(chapter => {
+        const item = createChapterItem(chapter);
+        // Override dragstart to include folder info
+        item.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/chapter-id', chapter.id);
+        }, true);
+        folderBody.appendChild(item);
+      });
+      list.appendChild(folderBody);
+    }
+  });
+
+  // Unfiled chapters
+  chapters.filter(c => !c.folderId).forEach(chapter => {
+    const item = createChapterItem(chapter);
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/chapter-id', chapter.id);
+    }, true);
     list.appendChild(item);
   });
 }
 
 let ctxChapterId = null;
+let ctxFolderId = null;
 function toggleHideChapterCtx() {
   const ch = chapters.find(c => c.id === ctxChapterId);
   if (ch) { ch.hidden = !ch.hidden; renderChaptersList(); showNotif(ch.hidden ? `${ch.title} hidden` : `${ch.title} visible`); }
@@ -2888,6 +3216,31 @@ function toggleHideChapterCtx() {
 function deleteChapterCtx() {
   if (ctxChapterId) deleteChapter(ctxChapterId);
   closeAllContextMenus();
+}
+function moveChapterToFolderCtx(folderId) {
+  const ch = chapters.find(c => c.id === ctxChapterId);
+  if (ch) { ch.folderId = folderId || null; renderChaptersList(); showNotif(folderId ? 'Moved to folder' : 'Removed from folder'); }
+  closeAllContextMenus();
+}
+
+function addChapterFolder() {
+  const id = 'folder-' + Date.now();
+  chapterFolders.push({ id, name: 'New Folder', collapsed: false, hidden: false });
+  renderChaptersList();
+}
+function deleteChapterFolderCtx() {
+  closeAllContextMenus();
+  if (!ctxFolderId) return;
+  // Unfolder all chapters in this folder
+  chapters.forEach(c => { if (c.folderId === ctxFolderId) c.folderId = null; });
+  chapterFolders = chapterFolders.filter(f => f.id !== ctxFolderId);
+  renderChaptersList();
+  showNotif('Folder deleted');
+}
+function toggleHideFolderCtx() {
+  closeAllContextMenus();
+  const f = chapterFolders.find(f => f.id === ctxFolderId);
+  if (f) { f.hidden = !f.hidden; renderChaptersList(); showNotif(f.hidden ? 'Folder hidden' : 'Folder visible'); }
 }
 
 function addChapter() {
@@ -2939,6 +3292,17 @@ function selectChapter(chapterId) {
     renderChapterTagPills();
     renderChapterAssociationsList();
 
+    // Restore indent/justify toggles
+    const editor = document.getElementById('writeEditor');
+    writeIndentMode = !!chapter.indentMode;
+    writeJustifyMode = !!chapter.justifyMode;
+    editor.classList.toggle('indent-mode', writeIndentMode);
+    editor.classList.toggle('justify-mode', writeJustifyMode);
+    const indentBtn = document.getElementById('indentToggleBtn');
+    const justifyBtn = document.getElementById('justifyToggleBtn');
+    if (indentBtn) indentBtn.classList.toggle('active', writeIndentMode);
+    if (justifyBtn) justifyBtn.classList.toggle('active', writeJustifyMode);
+
     // Show chapter details in panel
     document.getElementById('emptyState').classList.add('hidden');
     document.getElementById('cardDetails').classList.add('hidden');
@@ -2958,6 +3322,9 @@ function saveCurrentChapter() {
     chapter.content = document.getElementById('writeEditor').innerHTML;
     const text = document.getElementById('writeEditor').textContent;
     chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    // Persist indent/justify toggles
+    chapter.indentMode = writeIndentMode;
+    chapter.justifyMode = writeJustifyMode;
   }
 }
 
@@ -3316,6 +3683,13 @@ function handleMapMouseDown(e) {
     const yPct = ((e.clientY - rect.top) / rect.height) * 100;
     if (!regionDrawing) startRegionDrawing();
     addRegionDrawPoint(xPct, yPct);
+  } else if (mapTool === 'map-path' && currentMap && currentMap.imageUrl) {
+    const wrapper = document.getElementById('mapImageWrapper');
+    const rect = wrapper.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+    if (!mapPathDrawing) startMapPathDrawing();
+    addMapPathPoint(xPct, yPct);
   } else if (mapTool === 'map-select') {
     deselectPin();
     deselectRegion();
@@ -3332,6 +3706,13 @@ function handleMapDoubleClick(e) {
     // Double-click adds a duplicate point, remove it
     if (regionDrawing.points.length > 1) regionDrawing.points.pop();
     finishRegionDrawing();
+    return;
+  }
+
+  if (mapTool === 'map-path' && mapPathDrawing) {
+    // Double-click adds a duplicate point, remove it
+    if (mapPathDrawing.points.length > 1) mapPathDrawing.points.pop();
+    finishMapPath();
     return;
   }
 
@@ -3512,6 +3893,7 @@ function createCardElement(cardData) {
   // Title - always centered
   const titleColor = cardData.titleColor || '#f5ede0';
   const textColor = cardData.textColor || '#a89880';
+  const labelColor = cardData.labelColor || '#4ecdc4';
   const fontFamily = cardData.fontFamily || 'Inter';
   const fontSize = cardData.fontSize || 14;
   const textAlign = cardData.textAlign || 'left';
@@ -3531,7 +3913,7 @@ function createCardElement(cardData) {
   if (cardData.type === 'statblock' && cardData.stats) {
     content += `<div class="card-stats">`;
     for (const [stat, value] of Object.entries(cardData.stats)) {
-      content += `<div class="stat-item"><div class="stat-label" style="color: ${textColor}">${stat}</div><div class="stat-value" style="color: ${titleColor}">${value}</div></div>`;
+      content += `<div class="stat-item"><div class="stat-label" style="color: ${labelColor}">${stat}</div><div class="stat-value" style="color: ${textColor}">${value}</div></div>`;
     }
     content += `</div>`;
   } else if (cardData.type === 'chart' && cardData.chartData) {
@@ -3566,6 +3948,14 @@ function createCardElement(cardData) {
     content += renderLocationCard(cardData);
   } else if (cardData.type === 'quest') {
     content += renderQuestCard(cardData);
+  } else if (cardData.type === 'ref-map') {
+    content += renderRefMapCard(cardData);
+  } else if (cardData.type === 'ref-chapter') {
+    content += renderRefChapterCard(cardData);
+  } else if (cardData.type === 'ref-timeline') {
+    content += renderRefTimelineCard(cardData);
+  } else if (cardData.type === 'ref-soundscape') {
+    content += renderRefSoundscapeCard(cardData);
   } else if (cardData.type !== 'text' && cardData.type !== 'image' && cardData.description) {
     content += `<div class="card-description" style="color: ${textColor}; font-family: ${fontFamily}; font-size: ${fontSize}px; text-align: ${textAlign}; white-space: pre-wrap">${parseWikiLinks(cardData.description)}</div>`;
   }
@@ -4169,6 +4559,7 @@ function renderAttributesCard(cardData) {
   const attrs = cardData.attributes || [];
   const textColor = cardData.textColor || '#a89880';
   const titleColor = cardData.titleColor || '#f5ede0';
+  const labelColor = cardData.labelColor || '#4ecdc4';
   const catColors = { appearance: '#60a5fa', background: '#f59e0b', demeanor: '#a855f7', custom: '#4ecdc4' };
   const catColor = catColors[cardData.attrCategory] || '#60a5fa';
   const catLabel = cardData.attrCategory || 'appearance';
@@ -4177,8 +4568,8 @@ function renderAttributesCard(cardData) {
     <div class="attr-category-badge" style="color:${catColor};border-color:${catColor}">${catLabel}</div>
     ${attrs.map(a => `
       <div class="attr-profile-row">
-        <span class="attr-profile-label">${a.name}</span>
-        <span class="attr-profile-value" style="color:${titleColor}">${a.value || '—'}</span>
+        <span class="attr-profile-label" style="color:${labelColor}">${a.name}</span>
+        <span class="attr-profile-value" style="color:${textColor}">${a.value || '—'}</span>
       </div>
     `).join('')}
     ${attrs.length === 0 ? '<div style="color:#605545;font-size:11px;text-align:center;padding:8px">No traits defined</div>' : ''}
@@ -4396,11 +4787,12 @@ function renderCharacterCard(cardData) {
   const fields = cardData.charFields || [];
   const textColor = cardData.textColor || '#a89880';
   const titleColor = cardData.titleColor || '#f5ede0';
+  const labelColor = cardData.labelColor || '#4ecdc4';
   const bio = cardData.charBio || '';
   return `<div class="character-card-content">
     ${fields.map(f => `<div class="char-field-row">
-      <span class="char-field-label">${f.label}</span>
-      <span class="char-field-value" style="color:${titleColor}">${f.value || '—'}</span>
+      <span class="char-field-label" style="color:${labelColor}">${f.label}</span>
+      <span class="char-field-value" style="color:${textColor}">${f.value || '—'}</span>
     </div>`).join('')}
     ${bio ? `<div class="char-bio" style="color:${textColor};white-space:pre-wrap">${bio}</div>` : ''}
   </div>`;
@@ -4413,14 +4805,15 @@ function renderLocationCard(cardData) {
   const fields = cardData.locFields || [];
   const textColor = cardData.textColor || '#a89880';
   const titleColor = cardData.titleColor || '#f5ede0';
+  const labelColor = cardData.labelColor || '#4ecdc4';
   const landmarks = cardData.locLandmarks || '';
   const secrets = cardData.locSecrets || '';
   return `<div class="location-card-content">
     ${fields.map(f => `<div class="loc-field-row">
-      <span class="loc-field-label">${f.label}</span>
-      <span class="loc-field-value" style="color:${titleColor}">${f.value || '—'}</span>
+      <span class="loc-field-label" style="color:${labelColor}">${f.label}</span>
+      <span class="loc-field-value" style="color:${textColor}">${f.value || '—'}</span>
     </div>`).join('')}
-    ${landmarks ? `<div class="loc-section"><span class="loc-section-label">Landmarks</span><div style="color:${textColor};font-size:11px;line-height:1.4;white-space:pre-wrap">${landmarks}</div></div>` : ''}
+    ${landmarks ? `<div class="loc-section"><span class="loc-section-label" style="color:${labelColor}">Landmarks</span><div style="color:${textColor};font-size:11px;line-height:1.4;white-space:pre-wrap">${landmarks}</div></div>` : ''}
     ${secrets ? `<div class="loc-section"><span class="loc-section-label" style="color:#ef4444">Secrets</span><div style="color:${textColor};font-size:11px;line-height:1.4;font-style:italic;white-space:pre-wrap">${secrets}</div></div>` : ''}
   </div>`;
 }
@@ -4431,16 +4824,17 @@ function renderLocationCard(cardData) {
 function renderQuestCard(cardData) {
   const textColor = cardData.textColor || '#a89880';
   const titleColor = cardData.titleColor || '#f5ede0';
+  const labelColor = cardData.labelColor || '#4ecdc4';
   const status = cardData.questStatus || 'active';
   const statusColors = { active: '#22c55e', completed: '#3b82f6', failed: '#ef4444', pending: '#f59e0b' };
   const steps = cardData.questSteps || [];
   const doneCount = steps.filter(s => s.done).length;
   return `<div class="quest-card-content">
     <div class="quest-status-badge" style="background:${statusColors[status] || '#22c55e'}22;color:${statusColors[status] || '#22c55e'}">${status}</div>
-    ${cardData.questGiver ? `<div class="quest-meta" style="color:${textColor}"><span style="color:${titleColor}">Quest Giver:</span> ${cardData.questGiver}</div>` : ''}
-    ${cardData.questObjective ? `<div class="quest-meta" style="color:${textColor}"><span style="color:${titleColor}">Objective:</span> ${cardData.questObjective}</div>` : ''}
+    ${cardData.questGiver ? `<div class="quest-meta" style="color:${textColor}"><span style="color:${labelColor}">Quest Giver:</span> ${cardData.questGiver}</div>` : ''}
+    ${cardData.questObjective ? `<div class="quest-meta" style="color:${textColor}"><span style="color:${labelColor}">Objective:</span> ${cardData.questObjective}</div>` : ''}
     ${steps.length > 0 ? `<div class="quest-steps">${steps.map((s, i) => `<div class="quest-step ${s.done ? 'done' : ''}" onclick="event.stopPropagation();toggleQuestStep('${cardData.id}',${i})"><span class="quest-check">${s.done ? '☑' : '☐'}</span><span style="color:${textColor}">${s.text || 'Step ' + (i+1)}</span></div>`).join('')}<div class="quest-progress-bar"><div style="width:${steps.length ? (doneCount/steps.length*100) : 0}%;background:${statusColors[status]}"></div></div></div>` : ''}
-    ${cardData.questReward ? `<div class="quest-meta" style="color:${titleColor}">⭐ ${cardData.questReward}</div>` : ''}
+    ${cardData.questReward ? `<div class="quest-meta" style="color:${labelColor}">⭐ ${cardData.questReward}</div>` : ''}
   </div>`;
 }
 
@@ -4450,6 +4844,69 @@ function toggleQuestStep(cardId, index) {
   if (!card.questSteps || !card.questSteps[index]) return;
   card.questSteps[index].done = !card.questSteps[index].done;
   refreshCardElement(card);
+}
+
+// ============================================
+// Reference Card Renderers
+// ============================================
+function renderRefMapCard(cardData) {
+  const map = maps.find(m => m.id === cardData.refId);
+  if (!map) return `<div class="ref-card-empty">No map linked<br><span style="font-size:9px;opacity:0.5">Select a map in the detail panel</span></div>`;
+  const pinCount = (map.pins || []).length;
+  const regionCount = (map.regions || []).length;
+  const thumb = map.imageUrl ? `<div class="ref-thumb" style="background-image:url(${map.imageUrl})"></div>` : '';
+  return `<div class="ref-card-content ref-map">
+    ${thumb}
+    <div class="ref-card-info">
+      <div class="ref-card-meta"><span class="ref-badge" style="background:#22c55e">MAP</span></div>
+      <div class="ref-card-stat">📍 ${pinCount} pin${pinCount !== 1 ? 's' : ''}</div>
+      <div class="ref-card-stat">🗺️ ${regionCount} region${regionCount !== 1 ? 's' : ''}</div>
+    </div>
+    <div class="ref-card-action" onclick="event.stopPropagation();navigateToView('map');setTimeout(()=>selectMap('${map.id}'),100)">Open Map →</div>
+  </div>`;
+}
+
+function renderRefChapterCard(cardData) {
+  const ch = chapters.find(c => c.id === cardData.refId);
+  if (!ch) return `<div class="ref-card-empty">No chapter linked<br><span style="font-size:9px;opacity:0.5">Select a chapter in the detail panel</span></div>`;
+  const excerpt = ch.content ? ch.content.replace(/<[^>]*>/g, '').substring(0, 120) : '';
+  return `<div class="ref-card-content ref-chapter">
+    <div class="ref-card-info">
+      <div class="ref-card-meta"><span class="ref-badge" style="background:#a78bfa">CHAPTER</span> <span style="opacity:0.5;font-size:10px">${ch.label}</span></div>
+      <div class="ref-card-stat">📝 ${ch.words || 0} words</div>
+      ${excerpt ? `<div class="ref-card-excerpt">${excerpt}${excerpt.length >= 120 ? '…' : ''}</div>` : ''}
+    </div>
+    <div class="ref-card-action" onclick="event.stopPropagation();selectChapter('${ch.id}')">Open Chapter →</div>
+  </div>`;
+}
+
+function renderRefTimelineCard(cardData) {
+  const tl = timelines.find(t => t.id === cardData.refId);
+  if (!tl) return `<div class="ref-card-empty">No timeline linked<br><span style="font-size:9px;opacity:0.5">Select a timeline in the detail panel</span></div>`;
+  const cal = typeof getCalendar === 'function' ? getCalendar(tl) : null;
+  const eventCount = (tl.events || []).length;
+  const dateStr = cal ? `${cal.months[tl.currentDate.month]?.name || ''} ${tl.currentDate.day}, Year ${tl.currentDate.year}` : '';
+  return `<div class="ref-card-content ref-timeline">
+    <div class="ref-card-info">
+      <div class="ref-card-meta"><span class="ref-badge" style="background:#f59e0b">TIMELINE</span></div>
+      ${dateStr ? `<div class="ref-card-stat" style="font-size:12px;font-weight:600;color:var(--gold)">${dateStr}</div>` : ''}
+      <div class="ref-card-stat">📅 ${eventCount} event${eventCount !== 1 ? 's' : ''}</div>
+      ${tl.color ? `<div style="height:3px;border-radius:2px;background:${tl.color};margin-top:4px"></div>` : ''}
+    </div>
+    <div class="ref-card-action" onclick="event.stopPropagation();navigateToView('timeline');selectTimeline('${tl.id}')">Open Timeline →</div>
+  </div>`;
+}
+
+function renderRefSoundscapeCard(cardData) {
+  const channelName = cardData.refChannelName || 'No channel set';
+  const isPlaying = typeof sbChannels !== 'undefined' && sbChannels.some(ch => ch.name === cardData.refChannelName && ch.playing);
+  return `<div class="ref-card-content ref-soundscape">
+    <div class="ref-card-info">
+      <div class="ref-card-meta"><span class="ref-badge" style="background:#ec4899">SOUND</span></div>
+      <div class="ref-card-stat" style="font-size:12px;">${isPlaying ? '🔊' : '🔇'} ${channelName}</div>
+    </div>
+    <div class="ref-card-action" onclick="event.stopPropagation();navigateToView('soundboard')">Open Soundscape →</div>
+  </div>`;
 }
 
 function renderAbilityCard(cardData) {
@@ -4605,6 +5062,62 @@ function removeQuestStep(idx) {
   cd.questSteps.splice(idx, 1); renderQuestFieldsInDetail(cd); refreshCardElement(cd);
 }
 
+function renderRefFieldsInDetail(cardData) {
+  const sec = document.getElementById('typeFieldsSection');
+  sec.classList.remove('hidden');
+  let html = '';
+
+  if (cardData.type === 'ref-map') {
+    const opts = maps.map(m => `<option value="${m.id}"${m.id === cardData.refId ? ' selected' : ''}>${m.name}</option>`).join('');
+    html = `<label class="detail-label">Linked Map</label>
+      <select class="detail-input" id="refMapSelect" style="width:100%;margin-bottom:8px">${opts || '<option value="">No maps</option>'}</select>`;
+  } else if (cardData.type === 'ref-chapter') {
+    const opts = chapters.map(c => `<option value="${c.id}"${c.id === cardData.refId ? ' selected' : ''}>${c.label}: ${c.title}</option>`).join('');
+    html = `<label class="detail-label">Linked Chapter</label>
+      <select class="detail-input" id="refChapterSelect" style="width:100%;margin-bottom:8px">${opts || '<option value="">No chapters</option>'}</select>`;
+  } else if (cardData.type === 'ref-timeline') {
+    const opts = timelines.map(t => `<option value="${t.id}"${t.id === cardData.refId ? ' selected' : ''}>${t.name}</option>`).join('');
+    html = `<label class="detail-label">Linked Timeline</label>
+      <select class="detail-input" id="refTimelineSelect" style="width:100%;margin-bottom:8px">${opts || '<option value="">No timelines</option>'}</select>`;
+  } else if (cardData.type === 'ref-soundscape') {
+    const channels = typeof sbChannels !== 'undefined' ? sbChannels : [];
+    const opts = channels.map(ch => `<option value="${ch.name}"${ch.name === cardData.refChannelName ? ' selected' : ''}>${ch.name}</option>`).join('');
+    html = `<label class="detail-label">Linked Channel</label>
+      <select class="detail-input" id="refSoundSelect" style="width:100%;margin-bottom:8px"><option value="">None</option>${opts}</select>`;
+  }
+
+  sec.innerHTML = html;
+
+  // Wire up change listeners
+  const mapSel = document.getElementById('refMapSelect');
+  if (mapSel) mapSel.addEventListener('change', () => {
+    cardData.refId = mapSel.value;
+    const m = maps.find(mm => mm.id === mapSel.value);
+    if (m) cardData.title = '🗺️ ' + m.name;
+    refreshCardElement(cardData);
+  });
+  const chSel = document.getElementById('refChapterSelect');
+  if (chSel) chSel.addEventListener('change', () => {
+    cardData.refId = chSel.value;
+    const c = chapters.find(cc => cc.id === chSel.value);
+    if (c) cardData.title = '📖 ' + c.title;
+    refreshCardElement(cardData);
+  });
+  const tlSel = document.getElementById('refTimelineSelect');
+  if (tlSel) tlSel.addEventListener('change', () => {
+    cardData.refId = tlSel.value;
+    const t = timelines.find(tt => tt.id === tlSel.value);
+    if (t) cardData.title = '📅 ' + t.name;
+    refreshCardElement(cardData);
+  });
+  const sndSel = document.getElementById('refSoundSelect');
+  if (sndSel) sndSel.addEventListener('change', () => {
+    cardData.refChannelName = sndSel.value;
+    cardData.title = sndSel.value ? '🎵 ' + sndSel.value : '🎵 Soundscape Reference';
+    refreshCardElement(cardData);
+  });
+}
+
 function addCard(type) {
   const board = getCurrentBoard();
   if (!board) return;
@@ -4632,17 +5145,21 @@ function addCard(type) {
     mood: 'Mood',
     randomizer: 'Random Table',
     ability: 'Ability',
+    'ref-map': '🗺️ Map Reference',
+    'ref-chapter': '📖 Chapter Reference',
+    'ref-timeline': '📅 Timeline Reference',
+    'ref-soundscape': '🎵 Soundscape Reference',
   };
 
   const newCard = {
     id,
     type,
     title: titles[type],
-    description: ['text', 'image', 'bar', 'stress', 'injury', 'body', 'chart', 'personality', 'attributes', 'inventory', 'currency', 'mood', 'randomizer', 'ability', 'character', 'location', 'quest'].includes(type) ? '' : (type === 'item' ? '' : 'Click to edit...'),
+    description: ['text', 'image', 'bar', 'stress', 'injury', 'body', 'chart', 'personality', 'attributes', 'inventory', 'currency', 'mood', 'randomizer', 'ability', 'character', 'location', 'quest', 'ref-map', 'ref-chapter', 'ref-timeline', 'ref-soundscape'].includes(type) ? '' : (type === 'item' ? '' : 'Click to edit...'),
     tags: [],
     x: 100 - panOffset.x / zoom + Math.random() * 200,
     y: 100 - panOffset.y / zoom + Math.random() * 200,
-    width: type === 'text' ? 250 : type === 'body' ? 180 : type === 'inventory' ? 220 : type === 'chart' ? 140 : type === 'stress' ? 130 : type === 'ability' ? 200 : type === 'character' ? 220 : type === 'location' ? 240 : type === 'quest' ? 240 : type === 'note' ? 200 : type === 'image' ? 250 : 220,
+    width: type === 'text' ? 250 : type === 'body' ? 180 : type === 'inventory' ? 220 : type === 'chart' ? 140 : type === 'stress' ? 130 : type === 'ability' ? 200 : type === 'character' ? 220 : type === 'location' ? 240 : type === 'quest' ? 240 : type === 'note' ? 200 : type === 'image' ? 250 : type.startsWith('ref-') ? 260 : 220,
     height: type === 'body' ? 320 : null,
     titleColor: '#f5ede0',
     textColor: '#a89880',
@@ -4778,6 +5295,18 @@ function addCard(type) {
     newCard.abilityMaxUses = 3;
     newCard.abilityUsed = 0;
     newCard.abilityCounter = 0;
+  } else if (type === 'ref-map') {
+    newCard.refId = maps.length > 0 ? maps[0].id : null;
+    newCard.title = maps.length > 0 ? '🗺️ ' + maps[0].name : '🗺️ Map Reference';
+  } else if (type === 'ref-chapter') {
+    newCard.refId = chapters.length > 0 ? chapters[0].id : null;
+    newCard.title = chapters.length > 0 ? '📖 ' + chapters[0].title : '📖 Chapter Reference';
+  } else if (type === 'ref-timeline') {
+    newCard.refId = timelines.length > 0 ? timelines[0].id : null;
+    newCard.title = timelines.length > 0 ? '📅 ' + timelines[0].name : '📅 Timeline Reference';
+  } else if (type === 'ref-soundscape') {
+    newCard.refId = null;
+    newCard.refChannelName = '';
   }
 
   board.cards.push(newCard);
@@ -4836,10 +5365,19 @@ function selectCard(cardEl) {
   // Populate toolbar color pickers
   const toolbarTitleColor = document.getElementById('toolbarTitleColor');
   if (toolbarTitleColor) toolbarTitleColor.value = cardData.titleColor || '#f5ede0';
+  const toolbarLabelColor = document.getElementById('toolbarLabelColor');
+  if (toolbarLabelColor) toolbarLabelColor.value = cardData.labelColor || '#4ecdc4';
   const toolbarTextColor = document.getElementById('toolbarTextColor');
   if (toolbarTextColor) toolbarTextColor.value = cardData.textColor || '#a89880';
   const toolbarBgColor = document.getElementById('toolbarBgColor');
   if (toolbarBgColor) toolbarBgColor.value = cardData.bgColor || '#0a0a0a';
+  // Detail panel color pickers (sync with toolbar)
+  const detailLabelColor = document.getElementById('detailLabelColor');
+  if (detailLabelColor) detailLabelColor.value = cardData.labelColor || '#4ecdc4';
+  const detailTextColor = document.getElementById('detailTextColor');
+  if (detailTextColor) detailTextColor.value = cardData.textColor || '#a89880';
+  const detailTitleColor = document.getElementById('detailTitleColor');
+  if (detailTitleColor) detailTitleColor.value = cardData.titleColor || '#f5ede0';
   // Top accent sync (Details + toolbar)
   const topColor = cardData.topColor || '#4ecdc4';
   const topEl = document.getElementById('cardTopColor');
@@ -4985,6 +5523,8 @@ function selectCard(cardEl) {
     document.getElementById('detailDescription').value = cardData.questObjective || '';
     document.getElementById('detailDescription').placeholder = 'Quest objective...';
     renderQuestFieldsInDetail(cardData);
+  } else if (cardData.type === 'ref-map' || cardData.type === 'ref-chapter' || cardData.type === 'ref-timeline' || cardData.type === 'ref-soundscape') {
+    renderRefFieldsInDetail(cardData);
   } else if (cardData.type === 'image') {
     // Image cards don't use the standard description field
   } else {
@@ -5100,6 +5640,8 @@ function updateCardStyle() {
   cardData.fontSize = parseInt(document.getElementById('cardFontSize').value);
   const titleColorEl = document.getElementById('toolbarTitleColor');
   if (titleColorEl) cardData.titleColor = titleColorEl.value;
+  const labelColorEl = document.getElementById('toolbarLabelColor');
+  if (labelColorEl) cardData.labelColor = labelColorEl.value;
   const textColorEl = document.getElementById('toolbarTextColor');
   if (textColorEl) cardData.textColor = textColorEl.value;
   const bgColorEl = document.getElementById('toolbarBgColor');
@@ -6445,6 +6987,113 @@ function renderConnections() {
       const q3x = fromX + dx * 0.75 + nx * amp * 0.4;
       const q3y = fromY + dy * 0.75 + ny * amp * 0.4;
       d = `M ${fromX} ${fromY} C ${q1x} ${q1y} ${q2x} ${q2y} ${midX} ${(fromY+toY)/2} S ${q3x} ${q3y} ${toX} ${toY}`;
+    } else if (curveMode === 'step') {
+      // L-shaped step path
+      const midStepX = (fromX + toX) / 2;
+      d = `M ${fromX} ${fromY} L ${midStepX} ${fromY} L ${midStepX} ${toY} L ${toX} ${toY}`;
+    } else if (curveMode === 'zigzag') {
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / len;
+      const ny = dx / len;
+      const segments = Math.max(3, Math.floor(len / 40));
+      const amp = Math.min(20, len * 0.08);
+      let pts = `M ${fromX} ${fromY}`;
+      for (let i = 1; i <= segments; i++) {
+        const t = i / (segments + 1);
+        const px = fromX + dx * t + nx * amp * (i % 2 === 0 ? 1 : -1);
+        const py = fromY + dy * t + ny * amp * (i % 2 === 0 ? 1 : -1);
+        pts += ` L ${px} ${py}`;
+      }
+      pts += ` L ${toX} ${toY}`;
+      d = pts;
+    } else if (curveMode === 'wave') {
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / len;
+      const ny = dx / len;
+      const waveCount = Math.max(2, Math.round(len / 60));
+      const amp = Math.min(25, len * 0.1);
+      let pts = `M ${fromX} ${fromY}`;
+      for (let i = 0; i < waveCount; i++) {
+        const t1 = (i + 0.5) / waveCount;
+        const t2 = (i + 1) / waveCount;
+        const cp1x = fromX + dx * t1 + nx * amp * (i % 2 === 0 ? 1 : -1);
+        const cp1y = fromY + dy * t1 + ny * amp * (i % 2 === 0 ? 1 : -1);
+        const endX = fromX + dx * t2;
+        const endY = fromY + dy * t2;
+        pts += ` Q ${cp1x} ${cp1y} ${endX} ${endY}`;
+      }
+      d = pts;
+    } else if (curveMode === 'spring') {
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / len;
+      const ny = dx / len;
+      const coils = Math.max(3, Math.round(len / 35));
+      const amp = Math.min(18, len * 0.08);
+      let pts = `M ${fromX} ${fromY}`;
+      for (let i = 1; i <= coils; i++) {
+        const t = i / (coils + 1);
+        const cx1 = fromX + dx * (t - 0.3 / coils) + nx * amp;
+        const cy1 = fromY + dy * (t - 0.3 / coils) + ny * amp;
+        const cx2 = fromX + dx * (t + 0.3 / coils) - nx * amp;
+        const cy2 = fromY + dy * (t + 0.3 / coils) - ny * amp;
+        const ex = fromX + dx * t;
+        const ey = fromY + dy * t;
+        pts += ` C ${cx1} ${cy1} ${cx2} ${cy2} ${ex} ${ey}`;
+      }
+      pts += ` L ${toX} ${toY}`;
+      d = pts;
+    } else if (curveMode === 'loop') {
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / len;
+      const ny = dx / len;
+      const loopR = Math.min(len * 0.2, 40);
+      const midLX = fromX + dx * 0.5 + nx * loopR * 2;
+      const midLY = fromY + dy * 0.5 + ny * loopR * 2;
+      d = `M ${fromX} ${fromY} Q ${fromX + dx * 0.25 + nx * loopR} ${fromY + dy * 0.25 + ny * loopR} ${midLX} ${midLY} Q ${fromX + dx * 0.75 + nx * loopR} ${fromY + dy * 0.75 + ny * loopR} ${toX} ${toY}`;
+    } else if (curveMode === 'sstep') {
+      const midY = (fromY + toY) / 2;
+      d = `M ${fromX} ${fromY} L ${fromX} ${midY} L ${toX} ${midY} L ${toX} ${toY}`;
+    } else if (curveMode === 'hstep') {
+      // Horizontal-first step (opposite of sstep)
+      const midX2 = (fromX + toX) / 2;
+      d = `M ${fromX} ${fromY} L ${midX2} ${fromY} L ${midX2} ${toY} L ${toX} ${toY}`;
+    } else if (curveMode === 'arc3') {
+      // Triple arc - three small arcs along the path
+      const t1x = fromX + (toX - fromX) * 0.33;
+      const t1y = fromY + (toY - fromY) * 0.33;
+      const t2x = fromX + (toX - fromX) * 0.66;
+      const t2y = fromY + (toY - fromY) * 0.66;
+      const off = curvature * 0.4;
+      const nx = -(toY - fromY) / (dist || 1);
+      const ny = (toX - fromX) / (dist || 1);
+      d = `M ${fromX} ${fromY} Q ${(fromX+t1x)/2 + nx*off} ${(fromY+t1y)/2 + ny*off} ${t1x} ${t1y} Q ${(t1x+t2x)/2 - nx*off} ${(t1y+t2y)/2 - ny*off} ${t2x} ${t2y} Q ${(t2x+toX)/2 + nx*off} ${(t2y+toY)/2 + ny*off} ${toX} ${toY}`;
+    } else if (curveMode === 'organic') {
+      // Organic/natural looking path with slight random-seeded offsets
+      const seed = (conn.from + conn.to).split('').reduce((a,c) => a + c.charCodeAt(0), 0);
+      const off1 = ((seed % 50) - 25) * 0.8;
+      const off2 = (((seed * 7) % 50) - 25) * 0.8;
+      const q1x = fromX + (toX - fromX) * 0.3 + off1;
+      const q1y = fromY + (toY - fromY) * 0.3 - curvature * 0.3 + off2;
+      const q2x = fromX + (toX - fromX) * 0.7 - off2;
+      const q2y = fromY + (toY - fromY) * 0.7 + curvature * 0.2 + off1;
+      d = `M ${fromX} ${fromY} C ${q1x} ${q1y} ${q2x} ${q2y} ${toX} ${toY}`;
+    } else if (curveMode === 'elbow') {
+      // Right-angle elbow from source side
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        d = `M ${fromX} ${fromY} L ${toX} ${fromY} L ${toX} ${toY}`;
+      } else {
+        d = `M ${fromX} ${fromY} L ${fromX} ${toY} L ${toX} ${toY}`;
+      }
     } else {
       const ctrlY = (curveMode === 'down')
         ? (Math.max(fromY, toY) + curvature)
@@ -6497,6 +7146,10 @@ function renderConnections() {
 
     if (style === 'dashed') path.setAttribute('stroke-dasharray', '8 4');
     else if (style === 'dotted') path.setAttribute('stroke-dasharray', '2 4');
+    else if (style === 'dashdot') path.setAttribute('stroke-dasharray', '8 3 2 3');
+    else if (style === 'longdash') path.setAttribute('stroke-dasharray', '16 6');
+    else if (style === 'morse') path.setAttribute('stroke-dasharray', '12 4 2 4 2 4');
+    else if (style === 'chain') path.setAttribute('stroke-dasharray', '6 3 2 3 6 3 2 3');
 
     // Apply glow filter
     if (conn.glow) {
@@ -6551,6 +7204,86 @@ function renderConnections() {
     // Add hit path first, then visible path
     svg.appendChild(hit);
     svg.appendChild(path);
+
+    // Double line: render a thinner line on top with background color
+    if (style === 'double') {
+      const innerPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      innerPath.setAttribute('d', d);
+      innerPath.setAttribute('stroke', 'var(--bg-dark, #0a0a0a)');
+      innerPath.setAttribute('stroke-width', Math.max(1, width - 1.5));
+      innerPath.setAttribute('fill', 'none');
+      innerPath.setAttribute('pointer-events', 'none');
+      svg.appendChild(innerPath);
+    }
+
+    // Railroad: crossties perpendicular to path
+    if (style === 'railroad') {
+      const tieCount = Math.max(3, Math.floor(dist / 20));
+      for (let i = 1; i <= tieCount; i++) {
+        const t = i / (tieCount + 1);
+        const px = fromX + (toX - fromX) * t;
+        const py = fromY + (toY - fromY) * t;
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const len = Math.hypot(dx, dy);
+        const nx = -dy / len * (width + 4);
+        const ny = dx / len * (width + 4);
+        const tie = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tie.setAttribute('x1', px + nx);
+        tie.setAttribute('y1', py + ny);
+        tie.setAttribute('x2', px - nx);
+        tie.setAttribute('y2', py - ny);
+        tie.setAttribute('stroke', color);
+        tie.setAttribute('stroke-width', Math.max(1, width * 0.6));
+        tie.setAttribute('pointer-events', 'none');
+        svg.appendChild(tie);
+      }
+    }
+
+    // Energy: animated dashes (CSS animation via class)
+    if (style === 'energy') {
+      path.setAttribute('stroke-dasharray', '4 8');
+      path.classList.add('energy-line');
+    }
+
+    // Tapered: thicker at start, thinner at end using gradient
+    if (style === 'tapered') {
+      const taperId = `taper-${conn.from}-${conn.to}`.replace(/[^a-zA-Z0-9-]/g,'');
+      if (!defs.querySelector(`#${CSS.escape(taperId)}`)) {
+        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+        grad.setAttribute('id', taperId);
+        grad.setAttribute('gradientUnits', 'userSpaceOnUse');
+        grad.setAttribute('x1', fromX); grad.setAttribute('y1', fromY);
+        grad.setAttribute('x2', toX); grad.setAttribute('y2', toY);
+        grad.innerHTML = `<stop offset="0%" stop-color="${color}" stop-opacity="1"/><stop offset="100%" stop-color="${color}" stop-opacity="0.2"/>`;
+        defs.appendChild(grad);
+      }
+      path.setAttribute('stroke', `url(#${taperId})`);
+      path.setAttribute('stroke-width', width * 2.5);
+    }
+
+    // Barbed: small perpendicular ticks along the path
+    if (style === 'barbed') {
+      const barbCount = Math.max(4, Math.floor(dist / 16));
+      for (let i = 1; i <= barbCount; i++) {
+        const t = i / (barbCount + 1);
+        const px = fromX + (toX - fromX) * t;
+        const py = fromY + (toY - fromY) * t;
+        const dxN = toX - fromX, dyN = toY - fromY;
+        const len = Math.hypot(dxN, dyN) || 1;
+        const nx = -dyN / len * (width + 3);
+        const ny = dxN / len * (width + 3);
+        const barb = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        barb.setAttribute('x1', px);
+        barb.setAttribute('y1', py);
+        barb.setAttribute('x2', px + (i % 2 === 0 ? nx : -nx));
+        barb.setAttribute('y2', py + (i % 2 === 0 ? ny : -ny));
+        barb.setAttribute('stroke', color);
+        barb.setAttribute('stroke-width', Math.max(1, width * 0.5));
+        barb.setAttribute('pointer-events', 'none');
+        svg.appendChild(barb);
+      }
+    }
   });
 }
 
@@ -6902,6 +7635,9 @@ function setMapTool(tool) {
   if (mapTool === 'map-region' && tool !== 'map-region' && regionDrawing) {
     cancelRegionDrawing();
   }
+  if (mapTool === 'map-path' && tool !== 'map-path' && mapPathDrawing) {
+    cancelMapPath();
+  }
   mapTool = tool;
   document.querySelectorAll('#mapView .tool-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tool === tool);
@@ -6927,7 +7663,19 @@ function zoomOut() {
 function toggleSnap() {
   snapEnabled = !snapEnabled;
   const btn = document.getElementById('snapToggleBtn');
-  if (btn) { btn.style.opacity = snapEnabled ? '1' : '0.5'; btn.classList.toggle('active', snapEnabled); }
+  if (btn) {
+    if (snapEnabled) {
+      btn.style.opacity = '1';
+      btn.style.color = 'var(--gold)';
+      btn.style.background = 'rgba(212,168,36,0.15)';
+      btn.title = 'Snap ON (G)';
+    } else {
+      btn.style.opacity = '0.5';
+      btn.style.color = '';
+      btn.style.background = '';
+      btn.title = 'Toggle Snap to Grid (G)';
+    }
+  }
 }
 
 function snapPosition(x, y, cardId, shiftKey) {
@@ -6993,7 +7741,7 @@ function zoomFit() {
     if (c.x + w > maxX) maxX = c.x + w;
     if (c.y + h > maxY) maxY = c.y + h;
   });
-  const pad = 60;
+  const pad = 180;
   minX -= pad; minY -= pad; maxX += pad; maxY += pad;
   const bw = maxX - minX;
   const bh = maxY - minY;
@@ -7270,6 +8018,9 @@ function handleKeyboard(e) {
           updateMapStatusBar();
           deselectPin();
         }
+      } else if (currentView === 'map' && selectedMapPath) {
+        e.preventDefault();
+        deleteSelectedMapPath();
       }
       break;
     case 'Escape':
@@ -7288,11 +8039,15 @@ function handleKeyboard(e) {
       closeDiceModal();
       clearMeasurement();
       cancelRegionDrawing();
+      cancelMapPath();
       document.getElementById('regionContextMenu')?.classList.add('hidden');
       break;
     case 'Enter':
       if (regionDrawing && regionDrawing.points.length >= 3) {
         finishRegionDrawing();
+      }
+      if (mapPathDrawing && mapPathDrawing.points.length >= 2) {
+        finishMapPath();
       }
       break;
     case 'v':
@@ -7320,6 +8075,9 @@ function handleKeyboard(e) {
       break;
     case 'r':
       if (currentView === 'map') setMapTool('map-region');
+      break;
+    case 'f':
+      if (currentView === 'map') setMapTool('map-path');
       break;
     case 't':
       if (currentView === 'board') setTool('text');
@@ -8589,6 +9347,8 @@ function closeAllContextMenus() {
   document.getElementById('tlContextMenu')?.classList.add('hidden');
   document.getElementById('evtContextMenu')?.classList.add('hidden');
   document.getElementById('chapterContextMenu')?.classList.add('hidden');
+  document.getElementById('boardContextMenu')?.classList.add('hidden');
+  document.getElementById('folderContextMenu')?.classList.add('hidden');
   document.getElementById('regionContextMenu')?.classList.add('hidden');
   const tableMenu = document.getElementById('tableContextMenu');
   if (tableMenu) tableMenu.classList.add('hidden');
@@ -9178,7 +9938,7 @@ let tlViewMode = 'lanes';
 let calGridMonth = 0;
 let calGridYear = 1;
 function setTlModeActive(activeId) {
-  ['tlModeLanes','tlModeList','tlModeCalGrid'].forEach(id => {
+  ['tlModeLanes','tlModeList','tlModeCalGrid','tlModeChronicle','tlModeAge'].forEach(id => {
     document.getElementById(id)?.classList.toggle('active', id === activeId);
   });
 }
@@ -9394,11 +10154,11 @@ function deleteSelectedEvent() { const tl=getCurrentTimeline(); if(!tl||!selecte
 // ---- RENDER MASTER ----
 function renderTimelineView() {
   renderTimelinesList(); renderTlTags();
-  if(tlViewMode==='lanes') renderLanesView(); else if(tlViewMode==='list') renderListView(); else if(tlViewMode==='calgrid') renderCalGridView();
+  if(tlViewMode==='lanes') renderLanesView(); else if(tlViewMode==='list') renderListView(); else if(tlViewMode==='calgrid') renderCalGridView(); else if(tlViewMode==='chronicle') renderChronicleView(); else if(tlViewMode==='age') renderAgeView(); else if(tlViewMode==='relmap') renderRelmapView();
   updateTimelineDateDisplay(); renderCalendarGrid(); updateCalendarMoon();
-  const tl=getCurrentTimeline(), empty=document.getElementById('tlEmptyState'), lanes=document.getElementById('tlLanesView'), list=document.getElementById('tlListView'), calgrid=document.getElementById('tlCalGridView');
-  if(!tl||timelines.length===0){if(empty)empty.style.display='';if(lanes)lanes.style.display='none';if(list)list.style.display='none';if(calgrid)calgrid.style.display='none';}
-  else{if(empty)empty.style.display='none';if(lanes)lanes.style.display=tlViewMode==='lanes'?'':'none';if(list)list.style.display=tlViewMode==='list'?'':'none';if(calgrid)calgrid.style.display=tlViewMode==='calgrid'?'':'none';}
+  const tl=getCurrentTimeline(), empty=document.getElementById('tlEmptyState'), lanes=document.getElementById('tlLanesView'), list=document.getElementById('tlListView'), calgrid=document.getElementById('tlCalGridView'), chronicle=document.getElementById('tlChronicleView'), age=document.getElementById('tlAgeView'), relmap=document.getElementById('tlRelmapView');
+  if(!tl||timelines.length===0){if(empty)empty.style.display='';if(lanes)lanes.style.display='none';if(list)list.style.display='none';if(calgrid)calgrid.style.display='none';if(chronicle)chronicle.style.display='none';if(age)age.style.display='none';if(relmap)relmap.style.display='none';}
+  else{if(empty)empty.style.display='none';if(lanes)lanes.style.display=tlViewMode==='lanes'?'':'none';if(list)list.style.display=tlViewMode==='list'?'':'none';if(calgrid)calgrid.style.display=tlViewMode==='calgrid'?'':'none';if(chronicle)chronicle.style.display=tlViewMode==='chronicle'?'':'none';if(age)age.style.display=tlViewMode==='age'?'':'none';if(relmap)relmap.style.display=tlViewMode==='relmap'?'':'none';}
 }
 function renderTimelinesList() {
   const c=document.getElementById('timelinesList'); if(!c)return;
@@ -9654,6 +10414,189 @@ function saveCalendarEdits(){
   closeCalendarEditor();renderTimelineView();populateMonthSelects();showTlDetailsPanel();showNotif('Calendar updated');
 }
 
+// ---- Chronicle View ----
+function renderChronicleView() {
+  const el = document.getElementById('tlChronicleScroll');
+  if (!el) return;
+  const tl = getCurrentTimeline();
+  if (!tl || !tl.events.length) { el.innerHTML = '<div class="tl-no-events"><p>No events to show.</p></div>'; return; }
+  const cal = getCalendar(tl);
+  const sorted = [...tl.events].sort((a, b) => getTotalDays(a.date, cal) - getTotalDays(b.date, cal));
+  let html = '<div class="tl-chronicle-line">';
+  sorted.forEach((evt, i) => {
+    const side = i % 2 === 0 ? 'left' : 'right';
+    const dateStr = formatEventDate(evt.date, cal);
+    const eraBadge = evt.era ? `<span class="tl-chronicle-era" style="background:${evt.color}40;color:${evt.color}">${evt.era}</span>` : '';
+    html += `<div class="tl-chronicle-item ${side}${evt.hidden ? ' item-hidden' : ''}" onclick="selectTlEvent('${evt.id}','${tl.id}')">
+      <div class="tl-chronicle-dot" style="background:${evt.color}"></div>
+      <div class="tl-chronicle-card">
+        <div class="tl-chronicle-date">${dateStr}</div>
+        ${eraBadge}
+        <div class="tl-chronicle-title">${evt.title}</div>
+        ${evt.description ? `<div class="tl-chronicle-desc">${evt.description.substring(0, 120)}${evt.description.length > 120 ? '…' : ''}</div>` : ''}
+        ${evt.tags && evt.tags.length ? `<div class="tl-chronicle-tags">${evt.tags.map(t => `<span class="tl-tag-pill mini">${t}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ---- Age Tracker View ----
+function renderAgeView() {
+  const el = document.getElementById('tlAgeContent');
+  if (!el) return;
+  const tl = getCurrentTimeline();
+  if (!tl) { el.innerHTML = '<div class="tl-no-events"><p>No timeline selected.</p></div>'; return; }
+  const cal = getCalendar(tl);
+  const sorted = [...tl.events].sort((a, b) => getTotalDays(a.date, cal) - getTotalDays(b.date, cal));
+
+  // Group events by era
+  const eras = {};
+  sorted.forEach(evt => {
+    const era = evt.era || 'Unclassified';
+    if (!eras[era]) eras[era] = { events: [], color: evt.color };
+    eras[era].events.push(evt);
+  });
+
+  // Also gather character cards from boards for cross-reference
+  const characters = [];
+  (typeof boards !== 'undefined' ? boards : []).forEach(b => {
+    (b.cards || []).forEach(c => {
+      if (c.type === 'character') characters.push({ name: c.title || 'Unknown', id: c.id });
+    });
+  });
+
+  let html = '<div class="tl-age-tracker">';
+
+  // Era summary header
+  html += '<div class="tl-age-eras">';
+  Object.entries(eras).forEach(([eraName, eraData]) => {
+    const count = eraData.events.length;
+    const first = eraData.events[0];
+    const last = eraData.events[eraData.events.length - 1];
+    const span = getTotalDays(last.date, cal) - getTotalDays(first.date, cal);
+    html += `<div class="tl-age-era-card">
+      <div class="tl-age-era-color" style="background:${eraData.color}"></div>
+      <div class="tl-age-era-info">
+        <div class="tl-age-era-name">${eraName}</div>
+        <div class="tl-age-era-meta">${count} event${count !== 1 ? 's' : ''} · ${formatEventDate(first.date, cal)} → ${formatEventDate(last.date, cal)}</div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Character mentions across events
+  if (characters.length > 0) {
+    html += '<div class="tl-age-section"><div class="tl-age-section-title">Character Activity</div>';
+    html += '<div class="tl-age-char-grid">';
+    characters.forEach(ch => {
+      const mentions = sorted.filter(e => (e.title + ' ' + (e.description || '')).toLowerCase().includes(ch.name.toLowerCase()));
+      if (mentions.length === 0) return;
+      html += `<div class="tl-age-char-row">
+        <span class="tl-age-char-name">${ch.name}</span>
+        <span class="tl-age-char-count">${mentions.length} event${mentions.length !== 1 ? 's' : ''}</span>
+        <div class="tl-age-char-dots">${mentions.map(m => `<span class="tl-age-dot" style="background:${m.color}" title="${m.title}"></span>`).join('')}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // Full event table
+  html += '<div class="tl-age-section"><div class="tl-age-section-title">All Events</div>';
+  html += '<table class="tl-age-table"><thead><tr><th>Date</th><th>Event</th><th>Era</th><th>Tags</th></tr></thead><tbody>';
+  sorted.forEach(evt => {
+    const dateStr = formatEventDate(evt.date, cal);
+    html += `<tr class="${evt.hidden ? 'item-hidden' : ''}" onclick="selectTlEvent('${evt.id}','${tl.id}')" style="cursor:pointer">
+      <td style="white-space:nowrap">${dateStr}</td>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${evt.color};margin-right:6px;"></span>${evt.title}</td>
+      <td>${evt.era || '—'}</td>
+      <td>${(evt.tags || []).map(t => `<span class="tl-tag-pill mini">${t}</span>`).join(' ')}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ---- Relationship Map View ----
+function renderRelmapView() {
+  const nodesEl = document.getElementById('tlRelmapNodes');
+  const svgEl = document.getElementById('tlRelmapSvg');
+  if (!nodesEl || !svgEl) return;
+  const tl = getCurrentTimeline();
+  if (!tl || !tl.events.length) { nodesEl.innerHTML = '<div class="tl-no-events"><p>No events to map.</p></div>'; svgEl.innerHTML = ''; return; }
+  const cal = getCalendar(tl);
+  const sorted = [...tl.events].filter(e => !e.hidden || window.craftCanViewHidden).sort((a, b) => getTotalDays(a.date, cal) - getTotalDays(b.date, cal));
+  if (!sorted.length) { nodesEl.innerHTML = '<div class="tl-no-events"><p>No visible events.</p></div>'; svgEl.innerHTML = ''; return; }
+
+  nodesEl.innerHTML = '';
+  svgEl.innerHTML = '';
+  const container = nodesEl.parentElement;
+  const cw = container.clientWidth || 800;
+  const ch = container.clientHeight || 500;
+
+  // Layout events in a grid
+  const cols = Math.ceil(Math.sqrt(sorted.length * 1.5));
+  const rows = Math.ceil(sorted.length / cols);
+  const cellW = Math.max(160, (cw - 40) / cols);
+  const cellH = Math.max(80, (ch - 40) / rows);
+  const positions = [];
+
+  sorted.forEach((evt, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = 20 + col * cellW + cellW / 2 - 60;
+    const y = 20 + row * cellH + cellH / 2 - 25;
+    positions.push({ x, y, evt });
+
+    const node = document.createElement('div');
+    node.className = 'tl-relmap-node' + (evt.hidden ? ' item-hidden' : '');
+    node.style.left = x + 'px';
+    node.style.top = y + 'px';
+    node.style.borderColor = evt.color || 'var(--border-color)';
+    node.innerHTML = `<div class="tl-relmap-node-title">${evt.title}</div>
+      <div class="tl-relmap-node-date">${formatEventDate(evt.date, cal)}</div>
+      ${evt.era ? `<div style="font-size:8px;color:${evt.color};margin-top:2px">${evt.era}</div>` : ''}`;
+    node.addEventListener('click', () => selectTlEvent(evt.id, tl.id));
+    nodesEl.appendChild(node);
+  });
+
+  // Draw connecting lines between sequential events
+  for (let i = 0; i < positions.length - 1; i++) {
+    const a = positions[i], b = positions[i + 1];
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', a.x + 60); line.setAttribute('y1', a.y + 25);
+    line.setAttribute('x2', b.x + 60); line.setAttribute('y2', b.y + 25);
+    line.setAttribute('stroke', a.evt.era && a.evt.era === b.evt.era ? (a.evt.color || '#555') : 'rgba(168,152,128,0.15)');
+    line.setAttribute('stroke-width', a.evt.era && a.evt.era === b.evt.era ? '2' : '1');
+    line.setAttribute('stroke-dasharray', a.evt.era && a.evt.era === b.evt.era ? '' : '4 4');
+    svgEl.appendChild(line);
+  }
+  // Connect same-era events
+  const eraGroups = {};
+  positions.forEach(p => { if (p.evt.era) { if (!eraGroups[p.evt.era]) eraGroups[p.evt.era] = []; eraGroups[p.evt.era].push(p); } });
+  Object.values(eraGroups).forEach(group => {
+    for (let i = 0; i < group.length - 1; i++) {
+      const a = group[i], b = group[i + 1];
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', a.x + 60); line.setAttribute('y1', a.y + 25);
+      line.setAttribute('x2', b.x + 60); line.setAttribute('y2', b.y + 25);
+      line.setAttribute('stroke', a.evt.color || '#4ecdc4');
+      line.setAttribute('stroke-width', '1.5');
+      line.setAttribute('opacity', '0.3');
+      svgEl.appendChild(line);
+    }
+  });
+
+  const maxX = Math.max(...positions.map(p => p.x + 140));
+  const maxY = Math.max(...positions.map(p => p.y + 60));
+  nodesEl.style.width = maxX + 'px';
+  nodesEl.style.height = maxY + 'px';
+  svgEl.style.width = maxX + 'px';
+  svgEl.style.height = maxY + 'px';
+}
+
 // ---- PANNING & SCROLL ZOOM ----
 function initTlPan(){
   const scroll=document.getElementById('tlLanesScroll');if(!scroll)return;
@@ -9678,6 +10621,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('tlModeLanes')?.addEventListener('click',()=>{tlViewMode='lanes';setTlModeActive('tlModeLanes');renderTimelineView();});
   document.getElementById('tlModeList')?.addEventListener('click',()=>{tlViewMode='list';setTlModeActive('tlModeList');renderTimelineView();});
   document.getElementById('tlModeCalGrid')?.addEventListener('click',()=>{tlViewMode='calgrid';setTlModeActive('tlModeCalGrid');renderTimelineView();});
+  document.getElementById('tlModeChronicle')?.addEventListener('click',()=>{tlViewMode='chronicle';setTlModeActive('tlModeChronicle');renderTimelineView();});
+  document.getElementById('tlModeAge')?.addEventListener('click',()=>{tlViewMode='age';setTlModeActive('tlModeAge');renderTimelineView();});
+  document.getElementById('tlModeRelmap')?.addEventListener('click',()=>{tlViewMode='relmap';setTlModeActive('tlModeRelmap');renderTimelineView();});
   document.getElementById('calGridPrev')?.addEventListener('click',()=>{calGridMonth--;if(calGridMonth<0){calGridMonth=11;calGridYear--;}renderCalGridView();});
   document.getElementById('calGridNext')?.addEventListener('click',()=>{calGridMonth++;const tl=getCurrentTimeline();const cal=getCalendar(tl);if(calGridMonth>=cal.months.length){calGridMonth=0;calGridYear++;}renderCalGridView();});
   document.getElementById('tlZoomIn')?.addEventListener('click',()=>{tlZoom=Math.min(6,tlZoom*1.3);document.getElementById('tlZoomLabel').textContent=Math.round(tlZoom*100)+'%';if(tlViewMode==='lanes')renderLanesView();});
@@ -10266,6 +11212,192 @@ function applyViewSettings() {
   if (viewSettings && !viewSettings[currentView]) {
     const first = VIEW_CONFIG.find(v => viewSettings[v.key]);
     if (first) switchView(first.key);
+  }
+}
+
+// ============================================
+// Combat Tracker View System
+// ============================================
+function switchCtView(view) {
+  document.querySelectorAll('.ct-view-body').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.ct-tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.ctView === view));
+  const viewMap = { tracker: 'ctTrackerView', reference: 'ctReferenceView', notes: 'ctNotesView', screen: 'ctScreenView' };
+  const target = document.getElementById(viewMap[view]);
+  if (target) target.classList.remove('hidden');
+  if (view === 'reference') {
+    loadRefContent('conditions', 'ctRefContent1');
+    loadRefContent('actions', 'ctRefContent2');
+  }
+  if (view === 'screen') initScreenView();
+}
+
+function setCtLayout(layout) {
+  document.querySelectorAll('.ct-layout-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.ct-layout-btn[title="${layout === 'standard' ? 'Standard' : layout === 'wide' ? 'Wide List' : 'Focus'}"]`);
+  if (btn) btn.classList.add('active');
+  const grid = document.getElementById('ctMainGrid');
+  if (!grid) return;
+  grid.className = 'ct-main-grid layout-' + layout;
+}
+
+const REF_CONTENT = {
+  conditions: `<h4 style="color:var(--gold);margin:0 0 8px">Conditions</h4>
+    <div style="margin-bottom:6px"><b>Blinded</b> — Can't see. Attack rolls against have advantage. Own attacks have disadvantage.</div>
+    <div style="margin-bottom:6px"><b>Charmed</b> — Can't attack the charmer. Charmer has advantage on social checks.</div>
+    <div style="margin-bottom:6px"><b>Deafened</b> — Can't hear. Fails any ability check that requires hearing.</div>
+    <div style="margin-bottom:6px"><b>Frightened</b> — Disadvantage on checks/attacks while source is in line of sight. Can't move closer.</div>
+    <div style="margin-bottom:6px"><b>Grappled</b> — Speed becomes 0. Ends if grappler is incapacitated or forced apart.</div>
+    <div style="margin-bottom:6px"><b>Incapacitated</b> — Can't take actions or reactions.</div>
+    <div style="margin-bottom:6px"><b>Invisible</b> — Impossible to see without magic/special sense. Attack rolls against have disadvantage. Own attacks have advantage.</div>
+    <div style="margin-bottom:6px"><b>Paralyzed</b> — Incapacitated. Can't move or speak. Auto-fail STR/DEX saves. Attacks have advantage. Hits within 5 ft are crits.</div>
+    <div style="margin-bottom:6px"><b>Petrified</b> — Transformed to stone. Weight ×10. Incapacitated. Resistance to all damage.</div>
+    <div style="margin-bottom:6px"><b>Poisoned</b> — Disadvantage on attack rolls and ability checks.</div>
+    <div style="margin-bottom:6px"><b>Prone</b> — Disadvantage on attacks. Melee attacks against have advantage. Ranged attacks have disadvantage.</div>
+    <div style="margin-bottom:6px"><b>Restrained</b> — Speed 0. Attack rolls have disadvantage. DEX saves have disadvantage. Attacks against have advantage.</div>
+    <div style="margin-bottom:6px"><b>Stunned</b> — Incapacitated. Can't move. Speak only falteringly. Auto-fail STR/DEX saves. Attacks have advantage.</div>
+    <div style="margin-bottom:6px"><b>Unconscious</b> — Incapacitated. Drop what held. Fall prone. Auto-fail STR/DEX saves. Attacks have advantage. Hits within 5 ft are crits.</div>`,
+  actions: `<h4 style="color:var(--gold);margin:0 0 8px">Actions in Combat</h4>
+    <div style="margin-bottom:6px"><b>Attack</b> — Melee or ranged attack against a target.</div>
+    <div style="margin-bottom:6px"><b>Cast a Spell</b> — Cast a spell with a casting time of 1 action.</div>
+    <div style="margin-bottom:6px"><b>Dash</b> — Gain extra movement equal to your speed.</div>
+    <div style="margin-bottom:6px"><b>Disengage</b> — Movement doesn't provoke opportunity attacks.</div>
+    <div style="margin-bottom:6px"><b>Dodge</b> — Attacks against you have disadvantage. DEX saves have advantage.</div>
+    <div style="margin-bottom:6px"><b>Help</b> — Give an ally advantage on their next ability check or attack roll.</div>
+    <div style="margin-bottom:6px"><b>Hide</b> — Make a DEX (Stealth) check to hide.</div>
+    <div style="margin-bottom:6px"><b>Ready</b> — Prepare an action to trigger on a specific condition (uses reaction).</div>
+    <div style="margin-bottom:6px"><b>Search</b> — Make a WIS (Perception) or INT (Investigation) check.</div>
+    <div style="margin-bottom:6px"><b>Use an Object</b> — Interact with an object that requires your action.</div>
+    <div style="margin-bottom:6px"><b>Grapple</b> — STR (Athletics) vs target's STR (Athletics) or DEX (Acrobatics).</div>
+    <div style="margin-bottom:6px"><b>Shove</b> — Push target 5 ft away or knock prone. STR (Athletics) contest.</div>`,
+  cover: `<h4 style="color:var(--gold);margin:0 0 8px">Cover Rules</h4>
+    <div style="margin-bottom:6px"><b>Half Cover</b> — +2 AC and DEX saves. Obstacle blocks at least half of the target.</div>
+    <div style="margin-bottom:6px"><b>Three-Quarters Cover</b> — +5 AC and DEX saves. About three-quarters blocked.</div>
+    <div style="margin-bottom:6px"><b>Total Cover</b> — Can't be targeted directly. Completely concealed.</div>
+    <h4 style="color:var(--gold);margin:12px 0 8px">Difficult Terrain</h4>
+    <div style="margin-bottom:6px">Every foot of movement costs 1 extra foot.</div>
+    <h4 style="color:var(--gold);margin:12px 0 8px">Concentration</h4>
+    <div style="margin-bottom:6px">Taking damage: CON save (DC = 10 or half damage, whichever is higher). Incapacitation or death ends it.</div>`,
+  custom: ''
+};
+
+function loadRefContent(type, targetId) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  if (type === 'custom') {
+    const key = targetId + '_custom';
+    el.innerHTML = `<textarea style="width:100%;height:100%;background:transparent;border:none;color:var(--text-primary);font-size:12px;line-height:1.6;resize:none;outline:none;" placeholder="Type your custom notes here..."
+      oninput="this.dataset.saved=this.value">${el._customContent || ''}</textarea>`;
+    const ta = el.querySelector('textarea');
+    if (ta) ta.addEventListener('input', () => { el._customContent = ta.value; });
+  } else {
+    el.innerHTML = REF_CONTENT[type] || '<p>No content available.</p>';
+  }
+}
+
+// Resizable reference panels
+function initCtRefDivider() {
+  const divider = document.getElementById('ctRefDivider');
+  if (!divider) return;
+  let dragging = false;
+  divider.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    divider.classList.add('dragging');
+    const grid = document.getElementById('ctRefGrid');
+    const panel1 = document.getElementById('ctRefPanel1');
+    const onMove = (me) => {
+      if (!dragging) return;
+      const rect = grid.getBoundingClientRect();
+      const ratio = (me.clientX - rect.left) / rect.width;
+      const clamped = Math.max(0.2, Math.min(0.8, ratio));
+      panel1.style.flex = `0 0 ${clamped * 100}%`;
+    };
+    const onUp = () => {
+      dragging = false;
+      divider.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// Resizable combat tracker columns
+function initCtResizeHandle() {
+  const handle = document.getElementById('ctResizeHandle');
+  if (!handle) return;
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    handle.classList.add('dragging');
+    const grid = document.getElementById('ctMainGrid');
+    const detailCol = document.getElementById('ctDetailCol');
+    const onMove = (me) => {
+      const rect = grid.getBoundingClientRect();
+      const rightWidth = rect.right - me.clientX;
+      const clamped = Math.max(200, Math.min(rect.width * 0.6, rightWidth));
+      detailCol.style.width = clamped + 'px';
+    };
+    const onUp = () => {
+      handle.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// DM Screen View (4-panel configurable dashboard)
+let screenPanelContent = ['initiative', 'notes', 'conditions', 'custom'];
+function initScreenView() {
+  const container = document.getElementById('ctScreenGrid');
+  if (!container) return;
+  const panelTypes = [
+    { id: 'initiative', label: 'Initiative Order' },
+    { id: 'notes', label: 'Session Notes' },
+    { id: 'conditions', label: 'Conditions' },
+    { id: 'actions', label: 'Actions' },
+    { id: 'cover', label: 'Cover & Rules' },
+    { id: 'custom', label: 'Custom Notes' }
+  ];
+  container.innerHTML = '';
+  screenPanelContent.forEach((type, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'ct-screen-cell';
+    const options = panelTypes.map(pt => `<option value="${pt.id}"${pt.id === type ? ' selected' : ''}>${pt.label}</option>`).join('');
+    cell.innerHTML = `<div class="ct-screen-cell-header"><select class="toolbar-select" style="font-size:10px;padding:2px 4px;" onchange="updateScreenPanel(${i}, this.value)">${options}</select></div><div class="ct-screen-cell-body" id="screenPanel${i}"></div>`;
+    container.appendChild(cell);
+    fillScreenPanel(i, type);
+  });
+}
+
+function updateScreenPanel(index, type) {
+  screenPanelContent[index] = type;
+  fillScreenPanel(index, type);
+}
+
+function fillScreenPanel(index, type) {
+  const el = document.getElementById('screenPanel' + index);
+  if (!el) return;
+  if (type === 'initiative') {
+    let html = '';
+    const sorted = [...combatants].sort((a, b) => (b.initiative || 0) - (a.initiative || 0));
+    sorted.forEach((c, i) => {
+      const isCurrent = i === combatTurnIndex && combatRound > 0;
+      html += `<div style="padding:3px 6px;${isCurrent ? 'background:rgba(212,168,36,0.15);border-radius:4px;' : ''}display:flex;justify-content:space-between;font-size:12px;">
+        <span style="color:${isCurrent ? 'var(--gold)' : 'var(--text-primary)'}">${c.name}</span>
+        <span style="color:var(--text-muted)">${c.initiative || '—'}</span>
+      </div>`;
+    });
+    el.innerHTML = html || '<span style="color:var(--text-muted)">No combatants</span>';
+  } else if (type === 'notes' || type === 'custom') {
+    if (!el._textarea) {
+      el.innerHTML = `<textarea placeholder="Type notes here..." style="width:100%;height:100%;background:transparent;border:none;color:var(--text-primary);font-size:12px;line-height:1.6;resize:none;outline:none;"></textarea>`;
+      el._textarea = true;
+    }
+  } else {
+    el.innerHTML = REF_CONTENT[type] || '<p>No content.</p>';
   }
 }
 
@@ -11963,6 +13095,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ctAddBtn')?.addEventListener('click', addCombatant);
   document.getElementById('ctClearAll')?.addEventListener('click', clearAllCombatants);
 
+  // Initialize resizable panels
+  initCtRefDivider();
+  initCtResizeHandle();
+
   // Ability card detail listeners
   ['abilityType','abilityLevel','abilityCost','abilityRange','abilityDuration','abilityUseType','abilityMaxUses','abilityDesc'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => {
@@ -12442,6 +13578,7 @@ function toggleFirstLineIndent() {
     btn.classList.remove('active');
   }
   editor.focus();
+  saveCurrentChapter();
 }
 
 function toggleJustify() {
@@ -12456,6 +13593,7 @@ function toggleJustify() {
     btn.classList.remove('active');
   }
   editor.focus();
+  saveCurrentChapter();
 }
 
 function normalizeEditorBlocks(editor) {
@@ -13784,6 +14922,7 @@ window.craftGetState = function() {
     maps: JSON.parse(JSON.stringify(maps)),
     currentMapId: currentMapId,
     chapters: JSON.parse(JSON.stringify(chapters)),
+    chapterFolders: JSON.parse(JSON.stringify(chapterFolders)),
     currentChapterId: currentChapterId,
     associations: JSON.parse(JSON.stringify(associations)),
     destinationMarkers: JSON.parse(JSON.stringify(destinationMarkers)),
@@ -13832,6 +14971,7 @@ window.craftSetState = function(state, skipRender) {
   if (state.maps) maps = state.maps;
   if (state.currentMapId) currentMapId = state.currentMapId;
   if (state.chapters) chapters = state.chapters;
+  if (state.chapterFolders) chapterFolders = state.chapterFolders;
   if (state.currentChapterId) currentChapterId = state.currentChapterId;
   if (state.associations) associations = state.associations;
   if (state.destinationMarkers) destinationMarkers = state.destinationMarkers;
