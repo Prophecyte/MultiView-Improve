@@ -400,6 +400,11 @@ function initEventListeners() {
   const writeEditor = document.getElementById('writeEditor');
   writeEditor.addEventListener('input', updateWordCount);
   writeEditor.addEventListener('input', processWikiLinksInEditor);
+  // Persist writing to the room state (server sync), not local/desktop only
+  writeEditor.addEventListener('input', () => {
+    saveCurrentChapter();
+    if (window.craftSchedulePush) window.craftSchedulePush();
+  });
 
   // Chapter title/label sync
   document.getElementById('writeChapterTitle').addEventListener('input', (e) => {
@@ -407,6 +412,7 @@ function initEventListeners() {
     if (chapter) {
       chapter.title = e.target.value;
       renderChaptersList();
+      if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -415,6 +421,7 @@ function initEventListeners() {
     if (chapter) {
       chapter.label = e.target.value;
       renderChaptersList();
+      if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -13793,10 +13800,25 @@ function loadMVPanel(panelIdx, viewType) {
 
 function getMVNavItems(viewType) {
   switch (viewType) {
-    case 'board': return boards.map(b => ({ id: b.id, name: b.name || 'Untitled Board' }));
-    case 'map': return maps.map(m => ({ id: m.id, name: m.name || 'Untitled Map' }));
-    case 'write': return chapters.map(c => ({ id: c.id, name: c.title || 'Untitled' }));
-    case 'timeline': return timelines.map(t => ({ id: t.id, name: t.name || 'Untitled' }));
+    // DM Screen should respect the same hidden rules as the main UI:
+    // - Guests/viewers shouldn't see hidden items
+    // - If a folder is hidden, all chapters inside are effectively hidden
+    case 'board':
+      return boards
+        .filter(b => craftCanSeeHidden() || !b.hidden)
+        .map(b => ({ id: b.id, name: b.name || 'Untitled Board' }));
+    case 'map':
+      return maps
+        .filter(m => craftCanSeeHidden() || !m.hidden)
+        .map(m => ({ id: m.id, name: m.name || 'Untitled Map' }));
+    case 'write':
+      return chapters
+        .filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c))
+        .map(c => ({ id: c.id, name: c.title || 'Untitled' }));
+    case 'timeline':
+      return timelines
+        .filter(t => craftCanSeeHidden() || !t.hidden)
+        .map(t => ({ id: t.id, name: t.name || 'Untitled' }));
     default: return [];
   }
 }
