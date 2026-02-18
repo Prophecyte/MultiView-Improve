@@ -3583,10 +3583,24 @@ function saveCurrentChapter() {
   const editor = document.getElementById('writeEditor');
   if (!chapter || !editor) return;
 
+  // Prevent accidental wipes:
+  // During rerenders / view swaps, the write editor can temporarily be empty.
+  // We only allow saving an "empty" snapshot if the user is actively editing
+  // the editor (focused). Otherwise we keep the last saved chapter.content.
+  const active = document.activeElement;
+  const writingUIFocused = (active === editor) || editor.contains(active);
+
+  // If the editor isn't visible and isn't focused, don't snapshot it.
+  if (!writingUIFocused && editor.offsetParent === null) return;
+
+  const html = editor.innerHTML;
+  const text = editor.textContent || '';
+  const looksEmpty = !text.trim() && (!html || html === '<br>' || html === '<div><br></div>' || html === '<p><br></p>');
+  if (looksEmpty && chapter.content && !writingUIFocused) return;
+
   cleanupWriteEditorLeadingSpace(editor);
 
-  chapter.content = editor.innerHTML;
-  const text = editor.textContent || '';
+  chapter.content = html;
   chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
 
   // Persist toggles
@@ -15704,8 +15718,12 @@ function initSoundboard(){
 // ============================================
 
 window.craftGetState = function() {
-  // Save current chapter content + indent/justify state before serializing
-  if (typeof saveCurrentChapter === 'function') saveCurrentChapter();
+  // IMPORTANT:
+  // Do NOT call saveCurrentChapter() here.
+  // craftGetState() is invoked by the sync engine even when the write editor is
+  // hidden or mid-rerender. Saving from here can accidentally overwrite chapter
+  // content with an empty editor snapshot.
+  // Chapter content is persisted via write editor input handlers instead.
   return {
     boards: JSON.parse(JSON.stringify(boards)),
     currentBoardId: currentBoardId,
