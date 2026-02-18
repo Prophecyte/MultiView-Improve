@@ -4,18 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Multiview - Craft Room</title>
-    <meta property="og:title" content="Multiview - Craft Room" />
-    <meta property="og:description" content="Collaborative tabletop RPG workspace — boards, maps, writing, timelines, and soundscapes for your campaign." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://multiview.pages.dev/og-craft.png" />
-    <meta name="theme-color" content="#d4a824" />
-    <meta name="twitter:card" content="summary_large_image" />
-
     <!-- OpenGraph / Discord Embed -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Multiview" />
+    <meta property="og:url" content="https://multiview.pages.dev/craft.html" />
     <meta property="og:title" content="Multiview — Craft Room" />
     <meta property="og:description" content="Collaborative TTRPG workspace — boards, maps, timelines, writing, soundscapes & more. Build worlds together in real-time." />
-    <meta property="og:image" content="/og-craft.png" />
+    <meta property="og:image" content="https://multiview.pages.dev/og-craft.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="theme-color" content="#d4a824" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Multiview — Craft Room" />
@@ -166,7 +163,7 @@
       <!-- Header -->
       <header class="dashboard-header">
         <div class="header-left">
-          <button class="icon-btn" id="toggleSidebarBtn" title="Toggle Sidebar">
+          <button class="icon-btn" id="toggleSidebarBtn">
             <svg
               width="18"
               height="18"
@@ -178,7 +175,7 @@
               <path d="M3 12h18M3 6h18M3 18h18" />
             </svg>
           </button>
-          <button class="icon-btn" id="craftHomeBtn" title="Home" onclick="window.location.href='/'">
+          <button class="icon-btn" id="craftHomeBtn" onclick="window.location.href='/'">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
@@ -285,7 +282,7 @@
         </div>
 
         <div class="header-right">
-          <button class="icon-btn multiview-btn" id="multiviewBtn" title="DM Screen">
+          <button class="icon-btn multiview-btn" id="multiviewBtn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <rect x="3" y="3" width="7" height="7" rx="1.5"/>
               <rect x="14" y="3" width="7" height="7" rx="1.5"/>
@@ -293,10 +290,10 @@
               <rect x="14" y="14" width="7" height="7" rx="1.5"/>
             </svg>
           </button>
-          <button class="icon-btn search-nav-btn" id="searchNavBtn" title="Search (Ctrl+/)">
+          <button class="icon-btn search-nav-btn" id="searchNavBtn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
-          <button class="dice-roller-btn" id="diceRollerBtn" title="Roll Dice">
+          <button class="dice-roller-btn" id="diceRollerBtn">
             <svg class="dice-icon" viewBox="0 0 24 24" width="18" height="18">
               <rect
                 x="3"
@@ -316,14 +313,14 @@
             </svg>
             <span>Roll</span>
           </button>
-          <button class="icon-btn settings-btn" id="settingsBtn" title="Settings">
+          <button class="icon-btn settings-btn" id="settingsBtn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
             </svg>
           </button>
           <div id="craftShareBtn" style="display:none"></div>
           <div id="craftUserMenu"></div>
-          <button class="icon-btn" id="togglePanelBtn" title="Toggle Details">
+          <button class="icon-btn" id="togglePanelBtn">
             <svg
               width="18"
               height="18"
@@ -639,7 +636,7 @@
               <button
                 class="column-layout-btn"
                 data-layout="50-50"
-                title="Two Equal"
+               
               >
                 <div class="layout-preview"><span></span><span></span></div>
                 <span>50/50</span>
@@ -647,7 +644,7 @@
               <button
                 class="column-layout-btn"
                 data-layout="33-33-33"
-                title="Three Equal"
+               
               >
                 <div class="layout-preview">
                   <span></span><span></span><span></span>
@@ -657,7 +654,7 @@
               <button
                 class="column-layout-btn"
                 data-layout="25-50-25"
-                title="Sidebar"
+               
               >
                 <div class="layout-preview">
                   <span style="flex: 1"></span><span style="flex: 2"></span
@@ -668,7 +665,7 @@
               <button
                 class="column-layout-btn"
                 data-layout="30-70"
-                title="Narrow Left"
+               
               >
                 <div class="layout-preview">
                   <span style="flex: 3"></span><span style="flex: 7"></span>
@@ -678,7 +675,7 @@
               <button
                 class="column-layout-btn"
                 data-layout="70-30"
-                title="Wide Left"
+               
               >
                 <div class="layout-preview">
                   <span style="flex: 7"></span><span style="flex: 3"></span>
@@ -688,7 +685,7 @@
               <button
                 class="column-layout-btn"
                 data-layout="25-25-25-25"
-                title="Four Equal"
+               
               >
                 <div class="layout-preview">
                   <span></span><span></span><span></span><span></span>
@@ -785,7 +782,7 @@
               <button
                 class="pin-shape-btn active"
                 data-shape="circle"
-                title="Circle"
+               
               >
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <circle cx="10" cy="10" r="8" fill="currentColor" />
@@ -794,7 +791,7 @@
               <button
                 class="pin-shape-btn"
                 data-shape="diamond"
-                title="Diamond"
+               
               >
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <rect
@@ -807,7 +804,7 @@
                   />
                 </svg>
               </button>
-              <button class="pin-shape-btn" data-shape="pin" title="Map Pin">
+              <button class="pin-shape-btn" data-shape="pin">
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <path
                     d="M10 2C6.5 2 4 4.5 4 7.5c0 4 6 10.5 6 10.5s6-6.5 6-10.5C16 4.5 13.5 2 10 2z"
@@ -815,7 +812,7 @@
                   />
                 </svg>
               </button>
-              <button class="pin-shape-btn" data-shape="square" title="Square">
+              <button class="pin-shape-btn" data-shape="square">
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <rect
                     x="3"
@@ -826,7 +823,7 @@
                   />
                 </svg>
               </button>
-              <button class="pin-shape-btn" data-shape="star" title="Star">
+              <button class="pin-shape-btn" data-shape="star">
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <path
                     d="M10 2l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z"
@@ -837,7 +834,7 @@
               <button
                 class="pin-shape-btn"
                 data-shape="triangle"
-                title="Triangle"
+               
               >
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <path d="M10 3L18 17H2z" fill="currentColor" />
@@ -901,31 +898,31 @@
 
             <label class="popup-label">Icon <span style="opacity:0.5;font-size:11px">(optional, displayed inside pin)</span></label>
             <div class="pin-icon-options" id="pinIconOptions">
-              <button class="pin-icon-btn active" data-icon="" title="None">✕</button>
-              <button class="pin-icon-btn" data-icon="ra-castle-emblem" title="Castle"><i class="ra ra-castle-emblem"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-tower" title="Tower"><i class="ra ra-tower"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-capitol" title="City"><i class="ra ra-capitol"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-campfire" title="Camp"><i class="ra ra-campfire"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-beer" title="Tavern"><i class="ra ra-beer"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-bridge" title="Bridge"><i class="ra ra-bridge"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-mountains" title="Mountains"><i class="ra ra-mountains"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-pine-tree" title="Forest"><i class="ra ra-pine-tree"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-ocean-emblem" title="Sea"><i class="ra ra-ocean-emblem"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-skull" title="Danger"><i class="ra ra-skull"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-dragon" title="Dragon"><i class="ra ra-dragon"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-sword" title="Weapon"><i class="ra ra-sword"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-shield" title="Shield"><i class="ra ra-shield"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-key" title="Key"><i class="ra ra-key"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-gem" title="Gem"><i class="ra ra-gem"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-scroll-unfurled" title="Scroll"><i class="ra ra-scroll-unfurled"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-crystal-ball" title="Magic"><i class="ra ra-crystal-ball"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-hospital-cross" title="Healer"><i class="ra ra-hospital-cross"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-tombstone" title="Grave"><i class="ra ra-tombstone"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-anchor" title="Harbor"><i class="ra ra-anchor"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-book" title="Library"><i class="ra ra-book"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-wooden-sign" title="Sign"><i class="ra ra-wooden-sign"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-mine-wagon" title="Mine"><i class="ra ra-mine-wagon"></i></button>
-              <button class="pin-icon-btn" data-icon="ra-crown" title="Crown"><i class="ra ra-crown"></i></button>
+              <button class="pin-icon-btn active" data-icon="">✕</button>
+              <button class="pin-icon-btn" data-icon="ra-castle-emblem"><i class="ra ra-castle-emblem"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-tower"><i class="ra ra-tower"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-capitol"><i class="ra ra-capitol"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-campfire"><i class="ra ra-campfire"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-beer"><i class="ra ra-beer"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-bridge"><i class="ra ra-bridge"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-mountains"><i class="ra ra-mountains"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-pine-tree"><i class="ra ra-pine-tree"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-ocean-emblem"><i class="ra ra-ocean-emblem"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-skull"><i class="ra ra-skull"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-dragon"><i class="ra ra-dragon"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-sword"><i class="ra ra-sword"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-shield"><i class="ra ra-shield"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-key"><i class="ra ra-key"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-gem"><i class="ra ra-gem"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-scroll-unfurled"><i class="ra ra-scroll-unfurled"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-crystal-ball"><i class="ra ra-crystal-ball"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-hospital-cross"><i class="ra ra-hospital-cross"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-tombstone"><i class="ra ra-tombstone"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-anchor"><i class="ra ra-anchor"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-book"><i class="ra ra-book"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-wooden-sign"><i class="ra ra-wooden-sign"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-mine-wagon"><i class="ra ra-mine-wagon"></i></button>
+              <button class="pin-icon-btn" data-icon="ra-crown"><i class="ra ra-crown"></i></button>
             </div>
 
             <label class="popup-label">Icon Color</label>
@@ -1073,7 +1070,7 @@
             </div>
 
             <div style="margin-top:8px;">
-              <label class="toolbar-toggle" title="Hide destination label on map">
+              <label class="toolbar-toggle">
                 <input type="checkbox" id="destHideLabel" />
                 <span>Hide label on map</span>
               </label>
@@ -1508,7 +1505,7 @@
           <div class="sidebar-section boards-section" id="boardsSection">
             <div class="section-header">
               <span>Boards</span>
-              <button class="add-btn" id="addBoardBtn" title="Add Board">
+              <button class="add-btn" id="addBoardBtn">
                 +
               </button>
             </div>
@@ -1672,19 +1669,19 @@
               <div class="template-category">Reference</div>
               <button class="template-btn" data-type="ref-map">
                 <span class="template-color" style="background: #22c55e"></span>
-                <span>🗺️ Map</span>
+                <span>Map View</span>
               </button>
               <button class="template-btn" data-type="ref-chapter">
                 <span class="template-color" style="background: #a78bfa"></span>
-                <span>📖 Chapter</span>
+                <span>Chapter View</span>
               </button>
               <button class="template-btn" data-type="ref-timeline">
                 <span class="template-color" style="background: #f59e0b"></span>
-                <span>📅 Timeline</span>
+                <span>Timeline View</span>
               </button>
-              <button class="template-btn" data-type="ref-soundscape">
+              <button class="template-btn" data-type="ref-music">
                 <span class="template-color" style="background: #ec4899"></span>
-                <span>🎵 Soundscape</span>
+                <span>Music Player</span>
               </button>
             </div>
           </div>
@@ -1693,7 +1690,7 @@
           <div class="sidebar-section maps-section hidden" id="mapsSection">
             <div class="section-header">
               <span>Maps</span>
-              <button class="add-btn" id="addMapBtn" title="Add Map">+</button>
+              <button class="add-btn" id="addMapBtn">+</button>
             </div>
             <div class="maps-list" id="mapsList"></div>
           </div>
@@ -1726,10 +1723,12 @@
             id="chaptersSection"
           >
             <div class="section-header">
-              <span>Chapters</span>
+              <span>Pages</span>
               <div style="display:flex;gap:4px;">
-                <button class="add-btn" id="addFolderBtn" title="Add Folder" style="font-size:10px;">📁</button>
-                <button class="add-btn" id="addChapterBtn" title="Add Chapter">
+                <button class="add-btn" id="addFolderBtn" style="font-size:11px;opacity:0.7;padding:2px 5px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                </button>
+                <button class="add-btn" id="addChapterBtn">
                   +
                 </button>
               </div>
@@ -1741,7 +1740,7 @@
           <div class="sidebar-section timelines-section hidden" id="timelinesSection">
             <div class="section-header">
               <span>Timelines</span>
-              <button class="add-btn" id="addTimelineBtn" title="Add Timeline">+</button>
+              <button class="add-btn" id="addTimelineBtn">+</button>
             </div>
             <div class="timelines-list" id="timelinesList"></div>
           </div>
@@ -1794,9 +1793,9 @@
               <div class="tl-moon-display" id="tlMoonDisplay"></div>
             </div>
             <div class="tl-date-controls">
-              <button class="btn secondary sm" id="tlPrevDay" title="Previous Day">◀ Day</button>
-              <button class="btn primary sm" id="tlSetDateBtn" title="Set Current Date">Set Date</button>
-              <button class="btn secondary sm" id="tlNextDay" title="Next Day">Day ▶</button>
+              <button class="btn secondary sm" id="tlPrevDay">◀ Day</button>
+              <button class="btn primary sm" id="tlSetDateBtn">Set Date</button>
+              <button class="btn secondary sm" id="tlNextDay">Day ▶</button>
             </div>
             <div class="tl-sidebar-tags">
               <label class="detail-label" style="margin-top:10px;">Timeline Tags</label>
@@ -1872,13 +1871,13 @@
           </div>
 
           <div class="zoom-controls">
-            <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">−</button>
+            <button class="zoom-btn" id="zoomOutBtn">−</button>
             <span class="zoom-level" id="zoomLevel">100%</span>
-            <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
-            <button class="zoom-btn" id="zoomFitBtn" title="Fit to View">
+            <button class="zoom-btn" id="zoomInBtn">+</button>
+            <button class="zoom-btn" id="zoomFitBtn">
               ◻
             </button>
-            <button class="zoom-btn" id="snapToggleBtn" title="Toggle Snap to Grid (G)" style="font-size:11px;opacity:0.5">
+            <button class="zoom-btn" id="snapToggleBtn" style="font-size:11px;opacity:0.5">
               ⊞
             </button>
           </div>
@@ -1887,7 +1886,7 @@
             <button
               class="tool-btn active"
               data-tool="select"
-              title="Select (V)"
+             
             >
               <svg
                 width="16"
@@ -1901,7 +1900,7 @@
             <button
               class="tool-btn"
               data-tool="connect"
-              title="Connect Cards (C)"
+             
             >
               <svg
                 width="16"
@@ -1916,7 +1915,7 @@
                 <path d="M8 12h8" />
               </svg>
             </button>
-            <button class="tool-btn" data-tool="pan" title="Pan (H)">
+            <button class="tool-btn" data-tool="pan">
               <svg
                 width="16"
                 height="16"
@@ -1931,7 +1930,7 @@
               </svg>
             </button>
             <div class="tool-divider"></div>
-            <button class="tool-btn" data-tool="text" title="Add Text (T)">
+            <button class="tool-btn" data-tool="text">
               <svg
                 width="16"
                 height="16"
@@ -1944,16 +1943,16 @@
               </svg>
             </button>
             <div class="tool-divider"></div>
-            <button class="tool-btn" id="undoBtn" title="Undo (Ctrl+Z)" onclick="undo()">
+            <button class="tool-btn" id="undoBtn" onclick="undo()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h10a5 5 0 015 5v0a5 5 0 01-5 5H8M3 10l4-4M3 10l4 4"/></svg>
             </button>
-            <button class="tool-btn" id="redoBtn" title="Redo (Ctrl+Shift+Z)" onclick="redo()">
+            <button class="tool-btn" id="redoBtn" onclick="redo()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H11a5 5 0 00-5 5v0a5 5 0 005 5h5M21 10l-4-4M21 10l-4 4"/></svg>
             </button>
-            <button class="tool-btn" id="copyBtn" title="Copy (Ctrl+C)" onclick="copySelected()">
+            <button class="tool-btn" id="copyBtn" onclick="copySelected()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
             </button>
-            <button class="tool-btn" id="pasteBtn" title="Paste (Ctrl+V)" onclick="pasteCards()">
+            <button class="tool-btn" id="pasteBtn" onclick="pasteCards()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/></svg>
             </button>
           </div>
@@ -2092,15 +2091,15 @@
                 </select>
               </div>
               <div class="toolbar-control-group toolbar-toggle-group">
-                <label class="toolbar-toggle" title="Sharp corners (no rounding)">
+                <label class="toolbar-toggle">
                   <input type="checkbox" id="toolbarSharpEdge" />
                   <span>Sharp</span>
                 </label>
-                <label class="toolbar-toggle" title="Hide accent bar">
+                <label class="toolbar-toggle">
                   <input type="checkbox" id="toolbarHideHeader" />
                   <span>Hdr</span>
                 </label>
-                <label class="toolbar-toggle" title="Hide tags on card">
+                <label class="toolbar-toggle">
                   <input type="checkbox" id="toolbarHideTags" />
                   <span>Tags</span>
                 </label>
@@ -2161,15 +2160,15 @@
                 </select>
               </div>
               <div class="toolbar-control-group toolbar-toggle-group">
-                <label class="toolbar-toggle" title="Hide accent bar">
+                <label class="toolbar-toggle">
                   <input type="checkbox" id="multiHideHeader" />
                   <span>Hdr</span>
                 </label>
-                <label class="toolbar-toggle" title="Hide tags on card">
+                <label class="toolbar-toggle">
                   <input type="checkbox" id="multiHideTags" />
                   <span>Tags</span>
                 </label>
-                <label class="toolbar-toggle" title="Sharp corners">
+                <label class="toolbar-toggle">
                   <input type="checkbox" id="multiSharpEdge" />
                   <span>Sharp</span>
                 </label>
@@ -2234,7 +2233,7 @@
                 <input type="color" id="connColorPicker" value="#4ecdc4" />
               </div>
               <div class="toolbar-control-group toolbar-toggle-group">
-                <label class="toolbar-toggle" title="Color glow effect">
+                <label class="toolbar-toggle">
                   <input type="checkbox" id="connGlowToggle" />
                   <span>Glow</span>
                 </label>
@@ -2375,28 +2374,28 @@
           </svg>
 
           <div class="zoom-controls">
-            <button class="zoom-btn" id="mapZoomOutBtn" title="Zoom Out">
+            <button class="zoom-btn" id="mapZoomOutBtn">
               −
             </button>
             <span class="zoom-level" id="mapZoomLevel">100%</span>
-            <button class="zoom-btn" id="mapZoomInBtn" title="Zoom In">
+            <button class="zoom-btn" id="mapZoomInBtn">
               +
             </button>
-            <button class="zoom-btn" id="mapZoomFitBtn" title="Reset (100%)">
+            <button class="zoom-btn" id="mapZoomFitBtn">
               ◻
             </button>
             <div class="zoom-divider"></div>
-            <button class="zoom-btn" id="mapZoomWidthBtn" title="Fit to Width">
+            <button class="zoom-btn" id="mapZoomWidthBtn">
               ↔
             </button>
             <button
               class="zoom-btn"
               id="mapZoomHeightBtn"
-              title="Fit to Height"
+             
             >
               ↕
             </button>
-            <button class="zoom-btn" id="mapZoomCenterBtn" title="Center Map">
+            <button class="zoom-btn" id="mapZoomCenterBtn">
               ⊕
             </button>
           </div>
@@ -2405,7 +2404,7 @@
             <button
               class="tool-btn active"
               data-tool="map-select"
-              title="Select (V)"
+             
             >
               <svg
                 width="16"
@@ -2416,7 +2415,7 @@
                 <path d="M4 4l16 8-8 2-2 8z" />
               </svg>
             </button>
-            <button class="tool-btn" data-tool="map-pin" title="Add Pin (P)">
+            <button class="tool-btn" data-tool="map-pin">
               <svg
                 width="16"
                 height="16"
@@ -2432,7 +2431,7 @@
             <button
               class="tool-btn"
               data-tool="map-destination"
-              title="Add Destination (D)"
+             
             >
               <svg
                 width="16"
@@ -2451,7 +2450,7 @@
             <button
               class="tool-btn"
               data-tool="map-measure"
-              title="Measure Distance (M)"
+             
             >
               <svg
                 width="16"
@@ -2464,14 +2463,14 @@
                 <path d="M2 12h20M12 2v20M6 8l-4 4 4 4M18 8l4 4-4 4" />
               </svg>
             </button>
-            <button class="tool-btn" data-tool="map-path" title="Draw Path (F)">
+            <button class="tool-btn" data-tool="map-path">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 17c3-6 6-12 9-8s6 6 9 0" stroke-linecap="round"/>
                 <circle cx="3" cy="17" r="2" fill="currentColor"/>
                 <circle cx="21" cy="9" r="2" fill="currentColor"/>
               </svg>
             </button>
-            <button class="tool-btn" data-tool="map-pan" title="Pan (H)">
+            <button class="tool-btn" data-tool="map-pan">
               <svg
                 width="16"
                 height="16"
@@ -2485,7 +2484,7 @@
                 />
               </svg>
             </button>
-            <button class="tool-btn" data-tool="map-region" title="Draw Region (R)">
+            <button class="tool-btn" data-tool="map-region">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 5l5-3 8 2 5 4v8l-4 5-7 1-6-3-1-6z" fill="currentColor" fill-opacity="0.15"/>
                 <path d="M3 5l5-3 8 2 5 4v8l-4 5-7 1-6-3-1-6z"/>
@@ -2583,38 +2582,38 @@
               <option value="32">32</option>
             </select>
             <div class="write-toolbar-divider"></div>
-            <button class="write-tool-btn" data-command="bold" title="Bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h8a4 4 0 0 1 2.7 7A4.5 4.5 0 0 1 15 20H6V4zm3 7h5a1.5 1.5 0 0 0 0-3H9v3zm0 3v3h6a1.5 1.5 0 0 0 0-3H9z"/></svg></button>
-            <button class="write-tool-btn" data-command="italic" title="Italic"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4h8v2h-2.8l-4.4 12H14v2H6v-2h2.8l4.4-12H10V4z"/></svg></button>
-            <button class="write-tool-btn" data-command="underline" title="Underline"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v7a5 5 0 0 0 10 0V4h2v7a7 7 0 0 1-14 0V4h2zm-1 16h12v2H6v-2z"/></svg></button>
-            <button class="write-tool-btn" data-command="strikeThrough" title="Strikethrough"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 12h18v2H3v-2zm5-4h4V5h2v3h4v2H8V8zm2 8h4v3h-2v-3z"/></svg></button>
+            <button class="write-tool-btn" data-command="bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h8a4 4 0 0 1 2.7 7A4.5 4.5 0 0 1 15 20H6V4zm3 7h5a1.5 1.5 0 0 0 0-3H9v3zm0 3v3h6a1.5 1.5 0 0 0 0-3H9z"/></svg></button>
+            <button class="write-tool-btn" data-command="italic"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4h8v2h-2.8l-4.4 12H14v2H6v-2h2.8l4.4-12H10V4z"/></svg></button>
+            <button class="write-tool-btn" data-command="underline"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v7a5 5 0 0 0 10 0V4h2v7a7 7 0 0 1-14 0V4h2zm-1 16h12v2H6v-2z"/></svg></button>
+            <button class="write-tool-btn" data-command="strikeThrough"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 12h18v2H3v-2zm5-4h4V5h2v3h4v2H8V8zm2 8h4v3h-2v-3z"/></svg></button>
             <div class="write-toolbar-divider"></div>
-            <button class="write-tool-btn" data-command="justifyLeft" title="Align Left"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 4h12v2H3V8zm0 4h18v2H3v-2zm0 4h12v2H3v-2zm0 4h18v2H3v-2z"/></svg></button>
-            <button class="write-tool-btn" data-command="justifyCenter" title="Center"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm3 4h12v2H6V8zm-3 4h18v2H3v-2zm3 4h12v2H6v-2zm-3 4h18v2H3v-2z"/></svg></button>
-            <button class="write-tool-btn" data-command="justifyRight" title="Align Right"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 4h12v2H9V8zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/></svg></button>
-            <button class="write-tool-btn" id="indentToggleBtn" title="First-Line Indent"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 4h12v2H9V8zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/><path d="M3 7l4 2.5L3 12V7z"/></svg></button>
-            <button class="write-tool-btn" id="justifyToggleBtn" title="Justify Text"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg></button>
+            <button class="write-tool-btn" data-command="justifyLeft"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 4h12v2H3V8zm0 4h18v2H3v-2zm0 4h12v2H3v-2zm0 4h18v2H3v-2z"/></svg></button>
+            <button class="write-tool-btn" data-command="justifyCenter"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm3 4h12v2H6V8zm-3 4h18v2H3v-2zm3 4h12v2H6v-2zm-3 4h18v2H3v-2z"/></svg></button>
+            <button class="write-tool-btn" data-command="justifyRight"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 4h12v2H9V8zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/></svg></button>
+            <button class="write-tool-btn" id="indentToggleBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 4h12v2H9V8zm-6 4h18v2H3v-2zm6 4h12v2H9v-2zm-6 4h18v2H3v-2z"/><path d="M3 7l4 2.5L3 12V7z"/></svg></button>
+            <button class="write-tool-btn" id="justifyToggleBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg></button>
             <div class="write-toolbar-divider"></div>
-            <button class="write-tool-btn" data-command="h1" title="Heading 1"><span class="write-tool-text">H1</span></button>
-            <button class="write-tool-btn" data-command="h2" title="Heading 2"><span class="write-tool-text">H2</span></button>
-            <button class="write-tool-btn" data-command="h3" title="Heading 3"><span class="write-tool-text">H3</span></button>
+            <button class="write-tool-btn" data-command="h1"><span class="write-tool-text">H1</span></button>
+            <button class="write-tool-btn" data-command="h2"><span class="write-tool-text">H2</span></button>
+            <button class="write-tool-btn" data-command="h3"><span class="write-tool-text">H3</span></button>
             <div class="write-toolbar-divider"></div>
-            <button class="write-tool-btn" data-command="blockquote" title="Block Quote"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12.2V4h7v8.2c0 3.4-2.2 6.3-5.5 7.8l-1-2c2-1 3.5-2.7 3.5-5.8H4zm11 0V4h7v8.2c0 3.4-2.2 6.3-5.5 7.8l-1-2c2-1 3.5-2.7 3.5-5.8h-4z"/></svg></button>
-            <button class="write-tool-btn" data-command="insertUnorderedList" title="Bullet List"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4-2h13v2H8V4zM4 13.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM8 11h13v2H8v-2zM4 21a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4-2h13v2H8v-2z"/></svg></button>
-            <button class="write-tool-btn" data-command="insertOrderedList" title="Numbered List"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h2v4H4V5H3V4zm5 0h13v2H8V4zM4 10h2l-2 2.5V14h3v-1H5.5L7.5 11V9H4v1zm4 1h13v2H8v-2zM3 17v1h1v.5H3V20h3v-1H5v-.5h1V17H3zm5 1h13v2H8v-2z"/></svg></button>
+            <button class="write-tool-btn" data-command="blockquote"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12.2V4h7v8.2c0 3.4-2.2 6.3-5.5 7.8l-1-2c2-1 3.5-2.7 3.5-5.8H4zm11 0V4h7v8.2c0 3.4-2.2 6.3-5.5 7.8l-1-2c2-1 3.5-2.7 3.5-5.8h-4z"/></svg></button>
+            <button class="write-tool-btn" data-command="insertUnorderedList"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4-2h13v2H8V4zM4 13.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM8 11h13v2H8v-2zM4 21a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4-2h13v2H8v-2z"/></svg></button>
+            <button class="write-tool-btn" data-command="insertOrderedList"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h2v4H4V5H3V4zm5 0h13v2H8V4zM4 10h2l-2 2.5V14h3v-1H5.5L7.5 11V9H4v1zm4 1h13v2H8v-2zM3 17v1h1v.5H3V20h3v-1H5v-.5h1V17H3zm5 1h13v2H8v-2z"/></svg></button>
             <div class="write-toolbar-divider"></div>
-            <input type="color" class="write-tool-color" id="textColor" value="#f5ede0" title="Text Color" />
-            <input type="color" class="write-tool-color" id="highlightColor" value="#d4a824" title="Highlight" />
-            <button class="write-tool-btn" id="clearFormattingBtn" title="Clear Formatting"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            <input type="color" class="write-tool-color" id="textColor" value="#f5ede0" />
+            <input type="color" class="write-tool-color" id="highlightColor" value="#d4a824" />
+            <button class="write-tool-btn" id="clearFormattingBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
             <div class="write-toolbar-divider"></div>
-            <button class="write-tool-btn" id="insertLinkBtn" title="Insert Link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
-            <button class="write-tool-btn" id="insertImageBtn" title="Insert Image"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21"/></svg></button>
-            <button class="write-tool-btn" id="insertTableBtn" title="Insert Table"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></button>
-            <button class="write-tool-btn" id="insertColumnsBtn" title="Insert Columns"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg></button>
-            <button class="write-tool-btn" id="insertDiceBtn" title="Insert Dice Roll"><svg viewBox="0 0 24 24" width="14" height="14"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="15" r="1.5" fill="currentColor"/></svg></button>
-            <button class="write-tool-btn" id="insertWikiLinkBtn" title="Link to Card/Pin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 8.5c0 5.5 7 13.5 7 13.5s7-8 7-13.5C19 5 16 2 12 2z"/><circle cx="12" cy="8.5" r="2" fill="currentColor"/></svg></button>
+            <button class="write-tool-btn" id="insertLinkBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
+            <button class="write-tool-btn" id="insertImageBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21"/></svg></button>
+            <button class="write-tool-btn" id="insertTableBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></button>
+            <button class="write-tool-btn" id="insertColumnsBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg></button>
+            <button class="write-tool-btn" id="insertDiceBtn"><svg viewBox="0 0 24 24" width="14" height="14"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="15" r="1.5" fill="currentColor"/></svg></button>
+            <button class="write-tool-btn" id="insertWikiLinkBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 8.5c0 5.5 7 13.5 7 13.5s7-8 7-13.5C19 5 16 2 12 2z"/><circle cx="12" cy="8.5" r="2" fill="currentColor"/></svg></button>
             <div class="write-toolbar-divider"></div>
-            <button class="write-tool-btn" id="thesaurusBtn" title="Thesaurus (select a word first)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
-            <button class="write-tool-btn" id="exportWriteBtn" title="Export Document"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+            <button class="write-tool-btn" id="thesaurusBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+            <button class="write-tool-btn" id="exportWriteBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
           </div>
           <div class="write-editor-wrapper">
             <div
@@ -2634,29 +2633,35 @@
             </div>
             <div class="tl-header-controls">
               <div class="tl-view-modes">
-                <button class="tl-mode-btn active" id="tlModeLanes" title="Lanes View">
+                <button class="tl-mode-btn active" id="tlModeLanes">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="4" rx="1"/><rect x="2" y="10" width="20" height="4" rx="1"/><rect x="2" y="16" width="20" height="4" rx="1"/></svg>
                 </button>
-                <button class="tl-mode-btn" id="tlModeList" title="Events List">
+                <button class="tl-mode-btn" id="tlModeList">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><circle cx="12" cy="6" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="18" r="2"/></svg>
                 </button>
-                <button class="tl-mode-btn" id="tlModeCalGrid" title="Calendar Grid">
+                <button class="tl-mode-btn" id="tlModeCalGrid">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 </button>
-                <button class="tl-mode-btn" id="tlModeChronicle" title="Chronicle View">
+                <button class="tl-mode-btn" id="tlModeChronicle">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><circle cx="12" cy="5" r="2" fill="currentColor"/><line x1="14" y1="5" x2="20" y2="5"/><circle cx="12" cy="12" r="2" fill="currentColor"/><line x1="4" y1="12" x2="10" y2="12"/><circle cx="12" cy="19" r="2" fill="currentColor"/><line x1="14" y1="19" x2="20" y2="19"/></svg>
                 </button>
-                <button class="tl-mode-btn" id="tlModeAge" title="Age Tracker">
+                <button class="tl-mode-btn" id="tlModeAge">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 22v-2a4 4 0 014-4h2"/><path d="M15 22v-2a4 4 0 014-4h0"/><line x1="3" y1="22" x2="21" y2="22"/></svg>
                 </button>
-                <button class="tl-mode-btn" id="tlModeRelmap" title="Relationship Map">
+                <button class="tl-mode-btn" id="tlModeRelmap">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><line x1="7" y1="5" x2="17" y2="5"/><line x1="6" y1="7" x2="11" y2="17"/><line x1="18" y1="7" x2="13" y2="17"/></svg>
+                </button>
+                <button class="tl-mode-btn" id="tlModeGantt">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="8" height="3" rx="1"/><rect x="7" y="9" width="12" height="3" rx="1"/><rect x="5" y="14" width="6" height="3" rx="1"/><rect x="10" y="19" width="8" height="3" rx="1"/></svg>
+                </button>
+                <button class="tl-mode-btn" id="tlModeStoryboard">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="8" height="10" rx="1"/><rect x="14" y="2" width="8" height="6" rx="1"/><rect x="14" y="12" width="8" height="10" rx="1"/><rect x="2" y="16" width="8" height="6" rx="1"/></svg>
                 </button>
               </div>
               <div class="tl-zoom-controls">
-                <button class="icon-btn sm" id="tlZoomOut" title="Zoom Out">−</button>
+                <button class="icon-btn sm" id="tlZoomOut">−</button>
                 <span class="tl-zoom-label" id="tlZoomLabel">100%</span>
-                <button class="icon-btn sm" id="tlZoomIn" title="Zoom In">+</button>
+                <button class="icon-btn sm" id="tlZoomIn">+</button>
               </div>
               <button class="btn primary sm" id="addEventBtn">+ Event</button>
             </div>
@@ -2700,6 +2705,12 @@
             <div class="tl-relmap-container" id="tlRelmapView" style="display:none;">
               <svg id="tlRelmapSvg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
               <div id="tlRelmapNodes"></div>
+            </div>
+            <div class="tl-gantt-view" id="tlGanttView" style="display:none;">
+              <div class="tl-gantt-scroll" id="tlGanttScroll"></div>
+            </div>
+            <div class="tl-storyboard-view" id="tlStoryboardView" style="display:none;">
+              <div class="tl-storyboard-scroll" id="tlStoryboardScroll"></div>
             </div>
           </div>
         </div>
@@ -3147,20 +3158,9 @@
         <div class="combat-container hidden" id="combatView">
           <div class="ct-view-header">
             <div class="ct-view-header-left">
-              <div class="ct-view-tabs">
-                <button class="ct-tab-btn active" data-ct-view="tracker" onclick="switchCtView('tracker')">⚔️ Tracker</button>
-                <button class="ct-tab-btn" data-ct-view="reference" onclick="switchCtView('reference')">📋 Reference</button>
-                <button class="ct-tab-btn" data-ct-view="notes" onclick="switchCtView('notes')">📝 Notes</button>
-                <button class="ct-tab-btn" data-ct-view="screen" onclick="switchCtView('screen')">🖥️ Screen</button>
-              </div>
               <span class="ct-round-badge" id="ctRoundBadge">Not Started</span>
             </div>
             <div class="ct-view-header-right">
-              <div class="ct-layout-btns">
-                <button class="ct-layout-btn active" title="Standard" onclick="setCtLayout('standard')">▥</button>
-                <button class="ct-layout-btn" title="Wide List" onclick="setCtLayout('wide')">▤</button>
-                <button class="ct-layout-btn" title="Focus" onclick="setCtLayout('focus')">◻</button>
-              </div>
               <button class="ct-btn sm" id="ctRollAllInit">🎲 Roll All</button>
               <button class="ct-btn sm" id="ctSortInit">⇅ Sort</button>
               <button class="ct-btn sm" id="ctResetCombat">↺ Reset</button>
@@ -3228,50 +3228,6 @@
               <div class="ct-resize-handle" id="ctResizeHandle"></div>
             </div>
           </div>
-          <!-- Reference View -->
-          <div class="ct-view-body hidden" id="ctReferenceView">
-            <div class="ct-ref-grid" id="ctRefGrid">
-              <div class="ct-ref-panel" id="ctRefPanel1">
-                <div class="ct-ref-panel-header">
-                  <span>Conditions Reference</span>
-                  <select class="toolbar-select sm" onchange="loadRefContent(this.value, 'ctRefContent1')">
-                    <option value="conditions">Conditions</option>
-                    <option value="actions">Actions in Combat</option>
-                    <option value="cover">Cover Rules</option>
-                    <option value="custom">Custom Notes</option>
-                  </select>
-                </div>
-                <div class="ct-ref-content" id="ctRefContent1"></div>
-              </div>
-              <div class="ct-ref-divider" id="ctRefDivider"></div>
-              <div class="ct-ref-panel" id="ctRefPanel2">
-                <div class="ct-ref-panel-header">
-                  <span>Actions in Combat</span>
-                  <select class="toolbar-select sm" onchange="loadRefContent(this.value, 'ctRefContent2')">
-                    <option value="actions">Actions in Combat</option>
-                    <option value="conditions">Conditions</option>
-                    <option value="cover">Cover Rules</option>
-                    <option value="custom">Custom Notes</option>
-                  </select>
-                </div>
-                <div class="ct-ref-content" id="ctRefContent2"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Notes View -->
-          <div class="ct-view-body hidden" id="ctNotesView">
-            <div class="ct-gm-notes">
-              <div class="ct-gm-notes-header">
-                <h3>GM Session Notes</h3>
-                <button class="ct-btn sm" onclick="clearGmNotes()">Clear</button>
-              </div>
-              <textarea class="ct-gm-notes-area" id="ctGmNotesArea" placeholder="Session notes, key decisions, plot points..."></textarea>
-            </div>
-          </div>
-          <!-- Screen View (DM Dashboard) -->
-          <div class="ct-view-body hidden" id="ctScreenView">
-            <div class="ct-screen-grid" id="ctScreenGrid"></div>
-          </div>
         </div>
 
         <!-- Factions View -->
@@ -3306,9 +3262,9 @@
         <!-- Mind Map View -->
         <div class="mindmap-container hidden" id="mindmapView">
           <div class="mindmap-toolbar">
-            <button class="btn secondary sm" id="mmResetLayout" title="Reset Layout">↻ Reset</button>
-            <button class="btn secondary sm" id="mmShakeBtn" title="Shake nodes loose">🎲 Shake</button>
-            <button class="btn secondary sm" id="mmZoomFit" title="Fit to View">◻ Fit</button>
+            <button class="btn secondary sm" id="mmResetLayout">↻ Reset</button>
+            <button class="btn secondary sm" id="mmShakeBtn">🎲 Shake</button>
+            <button class="btn secondary sm" id="mmZoomFit">◻ Fit</button>
           </div>
           <svg class="mindmap-canvas" id="mindmapCanvas">
             <g id="mindmapEdges"></g>
@@ -3323,7 +3279,7 @@
               <div class="sb-sidebar-section">
                 <div class="sb-sidebar-header">
                   <span>Soundscapes</span>
-                  <button class="sb-sidebar-add" id="sbScapeSave" title="Save current mix">+</button>
+                  <button class="sb-sidebar-add" id="sbScapeSave">+</button>
                 </div>
                 <div class="sb-sidebar-list" id="sbScapeList">
                   <div class="sb-sidebar-empty">No saved soundscapes</div>
@@ -3332,7 +3288,7 @@
               <div class="sb-sidebar-section">
                 <div class="sb-sidebar-header">
                   <span>Playlists</span>
-                  <button class="sb-sidebar-add" id="sbPlaylistAdd" title="New playlist">+</button>
+                  <button class="sb-sidebar-add" id="sbPlaylistAdd">+</button>
                 </div>
                 <div class="sb-sidebar-list" id="sbPlaylistList">
                   <div class="sb-sidebar-empty">No playlists yet</div>
@@ -3342,10 +3298,10 @@
             <div class="sb-main">
               <div class="sb-master">
                 <div class="sb-master-left">
-                  <button class="sb-master-btn sb-play" id="sbPlayAll" title="Play All Active">
+                  <button class="sb-master-btn sb-play" id="sbPlayAll">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>
                   </button>
-                  <button class="sb-master-btn sb-stop" id="sbStopAll" title="Stop All">
+                  <button class="sb-master-btn sb-stop" id="sbStopAll">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
                   </button>
                   <div class="sb-master-vol">
@@ -3360,17 +3316,17 @@
                   </div>
                 </div>
                 <div class="sb-master-right">
-                  <button class="sb-master-btn sb-browse-btn" id="sbBrowseBtn" title="Browse Freesound Library">
+                  <button class="sb-master-btn sb-browse-btn" id="sbBrowseBtn">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                     Browse
                   </button>
-                  <button class="sb-master-btn" id="sbUploadBtn" title="Upload audio file">
+                  <button class="sb-master-btn" id="sbUploadBtn">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </button>
-                  <button class="sb-master-btn" id="sbYoutubeBtn" title="Add from YouTube URL">
+                  <button class="sb-master-btn" id="sbYoutubeBtn">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 00-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 00-1.94 2A29 29 0 001 12a29 29 0 00.46 5.58 2.78 2.78 0 001.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 001.94-2A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98"/></svg>
                   </button>
-                  <button class="sb-master-btn" id="sbMvConnectBtn" title="Import from My Playlists">
+                  <button class="sb-master-btn" id="sbMvConnectBtn">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     My Playlists
                   </button>
@@ -3405,7 +3361,7 @@
         <aside class="details-panel" id="detailsPanel">
           <div class="panel-header">
             <span class="panel-title">Details</span>
-            <button class="icon-btn close-btn" id="closePanelBtn" title="Close">
+            <button class="icon-btn close-btn" id="closePanelBtn">
               <svg
                 width="16"
                 height="16"
@@ -3512,17 +3468,17 @@
                   <button
                     class="align-btn active"
                     data-align="left"
-                    title="Left"
+                   
                   >
                     ⬱
                   </button>
-                  <button class="align-btn" data-align="center" title="Center">
+                  <button class="align-btn" data-align="center">
                     ☰
                   </button>
-                  <button class="align-btn" data-align="right" title="Right">
+                  <button class="align-btn" data-align="right">
                     ⬱
                   </button>
-                  <button class="align-btn" data-align="justify" title="Justify">
+                  <button class="align-btn" data-align="justify">
                     ≡
                   </button>
                 </div>
@@ -4001,6 +3957,56 @@
               </div>
             </div>
 
+            <!-- Map Path Details -->
+            <div class="map-path-detail hidden" id="mapPathDetails">
+              <div class="detail-section">
+                <label class="detail-label">Path Name</label>
+                <input class="detail-input" id="pathDetailName" placeholder="Unnamed Path" />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Color</label>
+                <div class="swatch-picker" id="pathColorSwatches"></div>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Width</label>
+                <input type="range" class="mm-slider" id="pathDetailWidth" min="1" max="8" step="0.5" value="2" style="width:100%;" />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Style</label>
+                <select class="detail-input" id="pathDetailStyle">
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                  <option value="dashdot">Dash-Dot</option>
+                </select>
+              </div>
+              <div class="detail-group">
+                <label class="detail-label">Endpoints</label>
+                <select class="detail-input" id="pathDetailArrow">
+                  <option value="none">None</option>
+                  <option value="end">Arrow End →</option>
+                  <option value="start">← Arrow Start</option>
+                  <option value="both">← Both →</option>
+                  <option value="dots">● Dots ●</option>
+                </select>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Curve Type</label>
+                <select class="detail-input" id="pathDetailCurve">
+                  <option value="smooth">Smooth (Auto)</option>
+                  <option value="straight">Straight Lines</option>
+                  <option value="step">Step (L-Shape)</option>
+                </select>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Curve Tension <span id="pathTensionVal" style="float:right;opacity:0.5;font-size:10px">0.33</span></label>
+                <input type="range" class="mm-slider" id="pathDetailTension" min="0" max="1" step="0.05" value="0.33" style="width:100%;" />
+              </div>
+              <div class="detail-section" style="padding-top:8px;">
+                <button class="btn danger sm" id="pathDeleteBtn" style="width:100%;">Delete Path</button>
+              </div>
+            </div>
+
             <div class="chapter-details hidden" id="chapterDetails">
               <div class="detail-section">
                 <label class="detail-label">Chapter</label>
@@ -4419,41 +4425,56 @@
           </svg>
           DM Screen
         </div>
-        <div class="multiview-layout-btns">
-          <button class="mv-layout-btn active" data-layout="2x2" title="2×2 Grid">
+                <div class="multiview-layout-btns">
+          <button class="mv-layout-btn active" data-layout="2x2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="2" width="9" height="9"/><rect x="13" y="2" width="9" height="9"/>
               <rect x="2" y="13" width="9" height="9"/><rect x="13" y="13" width="9" height="9"/>
             </svg>
           </button>
-          <button class="mv-layout-btn" data-layout="2col" title="2 Columns">
+          <button class="mv-layout-btn" data-layout="2col">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="2" width="9" height="20"/><rect x="13" y="2" width="9" height="20"/>
             </svg>
           </button>
-          <button class="mv-layout-btn" data-layout="3col" title="3 Columns">
+          <button class="mv-layout-btn" data-layout="3col">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="1" y="2" width="6" height="20"/><rect x="9" y="2" width="6" height="20"/><rect x="17" y="2" width="6" height="20"/>
             </svg>
           </button>
-          <button class="mv-layout-btn" data-layout="1plus2" title="1 + 2 Stack">
+          <button class="mv-layout-btn" data-layout="1plus2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="2" width="12" height="20"/><rect x="16" y="2" width="6" height="9"/><rect x="16" y="13" width="6" height="9"/>
             </svg>
           </button>
-          <button class="mv-layout-btn" data-layout="focus" title="Focus + Strip">
+          <button class="mv-layout-btn" data-layout="focus">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="2" width="14" height="14"/><rect x="18" y="2" width="4" height="4.5"/><rect x="18" y="8.5" width="4" height="4.5"/><rect x="18" y="15" width="4" height="4.5"/>
               <rect x="2" y="18" width="14" height="4"/>
             </svg>
           </button>
-          <button class="mv-layout-btn" data-layout="rows" title="2 Rows">
+          <button class="mv-layout-btn" data-layout="rows">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="2" width="20" height="9"/><rect x="2" y="13" width="20" height="9"/>
             </svg>
           </button>
+          <button class="mv-layout-btn" data-layout="3rows">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="1" width="20" height="6"/><rect x="2" y="9" width="20" height="6"/><rect x="2" y="17" width="20" height="6"/>
+            </svg>
+          </button>
+          <button class="mv-layout-btn" data-layout="1plus3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="12" height="20"/><rect x="16" y="2" width="6" height="6"/><rect x="16" y="9.5" width="6" height="6"/><rect x="16" y="16" width="6" height="6"/>
+            </svg>
+          </button>
+          <button class="mv-layout-btn" data-layout="topbar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="6"/><rect x="2" y="10" width="9" height="12"/><rect x="13" y="10" width="9" height="12"/>
+            </svg>
+          </button>
         </div>
-        <button class="mv-close-btn" id="multiviewClose" title="Close DM Screen">
+        <button class="mv-close-btn" id="multiviewClose">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
@@ -4464,7 +4485,8 @@
               <option value="">Select View...</option>
               <option value="board">Board</option><option value="map">Map</option><option value="write">Writing</option>
               <option value="timeline">Timeline</option><option value="combat">Combat</option><option value="factions">Connections</option>
-              <option value="soundboard">Soundscape</option>
+              <option value="mindmap">Mind Map</option><option value="soundboard">Soundscape</option>
+              <option value="dice_log">Dice Log</option><option value="notes">Notes</option>
             </select>
           </div>
           <div class="mv-panel-content">
@@ -4478,7 +4500,8 @@
               <option value="">Select View...</option>
               <option value="board">Board</option><option value="map">Map</option><option value="write">Writing</option>
               <option value="timeline">Timeline</option><option value="combat">Combat</option><option value="factions">Connections</option>
-              <option value="soundboard">Soundscape</option>
+              <option value="mindmap">Mind Map</option><option value="soundboard">Soundscape</option>
+              <option value="dice_log">Dice Log</option><option value="notes">Notes</option>
             </select>
           </div>
           <div class="mv-panel-content">
@@ -4492,7 +4515,8 @@
               <option value="">Select View...</option>
               <option value="board">Board</option><option value="map">Map</option><option value="write">Writing</option>
               <option value="timeline">Timeline</option><option value="combat">Combat</option><option value="factions">Connections</option>
-              <option value="soundboard">Soundscape</option>
+              <option value="mindmap">Mind Map</option><option value="soundboard">Soundscape</option>
+              <option value="dice_log">Dice Log</option><option value="notes">Notes</option>
             </select>
           </div>
           <div class="mv-panel-content">
@@ -4506,7 +4530,8 @@
               <option value="">Select View...</option>
               <option value="board">Board</option><option value="map">Map</option><option value="write">Writing</option>
               <option value="timeline">Timeline</option><option value="combat">Combat</option><option value="factions">Connections</option>
-              <option value="soundboard">Soundscape</option>
+              <option value="mindmap">Mind Map</option><option value="soundboard">Soundscape</option>
+              <option value="dice_log">Dice Log</option><option value="notes">Notes</option>
             </select>
           </div>
           <div class="mv-panel-content">

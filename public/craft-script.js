@@ -2165,17 +2165,16 @@ function renderRegions() {
 
     // Name label
     if (reg.name && !reg.hideText) {
-      // Use bounding box center for consistent visual centering
-      let bbMinX = Infinity, bbMinY = Infinity, bbMaxX = -Infinity, bbMaxY = -Infinity;
-      reg.points.forEach(p => { bbMinX = Math.min(bbMinX, p.x); bbMinY = Math.min(bbMinY, p.y); bbMaxX = Math.max(bbMaxX, p.x); bbMaxY = Math.max(bbMaxY, p.y); });
-      const cx = ((bbMinX + bbMaxX) / 2 / 100) * w;
-      const cy = ((bbMinY + bbMaxY) / 2 / 100) * h;
+      const centroid = getRegionCentroid(reg.points);
+      const cx = (centroid.x / 100) * w;
+      const cy = (centroid.y / 100) * h;
       const tc = reg.textColor || reg.strokeColor;
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', cx);
       text.setAttribute('y', cy);
       text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'middle');
+      text.setAttribute('dominant-baseline', 'central');
+      text.setAttribute('dy', '0');
       text.setAttribute('fill', tc);
       text.setAttribute('font-size', '14');
       text.setAttribute('font-weight', '600');
@@ -2281,31 +2280,12 @@ function buildRegionPath(points, closed, w, h) {
 
 function getRegionCentroid(points) {
   if (!points || points.length === 0) return { x: 50, y: 50 };
-  if (points.length < 3) {
-    // Simple average for < 3 points
-    const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
-    const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
-    return { x: cx, y: cy };
-  }
-  // Proper polygon centroid using signed area
-  let area = 0, cx = 0, cy = 0;
-  for (let i = 0; i < points.length; i++) {
-    const j = (i + 1) % points.length;
-    const cross = points[i].x * points[j].y - points[j].x * points[i].y;
-    area += cross;
-    cx += (points[i].x + points[j].x) * cross;
-    cy += (points[i].y + points[j].y) * cross;
-  }
-  area /= 2;
-  if (Math.abs(area) < 0.001) {
-    // Degenerate polygon, fall back to average
-    const avgX = points.reduce((s, p) => s + p.x, 0) / points.length;
-    const avgY = points.reduce((s, p) => s + p.y, 0) / points.length;
-    return { x: avgX, y: avgY };
-  }
-  cx /= (6 * area);
-  cy /= (6 * area);
-  return { x: cx, y: cy };
+  // Bounding box center is the most visually centered for all region shapes
+  const minX = Math.min(...points.map(p => p.x));
+  const maxX = Math.max(...points.map(p => p.x));
+  const minY = Math.min(...points.map(p => p.y));
+  const maxY = Math.max(...points.map(p => p.y));
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
 }
 
 // ---- Region Drawing ----
@@ -2463,6 +2443,8 @@ function renderMapPathPreview() {
     if (!wrapper) return;
     preview = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     preview.id = 'mapPathPreview';
+    preview.setAttribute('viewBox', '0 0 100 100');
+    preview.setAttribute('preserveAspectRatio', 'none');
     preview.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:15;';
     wrapper.appendChild(preview);
   }
@@ -2472,12 +2454,12 @@ function renderMapPathPreview() {
   // Draw dots
   pts.forEach(p => {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('cx', p.x + '%');
-    circle.setAttribute('cy', p.y + '%');
-    circle.setAttribute('r', '4');
+    circle.setAttribute('cx', p.x);
+    circle.setAttribute('cy', p.y);
+    circle.setAttribute('r', '0.6');
     circle.setAttribute('fill', '#d4a824');
     circle.setAttribute('stroke', '#000');
-    circle.setAttribute('stroke-width', '1');
+    circle.setAttribute('stroke-width', '0.15');
     preview.appendChild(circle);
   });
   // Draw curve
@@ -2485,28 +2467,46 @@ function renderMapPathPreview() {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', buildSmoothPath(pts));
     path.setAttribute('stroke', '#d4a824');
-    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-width', '0.3');
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke-dasharray', '6 3');
+    path.setAttribute('stroke-dasharray', '1 0.5');
     preview.appendChild(path);
   }
 }
 
-function buildSmoothPath(pts) {
+function buildSmoothPath(pts, curveType, tension) {
   if (pts.length < 2) return '';
-  if (pts.length === 2) return `M ${pts[0].x}% ${pts[0].y}% L ${pts[1].x}% ${pts[1].y}%`;
-  // Catmull-Rom spline converted to cubic bezier
-  let d = `M ${pts[0].x}% ${pts[0].y}%`;
+  const t = tension != null ? tension : 0.33;
+  const type = curveType || 'smooth';
+  
+  if (type === 'straight' || pts.length === 2) {
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) d += ` L ${pts[i].x} ${pts[i].y}`;
+    return d;
+  }
+  
+  if (type === 'step') {
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) {
+      const mx = (pts[i - 1].x + pts[i].x) / 2;
+      d += ` L ${mx} ${pts[i - 1].y} L ${mx} ${pts[i].y} L ${pts[i].x} ${pts[i].y}`;
+    }
+    return d;
+  }
+  
+  // Smooth: Catmull-Rom spline with configurable tension
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  const alpha = t * 3;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[Math.max(0, i - 1)];
     const p1 = pts[i];
     const p2 = pts[i + 1];
     const p3 = pts[Math.min(pts.length - 1, i + 2)];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x}% ${cp1y}%, ${cp2x}% ${cp2y}%, ${p2.x}% ${p2.y}%`;
+    const cp1x = p1.x + (p2.x - p0.x) * alpha / 6;
+    const cp1y = p1.y + (p2.y - p0.y) * alpha / 6;
+    const cp2x = p2.x - (p3.x - p1.x) * alpha / 6;
+    const cp2y = p2.y - (p3.y - p1.y) * alpha / 6;
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
   }
   return d;
 }
@@ -2548,45 +2548,129 @@ function renderMapPaths() {
   if (!pathLayer) {
     pathLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     pathLayer.id = 'mapPathLayer';
+    pathLayer.setAttribute('viewBox', '0 0 100 100');
+    pathLayer.setAttribute('preserveAspectRatio', 'none');
     pathLayer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;';
-    wrapper.insertBefore(pathLayer, wrapper.querySelector('.map-pin') || null);
+    wrapper.appendChild(pathLayer);
+  }
+  // Ensure viewBox is set (for existing layers missing it)
+  if (!pathLayer.getAttribute('viewBox')) {
+    pathLayer.setAttribute('viewBox', '0 0 100 100');
+    pathLayer.setAttribute('preserveAspectRatio', 'none');
   }
   pathLayer.innerHTML = '';
   map.paths.forEach(p => {
     if (p.points.length < 2) return;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', buildSmoothPath(p.points));
+    path.setAttribute('d', buildSmoothPath(p.points, p.curveType, p.tension));
     path.setAttribute('stroke', p.color || '#d4a824');
     path.setAttribute('stroke-width', p.width || 2);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('vector-effect', 'non-scaling-stroke');
     if (p.style === 'dashed') path.setAttribute('stroke-dasharray', '8 4');
     else if (p.style === 'dotted') path.setAttribute('stroke-dasharray', '2 4');
+    else if (p.style === 'dashdot') path.setAttribute('stroke-dasharray', '8 3 2 3');
     path.style.pointerEvents = 'stroke';
     path.style.cursor = 'pointer';
+    if (p.id === selectedMapPath) {
+      path.setAttribute('filter', 'drop-shadow(0 0 4px rgba(212,168,36,0.6))');
+      path.setAttribute('stroke-width', (p.width || 2) + 1.5);
+    }
     path.addEventListener('click', (e) => {
       e.stopPropagation();
       selectMapPath(p.id);
     });
     pathLayer.appendChild(path);
-    // Path endpoints
-    [p.points[0], p.points[p.points.length - 1]].forEach(pt => {
-      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      dot.setAttribute('cx', pt.x + '%');
-      dot.setAttribute('cy', pt.y + '%');
-      dot.setAttribute('r', '3');
-      dot.setAttribute('fill', p.color || '#d4a824');
-      dot.setAttribute('stroke', 'rgba(0,0,0,0.5)');
-      dot.setAttribute('stroke-width', '1');
-      pathLayer.appendChild(dot);
-    });
+    // Path endpoints - arrows/dots based on setting
+    const arrow = p.arrow || 'none';
+    const pts = p.points;
+    const color = p.color || '#d4a824';
+    const w = p.width || 2;
+    if (arrow === 'dots' || arrow === 'none') {
+      [pts[0], pts[pts.length - 1]].forEach(pt => {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', pt.x);
+        dot.setAttribute('cy', pt.y);
+        dot.setAttribute('r', '0.5');
+        dot.setAttribute('fill', color);
+        dot.setAttribute('stroke', 'rgba(0,0,0,0.5)');
+        dot.setAttribute('stroke-width', '1');
+        dot.setAttribute('vector-effect', 'non-scaling-stroke');
+        pathLayer.appendChild(dot);
+      });
+    }
+    if (arrow === 'end' || arrow === 'both') {
+      drawPathArrow(pathLayer, pts[pts.length - 2], pts[pts.length - 1], color, w);
+    }
+    if (arrow === 'start' || arrow === 'both') {
+      drawPathArrow(pathLayer, pts[1], pts[0], color, w);
+    }
   });
+}
+
+function drawPathArrow(svg, fromPt, toPt, color, width) {
+  if (!fromPt || !toPt) return;
+  const size = Math.max(1.2, width * 0.5);
+  const dx = toPt.x - fromPt.x;
+  const dy = toPt.y - fromPt.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.01) return;
+  const nx = dx / len, ny = dy / len;
+  const px = -ny, py = nx;
+  const tipX = toPt.x, tipY = toPt.y;
+  const baseX = tipX - nx * size * 0.8, baseY = tipY - ny * size * 0.8;
+  const d = `M ${tipX} ${tipY} L ${baseX + px * size * 0.4} ${baseY + py * size * 0.4} L ${baseX - px * size * 0.4} ${baseY - py * size * 0.4} Z`;
+  const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  arrowPath.setAttribute('d', d);
+  arrowPath.setAttribute('fill', color);
+  arrowPath.setAttribute('stroke', 'rgba(0,0,0,0.3)');
+  arrowPath.setAttribute('stroke-width', '0.5');
+  arrowPath.setAttribute('vector-effect', 'non-scaling-stroke');
+  svg.appendChild(arrowPath);
 }
 
 function selectMapPath(id) {
   selectedMapPath = id;
-  showNotif('Path selected — press Delete to remove');
+  const map = getCurrentMap();
+  if (!map || !map.paths) return;
+  const p = map.paths.find(pp => pp.id === id);
+  if (!p) return;
+  // Show path detail panel
+  document.getElementById('emptyState')?.classList.add('hidden');
+  document.getElementById('cardDetails')?.classList.add('hidden');
+  document.getElementById('pinDetails')?.classList.add('hidden');
+  document.getElementById('regionDetails')?.classList.add('hidden');
+  document.getElementById('chapterDetails')?.classList.add('hidden');
+  const panel = document.getElementById('mapPathDetails');
+  if (panel) {
+    panel.classList.remove('hidden');
+    document.getElementById('pathDetailName').value = p.name || '';
+    document.getElementById('pathDetailWidth').value = p.width || 2;
+    document.getElementById('pathDetailStyle').value = p.style || 'solid';
+    const arrowEl = document.getElementById('pathDetailArrow');
+    if (arrowEl) arrowEl.value = p.arrow || 'none';
+    // Init color swatches
+    initSwatchPicker('pathColorSwatches', p.color || '#d4a824', (c) => { p.color = c; renderMapPaths(); });
+    // Wire up controls
+    document.getElementById('pathDetailName').onchange = (e) => { p.name = e.target.value; };
+    document.getElementById('pathDetailWidth').oninput = (e) => { p.width = parseFloat(e.target.value); renderMapPaths(); };
+    document.getElementById('pathDetailStyle').onchange = (e) => { p.style = e.target.value; renderMapPaths(); };
+    if (arrowEl) arrowEl.onchange = (e) => { p.arrow = e.target.value; renderMapPaths(); };
+    const curveEl = document.getElementById('pathDetailCurve');
+    if (curveEl) { curveEl.value = p.curveType || 'smooth'; curveEl.onchange = (e) => { p.curveType = e.target.value; renderMapPaths(); }; }
+    const tensionEl = document.getElementById('pathDetailTension');
+    const tensionVal = document.getElementById('pathTensionVal');
+    if (tensionEl) {
+      tensionEl.value = p.tension != null ? p.tension : 0.33;
+      if (tensionVal) tensionVal.textContent = tensionEl.value;
+      tensionEl.oninput = (e) => { p.tension = parseFloat(e.target.value); if (tensionVal) tensionVal.textContent = e.target.value; renderMapPaths(); };
+    }
+    document.getElementById('pathDeleteBtn').onclick = () => { deleteSelectedMapPath(); panel.classList.add('hidden'); };
+    document.getElementById('detailsPanel')?.classList.remove('collapsed');
+  }
+  renderMapPaths();
 }
 
 function deleteSelectedMapPath() {
@@ -2645,7 +2729,7 @@ function renderRegionEditHandles() {
     addBtn.style.top = my + '%';
     const hs = 1 / mapZoom;
     addBtn.style.transform = `translate(-50%, -50%) scale(${hs})`;
-    addBtn.title = 'Click to add point';
+    
     addBtn.textContent = '+';
 
     const insertIdx = (i + 1) % pts.length;
@@ -2673,7 +2757,7 @@ function renderRegionEditHandles() {
     handle.style.top = p.y + '%';
     const hs = 1 / mapZoom;
     handle.style.transform = `translate(-50%, -50%) scale(${hs})`;
-    handle.title = p.curve ? 'Click: straighten · Drag: move' : 'Click: curve · Drag: move';
+    
 
     let dragged = false;
     let startX, startY;
@@ -3141,7 +3225,7 @@ function renderChaptersList() {
     const wordCount = folderChapters.reduce((s, c) => s + (c.words || 0), 0);
     folderEl.innerHTML = `<div class="folder-header" data-folder-id="${folder.id}">
       <span class="folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
-      <span class="folder-icon">📁</span>
+      <svg class="folder-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
       <input type="text" class="folder-name-input" value="${folder.name}" />
       <span class="chapter-words">${wordCount}</span>
     </div>`;
@@ -3842,11 +3926,13 @@ function updateCanvas() {
   const board = getCurrentBoard();
   if (!board) return;
 
-  board.cards.forEach((card) => createCardElement(card));
+  board.cards.forEach((card) => {
+    try { createCardElement(card); } catch(e) { console.warn('Card render error:', card.type, card.id, e); }
+  });
   renderConnections();
 
   const emptyState = document.getElementById('canvasEmptyState');
-  emptyState.classList.toggle('hidden', board.cards.length > 0);
+  if (emptyState) emptyState.classList.toggle('hidden', board.cards.length > 0);
 
   updateStatusBar();
 }
@@ -3954,8 +4040,8 @@ function createCardElement(cardData) {
     content += renderRefChapterCard(cardData);
   } else if (cardData.type === 'ref-timeline') {
     content += renderRefTimelineCard(cardData);
-  } else if (cardData.type === 'ref-soundscape') {
-    content += renderRefSoundscapeCard(cardData);
+  } else if (cardData.type === 'ref-music' || cardData.type === 'ref-soundscape') {
+    content += renderRefMusicCard(cardData);
   } else if (cardData.type !== 'text' && cardData.type !== 'image' && cardData.description) {
     content += `<div class="card-description" style="color: ${textColor}; font-family: ${fontFamily}; font-size: ${fontSize}px; text-align: ${textAlign}; white-space: pre-wrap">${parseWikiLinks(cardData.description)}</div>`;
   }
@@ -4859,8 +4945,7 @@ function renderRefMapCard(cardData) {
     ${thumb}
     <div class="ref-card-info">
       <div class="ref-card-meta"><span class="ref-badge" style="background:#22c55e">MAP</span></div>
-      <div class="ref-card-stat">📍 ${pinCount} pin${pinCount !== 1 ? 's' : ''}</div>
-      <div class="ref-card-stat">🗺️ ${regionCount} region${regionCount !== 1 ? 's' : ''}</div>
+      <div class="ref-card-stat">${pinCount} pin${pinCount !== 1 ? 's' : ''} · ${regionCount} region${regionCount !== 1 ? 's' : ''}</div>
     </div>
     <div class="ref-card-action" onclick="event.stopPropagation();navigateToView('map');setTimeout(()=>selectMap('${map.id}'),100)">Open Map →</div>
   </div>`;
@@ -4869,12 +4954,12 @@ function renderRefMapCard(cardData) {
 function renderRefChapterCard(cardData) {
   const ch = chapters.find(c => c.id === cardData.refId);
   if (!ch) return `<div class="ref-card-empty">No chapter linked<br><span style="font-size:9px;opacity:0.5">Select a chapter in the detail panel</span></div>`;
-  const excerpt = ch.content ? ch.content.replace(/<[^>]*>/g, '').substring(0, 120) : '';
+  const excerpt = ch.content ? ch.content.replace(/<[^>]*>/g, '').substring(0, 300) : '';
   return `<div class="ref-card-content ref-chapter">
     <div class="ref-card-info">
       <div class="ref-card-meta"><span class="ref-badge" style="background:#a78bfa">CHAPTER</span> <span style="opacity:0.5;font-size:10px">${ch.label}</span></div>
-      <div class="ref-card-stat">📝 ${ch.words || 0} words</div>
-      ${excerpt ? `<div class="ref-card-excerpt">${excerpt}${excerpt.length >= 120 ? '…' : ''}</div>` : ''}
+      <div class="ref-card-stat">${ch.words || 0} words</div>
+      ${excerpt ? `<div class="ref-card-excerpt">${excerpt}${excerpt.length >= 300 ? '…' : ''}</div>` : ''}
     </div>
     <div class="ref-card-action" onclick="event.stopPropagation();selectChapter('${ch.id}')">Open Chapter →</div>
   </div>`;
@@ -4890,25 +4975,40 @@ function renderRefTimelineCard(cardData) {
     <div class="ref-card-info">
       <div class="ref-card-meta"><span class="ref-badge" style="background:#f59e0b">TIMELINE</span></div>
       ${dateStr ? `<div class="ref-card-stat" style="font-size:12px;font-weight:600;color:var(--gold)">${dateStr}</div>` : ''}
-      <div class="ref-card-stat">📅 ${eventCount} event${eventCount !== 1 ? 's' : ''}</div>
+      <div class="ref-card-stat">${eventCount} event${eventCount !== 1 ? 's' : ''}</div>
       ${tl.color ? `<div style="height:3px;border-radius:2px;background:${tl.color};margin-top:4px"></div>` : ''}
     </div>
     <div class="ref-card-action" onclick="event.stopPropagation();navigateToView('timeline');selectTimeline('${tl.id}')">Open Timeline →</div>
   </div>`;
 }
 
-function renderRefSoundscapeCard(cardData) {
-  const channelName = cardData.refChannelName || 'No channel set';
-  const isPlaying = typeof sbChannels !== 'undefined' && sbChannels.some(ch => ch.name === cardData.refChannelName && ch.playing);
-  return `<div class="ref-card-content ref-soundscape">
-    <div class="ref-card-info">
-      <div class="ref-card-meta"><span class="ref-badge" style="background:#ec4899">SOUND</span></div>
-      <div class="ref-card-stat" style="font-size:12px;">${isPlaying ? '🔊' : '🔇'} ${channelName}</div>
-    </div>
-    <div class="ref-card-action" onclick="event.stopPropagation();navigateToView('soundboard')">Open Soundscape →</div>
+function renderRefMusicCard(cardData) {
+  const url = cardData.musicUrl || '';
+  const platform = detectMusicPlatform(url);
+  let embedHtml = '';
+  if (url && platform === 'youtube') {
+    const vid = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/v\/|\/watch\?.*v=)([a-zA-Z0-9_-]{11})/);
+    if (vid) embedHtml = `<div class="ref-music-embed"><iframe src="https://www.youtube.com/embed/${vid[1]}?autoplay=0" frameborder="0" allow="autoplay;encrypted-media" allowfullscreen style="width:100%;height:100%;border-radius:4px"></iframe></div>`;
+  } else if (url && platform === 'spotify') {
+    const match = url.match(/(?:track|album|playlist)\/([a-zA-Z0-9]+)/);
+    const type = url.includes('/album/') ? 'album' : url.includes('/playlist/') ? 'playlist' : 'track';
+    if (match) embedHtml = `<div class="ref-music-embed"><iframe src="https://open.spotify.com/embed/${type}/${match[1]}?theme=0" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" style="width:100%;height:100%;border-radius:4px"></iframe></div>`;
+  } else if (url) {
+    embedHtml = `<div class="ref-music-embed" style="display:flex;align-items:center;justify-content:center"><audio controls src="${url}" style="width:100%"></audio></div>`;
+  }
+  return `<div class="ref-card-content ref-music" style="display:flex;flex-direction:column;flex:1">
+    <div class="ref-card-meta"><span class="ref-badge" style="background:#ec4899">MUSIC</span> <span style="opacity:0.5;font-size:10px">${platform ? platform.toUpperCase() : 'PLAYER'}</span></div>
+    ${embedHtml || `<div class="ref-card-empty" style="flex:1;display:flex;align-items:center;justify-content:center">Paste a URL in the detail panel</div>`}
   </div>`;
 }
 
+function detectMusicPlatform(url) {
+  if (!url) return '';
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+  if (url.includes('spotify.com')) return 'spotify';
+  if (url.includes('soundcloud.com')) return 'soundcloud';
+  return 'audio';
+}
 function renderAbilityCard(cardData) {
   const textColor = cardData.textColor || '#a89880';
   const titleColor = cardData.titleColor || '#f5ede0';
@@ -5079,11 +5179,10 @@ function renderRefFieldsInDetail(cardData) {
     const opts = timelines.map(t => `<option value="${t.id}"${t.id === cardData.refId ? ' selected' : ''}>${t.name}</option>`).join('');
     html = `<label class="detail-label">Linked Timeline</label>
       <select class="detail-input" id="refTimelineSelect" style="width:100%;margin-bottom:8px">${opts || '<option value="">No timelines</option>'}</select>`;
-  } else if (cardData.type === 'ref-soundscape') {
-    const channels = typeof sbChannels !== 'undefined' ? sbChannels : [];
-    const opts = channels.map(ch => `<option value="${ch.name}"${ch.name === cardData.refChannelName ? ' selected' : ''}>${ch.name}</option>`).join('');
-    html = `<label class="detail-label">Linked Channel</label>
-      <select class="detail-input" id="refSoundSelect" style="width:100%;margin-bottom:8px"><option value="">None</option>${opts}</select>`;
+  } else if (cardData.type === 'ref-music' || cardData.type === 'ref-soundscape') {
+    html = `<label class="detail-label">Music URL</label>
+      <input type="text" class="detail-input" id="refMusicUrl" value="${cardData.musicUrl || ''}" placeholder="Paste YouTube, Spotify, or audio URL..." style="width:100%;margin-bottom:8px" />
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">Supports YouTube, Spotify (track/album/playlist), or direct audio URLs</div>`;
   }
 
   sec.innerHTML = html;
@@ -5093,29 +5192,33 @@ function renderRefFieldsInDetail(cardData) {
   if (mapSel) mapSel.addEventListener('change', () => {
     cardData.refId = mapSel.value;
     const m = maps.find(mm => mm.id === mapSel.value);
-    if (m) cardData.title = '🗺️ ' + m.name;
+    if (m) cardData.title = m.name;
     refreshCardElement(cardData);
   });
   const chSel = document.getElementById('refChapterSelect');
   if (chSel) chSel.addEventListener('change', () => {
     cardData.refId = chSel.value;
     const c = chapters.find(cc => cc.id === chSel.value);
-    if (c) cardData.title = '📖 ' + c.title;
+    if (c) cardData.title = c.title;
     refreshCardElement(cardData);
   });
   const tlSel = document.getElementById('refTimelineSelect');
   if (tlSel) tlSel.addEventListener('change', () => {
     cardData.refId = tlSel.value;
     const t = timelines.find(tt => tt.id === tlSel.value);
-    if (t) cardData.title = '📅 ' + t.name;
+    if (t) cardData.title = t.name;
     refreshCardElement(cardData);
   });
-  const sndSel = document.getElementById('refSoundSelect');
-  if (sndSel) sndSel.addEventListener('change', () => {
-    cardData.refChannelName = sndSel.value;
-    cardData.title = sndSel.value ? '🎵 ' + sndSel.value : '🎵 Soundscape Reference';
-    refreshCardElement(cardData);
-  });
+  const musicInput = document.getElementById('refMusicUrl');
+  if (musicInput) {
+    const updateMusic = () => {
+      cardData.musicUrl = musicInput.value.trim();
+      cardData.musicPlatform = detectMusicPlatform(cardData.musicUrl);
+      refreshCardElement(cardData);
+    };
+    musicInput.addEventListener('change', updateMusic);
+    musicInput.addEventListener('paste', () => setTimeout(updateMusic, 100));
+  }
 }
 
 function addCard(type) {
@@ -5145,17 +5248,17 @@ function addCard(type) {
     mood: 'Mood',
     randomizer: 'Random Table',
     ability: 'Ability',
-    'ref-map': '🗺️ Map Reference',
-    'ref-chapter': '📖 Chapter Reference',
-    'ref-timeline': '📅 Timeline Reference',
-    'ref-soundscape': '🎵 Soundscape Reference',
+    'ref-map': 'Map Reference',
+    'ref-chapter': 'Chapter Reference',
+    'ref-timeline': 'Timeline Reference',
+    'ref-music': 'Music Player',
   };
 
   const newCard = {
     id,
     type,
     title: titles[type],
-    description: ['text', 'image', 'bar', 'stress', 'injury', 'body', 'chart', 'personality', 'attributes', 'inventory', 'currency', 'mood', 'randomizer', 'ability', 'character', 'location', 'quest', 'ref-map', 'ref-chapter', 'ref-timeline', 'ref-soundscape'].includes(type) ? '' : (type === 'item' ? '' : 'Click to edit...'),
+    description: ['text', 'image', 'bar', 'stress', 'injury', 'body', 'chart', 'personality', 'attributes', 'inventory', 'currency', 'mood', 'randomizer', 'ability', 'character', 'location', 'quest', 'ref-map', 'ref-chapter', 'ref-timeline', 'ref-music', 'ref-soundscape'].includes(type) ? '' : (type === 'item' ? '' : 'Click to edit...'),
     tags: [],
     x: 100 - panOffset.x / zoom + Math.random() * 200,
     y: 100 - panOffset.y / zoom + Math.random() * 200,
@@ -5297,16 +5400,17 @@ function addCard(type) {
     newCard.abilityCounter = 0;
   } else if (type === 'ref-map') {
     newCard.refId = maps.length > 0 ? maps[0].id : null;
-    newCard.title = maps.length > 0 ? '🗺️ ' + maps[0].name : '🗺️ Map Reference';
+    newCard.title = maps.length > 0 ? maps[0].name : 'Map Reference';
   } else if (type === 'ref-chapter') {
     newCard.refId = chapters.length > 0 ? chapters[0].id : null;
-    newCard.title = chapters.length > 0 ? '📖 ' + chapters[0].title : '📖 Chapter Reference';
+    newCard.title = chapters.length > 0 ? chapters[0].title : 'Chapter Reference';
   } else if (type === 'ref-timeline') {
     newCard.refId = timelines.length > 0 ? timelines[0].id : null;
-    newCard.title = timelines.length > 0 ? '📅 ' + timelines[0].name : '📅 Timeline Reference';
-  } else if (type === 'ref-soundscape') {
-    newCard.refId = null;
-    newCard.refChannelName = '';
+    newCard.title = timelines.length > 0 ? timelines[0].name : 'Timeline Reference';
+  } else if (type === 'ref-music') {
+    newCard.musicUrl = '';
+    newCard.musicPlatform = '';
+    newCard.title = 'Music Player';
   }
 
   board.cards.push(newCard);
@@ -5523,7 +5627,7 @@ function selectCard(cardEl) {
     document.getElementById('detailDescription').value = cardData.questObjective || '';
     document.getElementById('detailDescription').placeholder = 'Quest objective...';
     renderQuestFieldsInDetail(cardData);
-  } else if (cardData.type === 'ref-map' || cardData.type === 'ref-chapter' || cardData.type === 'ref-timeline' || cardData.type === 'ref-soundscape') {
+  } else if (cardData.type === 'ref-map' || cardData.type === 'ref-chapter' || cardData.type === 'ref-timeline' || cardData.type === 'ref-music' || cardData.type === 'ref-soundscape') {
     renderRefFieldsInDetail(cardData);
   } else if (cardData.type === 'image') {
     // Image cards don't use the standard description field
@@ -7668,12 +7772,12 @@ function toggleSnap() {
       btn.style.opacity = '1';
       btn.style.color = 'var(--gold)';
       btn.style.background = 'rgba(212,168,36,0.15)';
-      btn.title = 'Snap ON (G)';
+      
     } else {
       btn.style.opacity = '0.5';
       btn.style.color = '';
       btn.style.background = '';
-      btn.title = 'Toggle Snap to Grid (G)';
+      
     }
   }
 }
@@ -10031,6 +10135,11 @@ const CALENDAR_SYSTEMS = {
 function getCalendar(tl) { return tl.customCalendar || CALENDAR_SYSTEMS[tl.calendarType] || CALENDAR_SYSTEMS.gregorian; }
 function getCalMoons(cal) { return cal.moons || []; }
 function getYearDays(cal) { return cal.months.reduce((s,m)=>s+m.days,0); }
+function formatEventDate(date, cal) {
+  if (!date) return '?';
+  const mName = (cal && cal.months && cal.months[date.month]) ? cal.months[date.month].name : ('Month ' + (date.month + 1));
+  return `${mName} ${date.day}, Year ${date.year}`;
+}
 function getTotalDays(date, cal) {
   let total = (date.year - 1) * getYearDays(cal);
   for (let i = 0; i < date.month; i++) total += cal.months[i].days;
@@ -10154,11 +10263,11 @@ function deleteSelectedEvent() { const tl=getCurrentTimeline(); if(!tl||!selecte
 // ---- RENDER MASTER ----
 function renderTimelineView() {
   renderTimelinesList(); renderTlTags();
-  if(tlViewMode==='lanes') renderLanesView(); else if(tlViewMode==='list') renderListView(); else if(tlViewMode==='calgrid') renderCalGridView(); else if(tlViewMode==='chronicle') renderChronicleView(); else if(tlViewMode==='age') renderAgeView(); else if(tlViewMode==='relmap') renderRelmapView();
+  if(tlViewMode==='lanes') renderLanesView(); else if(tlViewMode==='list') renderListView(); else if(tlViewMode==='calgrid') renderCalGridView(); else if(tlViewMode==='chronicle') renderChronicleView(); else if(tlViewMode==='age') renderAgeView(); else if(tlViewMode==='relmap') renderRelmapView(); else if(tlViewMode==='gantt') renderGanttView(); else if(tlViewMode==='storyboard') renderStoryboardView();
   updateTimelineDateDisplay(); renderCalendarGrid(); updateCalendarMoon();
-  const tl=getCurrentTimeline(), empty=document.getElementById('tlEmptyState'), lanes=document.getElementById('tlLanesView'), list=document.getElementById('tlListView'), calgrid=document.getElementById('tlCalGridView'), chronicle=document.getElementById('tlChronicleView'), age=document.getElementById('tlAgeView'), relmap=document.getElementById('tlRelmapView');
-  if(!tl||timelines.length===0){if(empty)empty.style.display='';if(lanes)lanes.style.display='none';if(list)list.style.display='none';if(calgrid)calgrid.style.display='none';if(chronicle)chronicle.style.display='none';if(age)age.style.display='none';if(relmap)relmap.style.display='none';}
-  else{if(empty)empty.style.display='none';if(lanes)lanes.style.display=tlViewMode==='lanes'?'':'none';if(list)list.style.display=tlViewMode==='list'?'':'none';if(calgrid)calgrid.style.display=tlViewMode==='calgrid'?'':'none';if(chronicle)chronicle.style.display=tlViewMode==='chronicle'?'':'none';if(age)age.style.display=tlViewMode==='age'?'':'none';if(relmap)relmap.style.display=tlViewMode==='relmap'?'':'none';}
+  const tl=getCurrentTimeline(), empty=document.getElementById('tlEmptyState'), lanes=document.getElementById('tlLanesView'), list=document.getElementById('tlListView'), calgrid=document.getElementById('tlCalGridView'), chronicle=document.getElementById('tlChronicleView'), age=document.getElementById('tlAgeView'), relmap=document.getElementById('tlRelmapView'), gantt=document.getElementById('tlGanttView'), storyboard=document.getElementById('tlStoryboardView');
+  if(!tl||timelines.length===0){if(empty)empty.style.display='';if(lanes)lanes.style.display='none';if(list)list.style.display='none';if(calgrid)calgrid.style.display='none';if(chronicle)chronicle.style.display='none';if(age)age.style.display='none';if(relmap)relmap.style.display='none';if(gantt)gantt.style.display='none';if(storyboard)storyboard.style.display='none';}
+  else{if(empty)empty.style.display='none';if(lanes)lanes.style.display=tlViewMode==='lanes'?'':'none';if(list)list.style.display=tlViewMode==='list'?'':'none';if(calgrid)calgrid.style.display=tlViewMode==='calgrid'?'':'none';if(chronicle)chronicle.style.display=tlViewMode==='chronicle'?'':'none';if(age)age.style.display=tlViewMode==='age'?'':'none';if(relmap)relmap.style.display=tlViewMode==='relmap'?'':'none';if(gantt)gantt.style.display=tlViewMode==='gantt'?'':'none';if(storyboard)storyboard.style.display=tlViewMode==='storyboard'?'':'none';}
 }
 function renderTimelinesList() {
   const c=document.getElementById('timelinesList'); if(!c)return;
@@ -10249,8 +10358,20 @@ function renderCalGridView() {
   const curDate = tl.currentDate;
   const isCurrentMonth = curDate.month === calGridMonth && curDate.year === calGridYear;
 
-  // Get events for this month+year
-  const monthEvents = tl.events.filter(evt => evt.date.month === calGridMonth && evt.date.year === calGridYear);
+  // Get events for this month+year (including range events that span into this month)
+  const monthEvents = tl.events.filter(evt => {
+    // Start date in this month
+    if (evt.date.month === calGridMonth && evt.date.year === calGridYear) return true;
+    // Has end date that extends into or through this month
+    if (evt.endDate) {
+      const startTotal = getTotalDays(evt.date, cal);
+      const endTotal = getTotalDays(evt.endDate, cal);
+      const monthStart = getTotalDays({year: calGridYear, month: calGridMonth, day: 1}, cal);
+      const monthEnd = getTotalDays({year: calGridYear, month: calGridMonth, day: daysInMonth}, cal);
+      if (startTotal <= monthEnd && endTotal >= monthStart) return true;
+    }
+    return false;
+  });
 
   // Build header
   let html = daysOfWeek.map(d => `<div class="tl-calgrid-day-header">${d}</div>`).join('');
@@ -10267,7 +10388,12 @@ function renderCalGridView() {
   // Day cells
   for (let d = 1; d <= daysInMonth; d++) {
     const isToday = isCurrentMonth && curDate.day === d;
-    const dayEvents = monthEvents.filter(evt => evt.date.day === d);
+    const dayTotal = getTotalDays({year: calGridYear, month: calGridMonth, day: d}, cal);
+    const dayEvents = monthEvents.filter(evt => {
+      const startTotal = getTotalDays(evt.date, cal);
+      const endTotal = evt.endDate ? getTotalDays(evt.endDate, cal) : startTotal;
+      return dayTotal >= startTotal && dayTotal <= endTotal;
+    });
     const evtHtml = dayEvents.slice(0, 3).map(evt =>
       `<div class="tl-calgrid-evt${evt.hidden ? ' item-hidden' : ''}" style="background:${evt.color}cc;" onclick="event.stopPropagation();selectTlEvent('${evt.id}','${tl.id}')" title="${evt.title}">${evt.title}</div>`
     ).join('');
@@ -10597,7 +10723,120 @@ function renderRelmapView() {
   svgEl.style.height = maxY + 'px';
 }
 
+// ---- GANTT VIEW ----
+function renderGanttView() {
+  const tl = getCurrentTimeline();
+  const scroll = document.getElementById('tlGanttScroll');
+  if (!tl || !scroll) return;
+  const cal = getCalendar(tl);
+  const events = tl.events.filter(e => !e.hidden);
+  if (events.length === 0) { scroll.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No events to display</div>'; return; }
+  // Calculate day numbers for sorting
+  function dayNum(d) { 
+    let total = (d.year || 0) * 365;
+    for (let m = 0; m < (d.month || 0); m++) total += (cal.months[m]?.days || 30);
+    total += (d.day || 1);
+    return total;
+  }
+  const sorted = [...events].sort((a, b) => dayNum(a.date) - dayNum(b.date));
+  const minDay = dayNum(sorted[0].date);
+  const maxDay = Math.max(...sorted.map(e => e.endDate ? dayNum(e.endDate) : dayNum(e.date) + 1));
+  const range = Math.max(maxDay - minDay, 1);
+  const unitPx = Math.max(3, Math.min(20, 800 / range));
+  const totalW = range * unitPx + 200;
+  const rowH = 32;
+  // Era groups
+  const eras = [...new Set(sorted.map(e => e.era || 'Untagged'))];
+  let html = `<div class="tl-gantt-chart" style="min-width:${totalW}px;position:relative;">`;
+  // Ruler
+  html += `<div class="tl-gantt-ruler" style="height:24px;border-bottom:1px solid var(--border-color);display:flex;align-items:flex-end;padding-left:160px;">`;
+  const step = Math.max(1, Math.ceil(range / 20));
+  for (let d = 0; d <= range; d += step) {
+    const dayAbs = minDay + d;
+    html += `<div style="position:absolute;left:${160 + d * unitPx}px;font-size:9px;color:var(--text-muted);white-space:nowrap;bottom:2px">Y${Math.floor(dayAbs/365)}</div>`;
+  }
+  html += '</div>';
+  // Current day marker
+  const todayD = dayNum(tl.currentDate) - minDay;
+  if (todayD >= 0 && todayD <= range) {
+    html += `<div style="position:absolute;left:${160 + todayD * unitPx}px;top:24px;bottom:0;width:2px;background:var(--gold);opacity:0.4;z-index:1;"></div>`;
+  }
+  // Rows grouped by era
+  let row = 0;
+  eras.forEach(era => {
+    const eraEvents = sorted.filter(e => (e.era || 'Untagged') === era);
+    html += `<div class="tl-gantt-era-label" style="padding:4px 8px;font-size:10px;font-weight:600;color:var(--gold);background:rgba(212,168,36,0.05);border-bottom:1px solid var(--border-color);">${era}</div>`;
+    eraEvents.forEach(evt => {
+      const startD = dayNum(evt.date) - minDay;
+      const endD = evt.endDate ? (dayNum(evt.endDate) - minDay) : (startD + 1);
+      const width = Math.max(unitPx, (endD - startD) * unitPx);
+      const mName = cal.months[evt.date.month]?.name || '';
+      html += `<div class="tl-gantt-row" style="height:${rowH}px;position:relative;border-bottom:1px solid rgba(168,152,128,0.06);" onclick="selectTlEvent('${evt.id}','${tl.id}')">
+        <div class="tl-gantt-label" style="width:156px;padding:0 6px;font-size:10px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:${rowH}px;position:absolute;left:0;top:0;">${evt.title}</div>
+        <div class="tl-gantt-bar" style="position:absolute;left:${160 + startD * unitPx}px;top:6px;width:${width}px;height:${rowH - 12}px;background:${evt.color || '#4ecdc4'};border-radius:3px;opacity:0.85;cursor:pointer;"></div>
+      </div>`;
+      row++;
+    });
+  });
+  html += '</div>';
+  scroll.innerHTML = html;
+}
+
 // ---- PANNING & SCROLL ZOOM ----
+function renderStoryboardView() {
+  const tl = getCurrentTimeline();
+  const scroll = document.getElementById('tlStoryboardScroll');
+  if (!tl || !scroll) return;
+  const cal = getCalendar(tl);
+  const events = tl.events.filter(e => !e.hidden);
+  if (events.length === 0) { scroll.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No events to display</div>'; return; }
+  
+  function dayNum(d) { let total = (d.year || 0) * 365; for (let m = 0; m < (d.month || 0); m++) total += (cal.months[m]?.days || 30); total += (d.day || 1); return total; }
+  const sorted = [...events].sort((a, b) => dayNum(a.date) - dayNum(b.date));
+  
+  // Group by era if eras exist
+  const eras = [...new Set(sorted.map(e => e.era || ''))];
+  const hasEras = eras.some(e => e !== '');
+  
+  let html = '<div class="tl-sb-grid">';
+  
+  if (hasEras) {
+    eras.forEach(era => {
+      const eraEvents = sorted.filter(e => (e.era || '') === era);
+      if (eraEvents.length === 0) return;
+      html += `<div class="tl-sb-era-header" style="grid-column:1/-1"><span style="color:${eraEvents[0].color || 'var(--gold)'}">${era || 'Untagged'}</span> <span style="opacity:0.4;font-size:10px">${eraEvents.length} event${eraEvents.length !== 1 ? 's' : ''}</span></div>`;
+      eraEvents.forEach(evt => { html += buildStoryCard(evt, tl, cal); });
+    });
+  } else {
+    sorted.forEach(evt => { html += buildStoryCard(evt, tl, cal); });
+  }
+  
+  html += '</div>';
+  scroll.innerHTML = html;
+}
+
+function buildStoryCard(evt, tl, cal) {
+  const mName = cal.months[evt.date.month]?.name || '';
+  const dateStr = `${mName} ${evt.date.day}, Year ${evt.date.year}`;
+  const hasRange = evt.endDate && (evt.endDate.day !== evt.date.day || evt.endDate.month !== evt.date.month || evt.endDate.year !== evt.date.year);
+  const endStr = hasRange ? ` → ${cal.months[evt.endDate.month]?.name || ''} ${evt.endDate.day}, Y${evt.endDate.year}` : '';
+  const desc = evt.description || '';
+  const truncDesc = desc.length > 200 ? desc.substring(0, 200) + '…' : desc;
+  const tags = (evt.tags && evt.tags.length) ? evt.tags.map(t => `<span class="tl-sb-tag">${t}</span>`).join('') : '';
+  
+  return `<div class="tl-sb-card" onclick="selectTlEvent('${evt.id}','${tl.id}')" style="--card-accent:${evt.color || '#4ecdc4'}">
+    <div class="tl-sb-accent" style="background:${evt.color || '#4ecdc4'}"></div>
+    <div class="tl-sb-body">
+      <div class="tl-sb-date">${dateStr}${endStr}</div>
+      <div class="tl-sb-title">${evt.title}</div>
+      ${truncDesc ? `<div class="tl-sb-desc">${truncDesc}</div>` : ''}
+      ${evt.era ? `<div class="tl-sb-era" style="color:${evt.color || 'var(--gold)'}">${evt.era}</div>` : ''}
+      ${tags ? `<div class="tl-sb-tags">${tags}</div>` : ''}
+      ${hasRange ? '<div class="tl-sb-range-badge">Range Event</div>' : ''}
+    </div>
+  </div>`;
+}
+
 function initTlPan(){
   const scroll=document.getElementById('tlLanesScroll');if(!scroll)return;
   scroll.addEventListener('mousedown',(e)=>{if(e.target.closest('.tl-lane-event')||e.target.closest('.tl-lane-label'))return;if(e.button!==0&&e.button!==1)return;tlPanning=true;scroll.classList.add('panning');tlPanStart={x:e.clientX,y:e.clientY,scrollLeft:scroll.scrollLeft,scrollTop:scroll.scrollTop};e.preventDefault();});
@@ -10624,6 +10863,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('tlModeChronicle')?.addEventListener('click',()=>{tlViewMode='chronicle';setTlModeActive('tlModeChronicle');renderTimelineView();});
   document.getElementById('tlModeAge')?.addEventListener('click',()=>{tlViewMode='age';setTlModeActive('tlModeAge');renderTimelineView();});
   document.getElementById('tlModeRelmap')?.addEventListener('click',()=>{tlViewMode='relmap';setTlModeActive('tlModeRelmap');renderTimelineView();});
+  document.getElementById('tlModeGantt')?.addEventListener('click',()=>{tlViewMode='gantt';setTlModeActive('tlModeGantt');renderTimelineView();});
+  document.getElementById('tlModeStoryboard')?.addEventListener('click',()=>{tlViewMode='storyboard';setTlModeActive('tlModeStoryboard');renderTimelineView();});
   document.getElementById('calGridPrev')?.addEventListener('click',()=>{calGridMonth--;if(calGridMonth<0){calGridMonth=11;calGridYear--;}renderCalGridView();});
   document.getElementById('calGridNext')?.addEventListener('click',()=>{calGridMonth++;const tl=getCurrentTimeline();const cal=getCalendar(tl);if(calGridMonth>=cal.months.length){calGridMonth=0;calGridYear++;}renderCalGridView();});
   document.getElementById('tlZoomIn')?.addEventListener('click',()=>{tlZoom=Math.min(6,tlZoom*1.3);document.getElementById('tlZoomLabel').textContent=Math.round(tlZoom*100)+'%';if(tlViewMode==='lanes')renderLanesView();});
@@ -13206,6 +13447,11 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.mv-layout-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('multiviewGrid').setAttribute('data-layout', btn.dataset.layout);
+      // Reset custom resize and re-init handles
+      const grid = document.getElementById('multiviewGrid');
+      grid.style.gridTemplateColumns = '';
+      grid.style.gridTemplateRows = '';
+      setTimeout(initMvResizeHandles, 50);
     });
   });
   document.querySelectorAll('.mv-panel-select').forEach(sel => {
@@ -13265,7 +13511,7 @@ function initSwatchPicker(containerId, currentColor, onChange) {
   input.type = 'color';
   input.className = 'swatch-custom-input';
   input.value = normalColor;
-  input.title = 'Custom color';
+  
   input.addEventListener('input', () => {
     container.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('active'));
     wrap.classList.add('active');
@@ -13286,6 +13532,7 @@ function initSwatchPicker(containerId, currentColor, onChange) {
 let multiviewActive = false;
 const mvOriginalParents = {};
 const mvPanelState = [{}, {}, {}, {}]; // { viewType, itemId }
+const mvPanelNotes = ['', '', '', ''];
 let mvSavedState = null; // Remember last state for reopen
 let mvSavedLayout = null;
 
@@ -13296,7 +13543,8 @@ const MV_VIEW_IDS = {
   timeline: 'timelineView',
   combat: 'combatView',
   factions: 'factionView',
-  soundboard: 'soundboardView'
+  soundboard: 'soundboardView',
+  mindmap: 'mindmapView'
 };
 
 function openMultiview() {
@@ -13344,6 +13592,7 @@ function openMultiview() {
       }
     });
   }
+  setTimeout(initMvResizeHandles, 100);
 }
 
 function closeMultiview() {
@@ -13443,6 +13692,36 @@ function loadMVPanel(panelIdx, viewType) {
     mvPanelState[existingIdx] = {};
   }
 
+  // Handle DM-screen-only views (no real view element to move)
+  if (viewType === 'dice_log' || viewType === 'notes') {
+    nav.classList.add('hidden');
+    nav.innerHTML = '';
+    if (viewType === 'dice_log') {
+      body.innerHTML = `<div class="mv-special-view mv-dice-log" style="padding:10px;overflow-y:auto;height:100%">
+        <div style="font-size:11px;font-weight:600;color:var(--gold);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Dice Log</div>
+        <div class="mv-dice-log-entries" id="mvDiceLog${panelIdx}"></div>
+      </div>`;
+      const logEl = document.getElementById('mvDiceLog' + panelIdx);
+      if (logEl && typeof diceHistory !== 'undefined') {
+        logEl.innerHTML = diceHistory.slice().reverse().map(r =>
+          `<div style="padding:4px 0;border-bottom:1px solid rgba(168,152,128,0.08);font-size:11px;display:flex;justify-content:space-between">
+            <span style="color:var(--text-secondary)">${r.notation || '?'}</span>
+            <span style="color:var(--gold);font-weight:600">${r.total != null ? r.total : r.result || '?'}</span>
+          </div>`
+        ).join('') || '<div style="color:var(--text-muted);font-size:11px;text-align:center;padding:20px">No dice rolled yet</div>';
+      }
+    } else {
+      const savedNotes = mvPanelNotes[panelIdx] || '';
+      body.innerHTML = `<div class="mv-special-view" style="padding:8px;height:100%;display:flex;flex-direction:column">
+        <div style="font-size:11px;font-weight:600;color:var(--gold);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Quick Notes</div>
+        <textarea class="mv-notes-pad" id="mvNotes${panelIdx}" placeholder="Type notes here..." style="flex:1;width:100%;resize:none;background:rgba(0,0,0,0.3);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-family:inherit;font-size:12px;padding:8px;outline:none">${savedNotes}</textarea>
+      </div>`;
+      const ta = document.getElementById('mvNotes' + panelIdx);
+      if (ta) ta.addEventListener('input', () => { mvPanelNotes[panelIdx] = ta.value; });
+    }
+    return;
+  }
+
   // Grab the real view element
   const viewEl = document.getElementById(MV_VIEW_IDS[viewType]);
   if (!viewEl) {
@@ -13533,6 +13812,7 @@ function mvSwitchToItem(panelIdx, viewType, itemId) {
       break;
     case 'write':
       if (itemId) selectChapter(itemId);
+      else if (currentChapterId) selectChapter(currentChapterId);
       break;
     case 'timeline':
       if (itemId) selectTimeline(itemId);
@@ -13561,6 +13841,76 @@ function mvSwitchToItem(panelIdx, viewType, itemId) {
 // ============================================
 // Write: First-Line Indent Toggle
 // ============================================
+
+// DM Screen Resize Handles
+function initMvResizeHandles() {
+  const grid = document.getElementById('multiviewGrid');
+  if (!grid) return;
+  grid.querySelectorAll('.mv-panel-resize-h, .mv-panel-resize-v').forEach(el => el.remove());
+  const panels = grid.querySelectorAll('.mv-panel');
+  panels.forEach(panel => {
+    const hHandle = document.createElement('div');
+    hHandle.className = 'mv-panel-resize-h';
+    panel.appendChild(hHandle);
+    const vHandle = document.createElement('div');
+    vHandle.className = 'mv-panel-resize-v';
+    panel.appendChild(vHandle);
+    hHandle.addEventListener('mousedown', (e) => startMvResize(e, 'col', panel, grid));
+    vHandle.addEventListener('mousedown', (e) => startMvResize(e, 'row', panel, grid));
+  });
+}
+
+function startMvResize(e, axis, panel, grid) {
+  e.preventDefault();
+  e.stopPropagation();
+  const rect = grid.getBoundingClientRect();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const style = getComputedStyle(grid);
+  const cols = style.gridTemplateColumns.split(' ').map(parseFloat);
+  const rows = style.gridTemplateRows.split(' ').map(parseFloat);
+  const totalW = rect.width;
+  const totalH = rect.height;
+  // Find which column/row this panel occupies
+  const panelRect = panel.getBoundingClientRect();
+  let colIdx = -1, rowIdx = -1;
+  if (axis === 'col') {
+    let acc = rect.left;
+    for (let i = 0; i < cols.length; i++) { acc += cols[i]; if (Math.abs(acc - (panelRect.right)) < 20) { colIdx = i; break; } }
+    if (colIdx < 0 || colIdx >= cols.length - 1) return;
+  } else {
+    let acc = rect.top;
+    for (let i = 0; i < rows.length; i++) { acc += rows[i]; if (Math.abs(acc - (panelRect.bottom)) < 20) { rowIdx = i; break; } }
+    if (rowIdx < 0 || rowIdx >= rows.length - 1) return;
+  }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;cursor:' + (axis === 'col' ? 'col-resize' : 'row-resize');
+  document.body.appendChild(overlay);
+  function onMove(ev) {
+    if (axis === 'col' && colIdx >= 0) {
+      const dx = ev.clientX - startX;
+      const newA = Math.max(60, cols[colIdx] + dx);
+      const newB = Math.max(60, cols[colIdx + 1] - dx);
+      const frA = newA / totalW;
+      const frB = newB / totalW;
+      const newCols = [...cols]; newCols[colIdx] = newA; newCols[colIdx + 1] = newB;
+      grid.style.gridTemplateColumns = newCols.map(c => (c / totalW) + 'fr').join(' ');
+    } else if (axis === 'row' && rowIdx >= 0) {
+      const dy = ev.clientY - startY;
+      const newA = Math.max(40, rows[rowIdx] + dy);
+      const newB = Math.max(40, rows[rowIdx + 1] - dy);
+      const newRows = [...rows]; newRows[rowIdx] = newA; newRows[rowIdx + 1] = newB;
+      grid.style.gridTemplateRows = newRows.map(r => (r / totalH) + 'fr').join(' ');
+    }
+  }
+  function onUp() {
+    overlay.remove();
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
 let writeIndentMode = false;
 let writeJustifyMode = false;
 
@@ -14889,7 +15239,7 @@ function sbRenderChannels(){
   });
 }
 
-function sbUpdateTile(id){const t=document.querySelector(`.sb-tile[data-id="${id}"]`);if(!t)return;const isP=!!sbActiveChannels[id]?.playing;t.classList.toggle('playing',isP);const b=t.querySelector('.sb-tile-play');if(b){b.title=isP?'Stop':'Play';b.innerHTML=isP?'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>':'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';}}
+function sbUpdateTile(id){const t=document.querySelector(`.sb-tile[data-id="${id}"]`);if(!t)return;const isP=!!sbActiveChannels[id]?.playing;t.classList.toggle('playing',isP);const b=t.querySelector('.sb-tile-play');if(b){b.innerHTML=isP?'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>':'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';}}
 
 // ─── Init ───
 function initSoundboard(){
@@ -14916,6 +15266,8 @@ function initSoundboard(){
 // ============================================
 
 window.craftGetState = function() {
+  // Save current chapter content + indent/justify state before serializing
+  if (typeof saveCurrentChapter === 'function') saveCurrentChapter();
   return {
     boards: JSON.parse(JSON.stringify(boards)),
     currentBoardId: currentBoardId,
@@ -15058,11 +15410,33 @@ window.craftSetState = function(state, skipRender) {
       renderBoardsList();
       renderMapsList();
       renderChaptersList();
+
+      // Restore indent/justify for current chapter after state load
+      if (currentChapterId) {
+        const curChap = chapters.find(c => c.id === currentChapterId);
+        if (curChap) {
+          writeIndentMode = !!curChap.indentMode;
+          writeJustifyMode = !!curChap.justifyMode;
+          const editor = document.getElementById('writeEditor');
+          if (editor) {
+            editor.classList.toggle('indent-mode', writeIndentMode);
+            editor.classList.toggle('justify-mode', writeJustifyMode);
+          }
+          const indentBtn = document.getElementById('indentToggleBtn');
+          const justifyBtn = document.getElementById('justifyToggleBtn');
+          if (indentBtn) indentBtn.classList.toggle('active', writeIndentMode);
+          if (justifyBtn) justifyBtn.classList.toggle('active', writeJustifyMode);
+        }
+      }
       if (typeof renderTimelinesList === 'function') renderTimelinesList();
       if (typeof renderFactionsSidebar === 'function') renderFactionsSidebar();
       
       // Render current view content
       if (currentView === 'board') { updateCanvas(); }
+      if (currentView === 'write' && currentChapterId) {
+        // Must call selectChapter to properly restore editor content + indent/justify
+        selectChapter(currentChapterId);
+      }
       if (currentView === 'map') {
         if (typeof updateMapView === 'function') {
           updateMapView();
@@ -15093,5 +15467,24 @@ window.toggleViewSetting = toggleViewSetting;
 window.applyViewSettings = applyViewSettings;
 
 // Signal that craft room is ready
+// Strip all native title attributes to prevent browser tooltips showing domain info
+(function stripTitles() {
+  document.querySelectorAll('[title]').forEach(el => {
+    if (el.tagName !== 'IFRAME') el.removeAttribute('title');
+  });
+  let pending = false;
+  const obs = new MutationObserver(() => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      document.querySelectorAll('[title]').forEach(el => {
+        if (el.tagName !== 'IFRAME') el.removeAttribute('title');
+      });
+      pending = false;
+    });
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+})();
+
 window.craftReady = true;
 if (window.onCraftReady) window.onCraftReady();
