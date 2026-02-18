@@ -947,6 +947,12 @@ function switchView(view) {
     if (indentBtn) indentBtn.classList.toggle('active', writeIndentMode);
     if (justifyBtn) justifyBtn.classList.toggle('active', writeJustifyMode);
 
+    // Restore typography defaults
+    applyWriteTypography(chapter);
+
+    // Restore typography defaults
+    applyWriteTypography(chapter);
+
     // Show chapter details in panel
     get('emptyState')?.classList.add('hidden');
     get('cardDetails')?.classList.add('hidden');
@@ -3512,6 +3518,7 @@ function deleteChapter(chapterId) {
     document.getElementById('writeChapterTitle').value = chapter.title;
     document.getElementById('writeChapterLabel').value = chapter.label;
     updateWordCount();
+    applyWriteTypography(chapter);
   }
 }
 
@@ -3537,7 +3544,37 @@ function cleanupWriteEditorLeadingSpace(editor) {
     if (isEmptyBlock(n)) { editor.removeChild(n); continue; }
     break;
   }
+
 }
+
+function applyWriteTypography(chapter) {
+  const editor = document.getElementById('writeEditor');
+  if (!editor || !chapter) return;
+
+  const fs = parseInt(chapter.fontSize, 10);
+  const fontSize = (!Number.isNaN(fs) && fs > 0) ? fs : 16;
+  editor.style.fontSize = fontSize + 'px';
+
+  // Keep line-height stable (unitless scales with font size)
+  editor.style.lineHeight = '1.8';
+
+  const fontFamily = (chapter.fontFamily && String(chapter.fontFamily).trim()) ? String(chapter.fontFamily).trim() : 'Inter';
+  editor.style.fontFamily = fontFamily;
+
+  // Reflect current defaults in toolbar selects if present
+  const ffSel = document.getElementById('fontFamily');
+  if (ffSel) {
+    const hasOption = Array.from(ffSel.options || []).some(o => o.value === fontFamily);
+    if (hasOption) ffSel.value = fontFamily;
+  }
+  const fsSel = document.getElementById('fontSize');
+  if (fsSel) {
+    const fsVal = String(fontSize);
+    const hasOption = Array.from(fsSel.options || []).some(o => o.value === fsVal);
+    if (hasOption) fsSel.value = fsVal;
+  }
+}
+
 function selectChapter(chapterId) {
   saveCurrentChapter();
   currentChapterId = chapterId;
