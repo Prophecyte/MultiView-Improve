@@ -3886,6 +3886,7 @@ select optgroup {
   justify-content: center;
   padding: 40px 24px;
   overflow-y: auto;
+  margin: 25px 0px;
 }
 
 .write-editor {
