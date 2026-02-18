@@ -34,6 +34,23 @@ let chapters = [
 let currentChapterId = 'chapter-1';
 let chapterFolders = []; // { id, name, collapsed, hidden }
 
+// Hidden-permission helpers
+function craftCanSeeHidden() { return !!window.craftCanViewHidden; }
+function getChapterFolder(folderId) {
+  if (!folderId) return null;
+  return (typeof chapterFolders !== "undefined" && Array.isArray(chapterFolders)) ? chapterFolders.find(f => f.id === folderId) : null;
+}
+function isChapterEffectivelyHidden(ch) {
+  if (!ch) return false;
+  if (ch.hidden) return true;
+  const f = getChapterFolder(ch.folderId);
+  return !!(f && f.hidden);
+}
+function isFolderEffectivelyHidden(folder) {
+  return !!(folder && folder.hidden);
+}
+
+
 // Bidirectional associations: { sourceType, sourceId, targetType, targetId }
 let associations = [];
 
@@ -383,7 +400,6 @@ function initEventListeners() {
   const writeEditor = document.getElementById('writeEditor');
   writeEditor.addEventListener('input', updateWordCount);
   writeEditor.addEventListener('input', processWikiLinksInEditor);
-  writeEditor.addEventListener('input', () => { saveCurrentChapter(); if (window.craftSchedulePush) window.craftSchedulePush(); });
 
   // Chapter title/label sync
   document.getElementById('writeChapterTitle').addEventListener('input', (e) => {
@@ -391,7 +407,6 @@ function initEventListeners() {
     if (chapter) {
       chapter.title = e.target.value;
       renderChaptersList();
-    if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -400,7 +415,6 @@ function initEventListeners() {
     if (chapter) {
       chapter.label = e.target.value;
       renderChaptersList();
-    if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -412,38 +426,41 @@ function initEventListeners() {
   // Font selects (apply to selection if text is selected, or if editor is empty — never change whole chapter with existing content)
   document.getElementById('fontFamily').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
-    const chapter = chapters.find((c) => c.id === currentChapterId);
-    const val = e.target.value;
+    const selection = window.getSelection();
 
-    // Apply as the chapter's default font family (predictable; avoids invalid span-wrapping around block nodes)
-    editor.style.fontFamily = val;
-    if (chapter) chapter.fontFamily = val;
-
-    // Clean any accidental leading empty blocks that can appear during formatting changes
-    cleanupWriteEditorLeadingSpace(editor);
-
-    saveCurrentChapter();
-    if (window.craftSchedulePush) window.craftSchedulePush();
+    if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
+      // Use execCommand for robust cross-element selection handling (like Google Docs)
+      document.execCommand('fontName', false, e.target.value);
+      saveCurrentChapter();
+    } else if (!editor.textContent.trim()) {
+      // Editor is empty - set default for new content
+      editor.style.fontFamily = e.target.value;
+    }
     editor.focus();
   });
 
   document.getElementById('fontSize').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
-    const chapter = chapters.find((c) => c.id === currentChapterId);
-    const sizeVal = parseInt(e.target.value, 10) || 16;
+    const selection = window.getSelection();
+    const sizeVal = e.target.value;
 
-    // Apply as the chapter's default font size (predictable; avoids wrapping block selections which can create huge blank space)
-    editor.style.fontSize = sizeVal + 'px';
-    if (chapter) chapter.fontSize = sizeVal;
-
-    // Keep line-height stable relative to text size (use unitless so it scales cleanly)
-    // If you prefer fixed pixel line-height, change this to e.g. editor.style.lineHeight = (sizeVal * 1.8) + 'px';
-    editor.style.lineHeight = '1.8';
-
-    cleanupWriteEditorLeadingSpace(editor);
-
-    saveCurrentChapter();
-    if (window.craftSchedulePush) window.craftSchedulePush();
+    if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
+      // Use span wrapping instead of execCommand to avoid font-family reset
+      const range = selection.getRangeAt(0);
+      const fragment = range.extractContents();
+      const wrapper = document.createElement('span');
+      wrapper.style.fontSize = sizeVal + 'px';
+      wrapper.appendChild(fragment);
+      range.insertNode(wrapper);
+      // Re-select
+      selection.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(wrapper);
+      selection.addRange(newRange);
+      saveCurrentChapter();
+    } else if (!editor.textContent.trim()) {
+      editor.style.fontSize = sizeVal + 'px';
+    }
     editor.focus();
   });
 
@@ -946,12 +963,6 @@ function switchView(view) {
     const justifyBtn = get('justifyToggleBtn');
     if (indentBtn) indentBtn.classList.toggle('active', writeIndentMode);
     if (justifyBtn) justifyBtn.classList.toggle('active', writeJustifyMode);
-
-    // Restore typography defaults
-    applyWriteTypography(chapter);
-
-    // Restore typography defaults
-    applyWriteTypography(chapter);
 
     // Show chapter details in panel
     get('emptyState')?.classList.add('hidden');
@@ -1456,31 +1467,6 @@ function restoreEditorSelection() {
 function renderBoardsList() {
   const list = document.getElementById('boardsList');
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
 
   boards.forEach((board) => {
     const item = document.createElement('div');
@@ -1606,31 +1592,6 @@ function getCurrentBoard() {
 function renderMapsList() {
   const list = document.getElementById('mapsList');
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
 
   maps.forEach((map) => {
     const item = document.createElement('div');
@@ -2028,31 +1989,6 @@ function renderPinsList() {
   }
 
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
   currentMap.pins.forEach((pin) => {
     const item = document.createElement('div');
     item.className = `pin-list-item${selectedPin === pin.id ? ' active' : ''}`;
@@ -3230,31 +3166,6 @@ function navigateToCard(cardId) {
 function renderChaptersList() {
   const list = document.getElementById('chaptersList');
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
 
   function createChapterItem(chapter) {
     const item = document.createElement('div');
@@ -3318,16 +3229,17 @@ function renderChaptersList() {
       menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
       menu.style.top = Math.min(e.clientY, window.innerHeight - 140) + 'px';
     });
-    if (chapter.hidden) item.classList.add('item-hidden');
+    if (isChapterEffectivelyHidden(chapter)) item.classList.add('item-hidden');
     return item;
   }
 
   // Render folders first, then unfiled chapters
   chapterFolders.forEach(folder => {
+    if (!craftCanSeeHidden() && isFolderEffectivelyHidden(folder)) return;
     const folderEl = document.createElement('div');
-    folderEl.className = 'chapter-folder' + (folder.hidden ? ' item-hidden' : '');
+    folderEl.className = 'chapter-folder' + (isFolderEffectivelyHidden(folder) ? ' item-hidden' : '');
     folderEl.dataset.folderId = folder.id;
-    const folderChapters = chapters.filter(c => c.folderId === folder.id);
+    const folderChapters = chapters.filter(c => c.folderId === folder.id).filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c));
     const wordCount = folderChapters.reduce((s, c) => s + (c.words || 0), 0);
     folderEl.innerHTML = `<div class="folder-header" data-folder-id="${folder.id}">
       <span class="folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
@@ -3336,35 +3248,6 @@ function renderChaptersList() {
       <span class="chapter-words">${wordCount}</span>
     </div>`;
     const headerEl = folderEl.querySelector('.folder-header');
-    // Folder drag & drop (reorder folders)
-    headerEl.draggable = true;
-    headerEl.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/folder-id', folder.id);
-      e.dataTransfer.effectAllowed = 'move';
-      headerEl.classList.add('dragging');
-    });
-    headerEl.addEventListener('dragend', () => headerEl.classList.remove('dragging'));
-    headerEl.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      const draggingFolderId = e.dataTransfer.getData('text/folder-id');
-      if (draggingFolderId && draggingFolderId !== folder.id) folderEl.classList.add('drag-over');
-    });
-    headerEl.addEventListener('dragleave', () => folderEl.classList.remove('drag-over'));
-    headerEl.addEventListener('drop', (e) => {
-      e.preventDefault();
-      folderEl.classList.remove('drag-over');
-      const draggingFolderId = e.dataTransfer.getData('text/folder-id');
-      if (!draggingFolderId || draggingFolderId === folder.id) return;
-
-      const fromIdx = chapterFolders.findIndex(f => f.id === draggingFolderId);
-      const toIdx = chapterFolders.findIndex(f => f.id === folder.id);
-      if (fromIdx === -1 || toIdx === -1) return;
-
-      const [moved] = chapterFolders.splice(fromIdx, 1);
-      chapterFolders.splice(toIdx, 0, moved);
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    });
     headerEl.addEventListener('click', (e) => {
       if (e.target.tagName === 'INPUT') return;
       folder.collapsed = !folder.collapsed;
@@ -3415,34 +3298,8 @@ function renderChaptersList() {
     }
   });
 
-  // Dropzone to pull chapters out of folders
-  const unfiledZone = document.createElement('div');
-  unfiledZone.className = 'unfiled-dropzone';
-  unfiledZone.textContent = 'Drop here to remove from folder';
-  unfiledZone.addEventListener('dragover', (e) => {
-    const chapterId = e.dataTransfer.getData('text/chapter-id');
-    if (!chapterId) return;
-    e.preventDefault();
-    unfiledZone.classList.add('drag-over');
-  });
-  unfiledZone.addEventListener('dragleave', () => unfiledZone.classList.remove('drag-over'));
-  unfiledZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    unfiledZone.classList.remove('drag-over');
-    const chapterId = e.dataTransfer.getData('text/chapter-id');
-    if (!chapterId) return;
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  });
-  list.appendChild(unfiledZone);
-
   // Unfiled chapters
-  chapters.filter(c => !c.folderId).forEach(chapter => {
+  chapters.filter(c => !c.folderId).filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c)).forEach(chapter => {
     const item = createChapterItem(chapter);
     item.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/chapter-id', chapter.id);
@@ -3518,65 +3375,17 @@ function deleteChapter(chapterId) {
     document.getElementById('writeChapterTitle').value = chapter.title;
     document.getElementById('writeChapterLabel').value = chapter.label;
     updateWordCount();
-    applyWriteTypography(chapter);
-  }
-}
-
-
-function cleanupWriteEditorLeadingSpace(editor) {
-  if (!editor) return;
-
-  // Remove leading empty blocks (<div><br></div>, <p><br></p>, stray <br>) that can get inserted by formatting changes.
-  // These can look like an un-deletable giant blank area at the top.
-  const isEmptyBlock = (el) => {
-    if (!el || el.nodeType !== 1) return false;
-    const tag = el.tagName;
-    if (tag !== 'DIV' && tag !== 'P' && tag !== 'SPAN') return false;
-    const txt = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
-    const html = (el.innerHTML || '').trim().toLowerCase();
-    return txt === '' && (html === '' || html === '<br>' || html === '&nbsp;' || html === '<br/>' || html === '<br />' || html === '<div><br></div>');
-  };
-
-  while (editor.firstChild) {
-    const n = editor.firstChild;
-    if (n.nodeType === 3 && !(n.textContent || '').trim()) { editor.removeChild(n); continue; }
-    if (n.nodeType === 1 && n.tagName === 'BR') { editor.removeChild(n); continue; }
-    if (isEmptyBlock(n)) { editor.removeChild(n); continue; }
-    break;
-  }
-
-}
-
-function applyWriteTypography(chapter) {
-  const editor = document.getElementById('writeEditor');
-  if (!editor || !chapter) return;
-
-  const fs = parseInt(chapter.fontSize, 10);
-  const fontSize = (!Number.isNaN(fs) && fs > 0) ? fs : 16;
-  editor.style.fontSize = fontSize + 'px';
-
-  // Keep line-height stable (unitless scales with font size)
-  editor.style.lineHeight = '1.8';
-
-  const fontFamily = (chapter.fontFamily && String(chapter.fontFamily).trim()) ? String(chapter.fontFamily).trim() : 'Inter';
-  editor.style.fontFamily = fontFamily;
-
-  // Reflect current defaults in toolbar selects if present
-  const ffSel = document.getElementById('fontFamily');
-  if (ffSel) {
-    const hasOption = Array.from(ffSel.options || []).some(o => o.value === fontFamily);
-    if (hasOption) ffSel.value = fontFamily;
-  }
-  const fsSel = document.getElementById('fontSize');
-  if (fsSel) {
-    const fsVal = String(fontSize);
-    const hasOption = Array.from(fsSel.options || []).some(o => o.value === fsVal);
-    if (hasOption) fsSel.value = fsVal;
   }
 }
 
 function selectChapter(chapterId) {
   saveCurrentChapter();
+  const target = chapters.find((c) => c.id === chapterId);
+  // If user cannot view hidden content, never select a hidden chapter (including hidden folders)
+  if (target && !craftCanSeeHidden() && isChapterEffectivelyHidden(target)) {
+    const fallback = chapters.find(c => (craftCanSeeHidden() || !isChapterEffectivelyHidden(c)));
+    if (fallback) chapterId = fallback.id;
+  }
   currentChapterId = chapterId;
   renderChaptersList();
 
@@ -3617,38 +3426,16 @@ function selectChapter(chapterId) {
 
 function saveCurrentChapter() {
   const chapter = chapters.find((c) => c.id === currentChapterId);
-  const editor = document.getElementById('writeEditor');
-  if (!chapter || !editor) return;
-
-  // Prevent accidental wipes:
-  // During rerenders / view swaps, the write editor can temporarily be empty.
-  // We only allow saving an "empty" snapshot if the user is actively editing
-  // the editor (focused). Otherwise we keep the last saved chapter.content.
-  const active = document.activeElement;
-  const writingUIFocused = (active === editor) || editor.contains(active);
-
-  // If the editor isn't visible and isn't focused, don't snapshot it.
-  if (!writingUIFocused && editor.offsetParent === null) return;
-
-  const html = editor.innerHTML;
-  const text = editor.textContent || '';
-  const looksEmpty = !text.trim() && (!html || html === '<br>' || html === '<div><br></div>' || html === '<p><br></p>');
-  if (looksEmpty && chapter.content && !writingUIFocused) return;
-
-  cleanupWriteEditorLeadingSpace(editor);
-
-  chapter.content = html;
-  chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
-
-  // Persist toggles
-  chapter.indentMode = writeIndentMode;
-  chapter.justifyMode = writeJustifyMode;
-
-  // Persist typography defaults
-  const fs = parseInt(editor.style.fontSize, 10);
-  if (!Number.isNaN(fs) && fs > 0) chapter.fontSize = fs;
-  const ff = (editor.style.fontFamily || '').trim();
-  if (ff) chapter.fontFamily = ff;
+  // Prevent non-hidden viewers from writing into content that is (now) hidden via sync
+  if (chapter && !craftCanSeeHidden() && isChapterEffectivelyHidden(chapter)) return;
+  if (chapter) {
+    chapter.content = document.getElementById('writeEditor').innerHTML;
+    const text = document.getElementById('writeEditor').textContent;
+    chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    // Persist indent/justify toggles
+    chapter.indentMode = writeIndentMode;
+    chapter.justifyMode = writeJustifyMode;
+  }
 }
 
 function addChapterTagFromInput() {
@@ -6164,31 +5951,6 @@ function removeStat(stat) {
 function renderChartDataList(chartData) {
   const list = document.getElementById('chartDataList');
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
 
   chartData.forEach((item, index) => {
     const row = document.createElement('div');
@@ -6269,31 +6031,6 @@ function updateChartCard() {
 function renderBarsList(bars) {
   const list = document.getElementById('barsList');
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
 
   bars.forEach((bar, index) => {
     const row = document.createElement('div');
@@ -6403,31 +6140,6 @@ function updateStressCard() {
 function renderInjuryTracksList(tracks) {
   const list = document.getElementById('injuryTracksList');
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
 
   tracks.forEach((track, index) => {
     const row = document.createElement('div');
@@ -6562,31 +6274,6 @@ function renderItemPropertiesList(properties) {
   const list = document.getElementById('itemPropertiesList');
   if (!list) return;
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
   properties.forEach((prop, i) => {
     const row = document.createElement('div');
     row.className = 'item-prop-row';
@@ -6625,31 +6312,6 @@ function renderPersonalityTraitsList(traits) {
   const list = document.getElementById('personalityTraitsList');
   if (!list) return;
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
   const icons = ['✦','♥','✕','◆','★','⚡','☽','♠'];
   traits.forEach((trait, i) => {
     const row = document.createElement('div');
@@ -6726,31 +6388,6 @@ function renderAttributesList(attrs) {
   const list = document.getElementById('attributesList');
   if (!list) return;
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
   attrs.forEach((attr, i) => {
     const row = document.createElement('div');
     row.className = 'attr-edit-row';
@@ -6805,31 +6442,6 @@ function renderInventoryItemsList(items) {
   const list = document.getElementById('inventoryItemsList');
   if (!list) return;
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
   items.forEach((item, i) => {
     const row = document.createElement('div');
     row.className = 'inv-edit-row';
@@ -6879,31 +6491,6 @@ function renderCurrencyList(currencies) {
   const list = document.getElementById('currencyList');
   if (!list) return;
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
   const icons = ['●','◆','★','♦','⬡','◉','▲','✦'];
   currencies.forEach((cur, i) => {
     const row = document.createElement('div');
@@ -6951,31 +6538,6 @@ function renderStashList(stash) {
   const list = document.getElementById('stashList');
   if (!list) return;
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
   stash.forEach((s, i) => {
     const row = document.createElement('div');
     row.className = 'stash-edit-row';
@@ -8151,31 +7713,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function updateConnectionsList(cardId) {
   const list = document.getElementById('connectionsList');
   list.innerHTML = '';
-  // Allow dropping a chapter onto empty space in the sidebar to "unfile" it (pull it out of folders)
-  // We assign via on* so re-rendering doesn't stack listeners.
-  list.ondragover = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // If hovering an actual folder element, let the folder handler take it.
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    e.preventDefault();
-  };
-  list.ondrop = (e) => {
-    const chapterId = e.dataTransfer?.getData('text/chapter-id');
-    if (!chapterId) return;
-    // Folder drops are handled elsewhere
-    if (e.target && e.target.closest && e.target.closest('.chapter-folder')) return;
-    // Unfiled dropzone handles its own drop
-    if (e.target && e.target.closest && e.target.closest('.unfiled-dropzone')) return;
-
-    e.preventDefault();
-    const ch = chapters.find(c => c.id === chapterId);
-    if (ch) {
-      ch.folderId = null;
-      renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
-    }
-  };
 
   const board = getCurrentBoard();
   const cardConnections = board.connections.filter((c) => c.from === cardId || c.to === cardId);
@@ -11791,11 +11328,12 @@ function renderEncountersSidebar() {
 
 function renderCombatants() {
   const list = document.getElementById('ctCombatantsList'); if (!list) return;
-  if (combatants.length === 0) {
+  const visibleCombatants = craftCanSeeHidden() ? combatants : combatants.filter(c => !c.hidden);
+  if (visibleCombatants.length === 0) {
     list.innerHTML = '<div class="ct-empty"><p>No combatants</p><p style="opacity:0.5;font-size:12px;">Add creatures from the sidebar to begin</p></div>';
     return;
   }
-  list.innerHTML = combatants.map((c, i) => {
+  list.innerHTML = visibleCombatants.map((c, i) => {
     const isActive = combatActive && i === combatTurnIndex;
     const isSel = c.id === selectedCombatantId;
     const hpPct = c.maxHP > 0 ? Math.min(100, (c.currentHP / c.maxHP) * 100) : 100;
@@ -12112,7 +11650,7 @@ function fillScreenPanel(index, type) {
   if (!el) return;
   if (type === 'initiative') {
     let html = '';
-    const sorted = [...combatants].sort((a, b) => (b.initiative || 0) - (a.initiative || 0));
+    const sorted = (craftCanSeeHidden() ? [...combatants] : combatants.filter(c => !c.hidden)).sort((a, b) => (b.initiative || 0) - (a.initiative || 0));
     sorted.forEach((c, i) => {
       const isCurrent = i === combatTurnIndex && combatRound > 0;
       html += `<div style="padding:3px 6px;${isCurrent ? 'background:rgba(212,168,36,0.15);border-radius:4px;' : ''}display:flex;justify-content:space-between;font-size:12px;">
@@ -12717,7 +12255,7 @@ function showContactDetail() {
 // ---- Sidebar Renders ----
 function renderFactionsSidebar() {
   const el = document.getElementById('factionsList'); if (!el) return;
-  if (factions.length === 0) { el.innerHTML = '<div class="empty-pins-message">No factions yet</div>'; return; }
+  if ((craftCanSeeHidden() ? factions : factions.filter(f => !f.hidden)).length === 0) { el.innerHTML = '<div class="empty-pins-message">No factions yet</div>'; return; }
   el.innerHTML = factions.map(f => {
     const rep = getRepLevel(f.reputation);
     const active = f.id === selectedFactionId ? ' active' : '';
@@ -12732,7 +12270,7 @@ function renderFactionsSidebar() {
 
 function renderContactsSidebar() {
   const el = document.getElementById('contactsList'); if (!el) return;
-  if (contacts.length === 0) { el.innerHTML = '<div class="empty-pins-message">No contacts yet</div>'; return; }
+  if ((craftCanSeeHidden() ? contacts : contacts.filter(c => !c.hidden)).length === 0) { el.innerHTML = '<div class="empty-pins-message">No contacts yet</div>'; return; }
   el.innerHTML = contacts.map(c => {
     const fac = factions.find(f => f.id === c.factionId);
     const active = c.id === selectedContactId ? ' active' : '';
@@ -12749,11 +12287,12 @@ function renderContactsSidebar() {
 // ---- Faction Grid ----
 function renderFactionGrid() {
   const grid = document.getElementById('facGrid'); if (!grid) return;
-  if (factions.length === 0) {
+  if ((craftCanSeeHidden() ? factions : factions.filter(f => !f.hidden)).length === 0) {
     grid.innerHTML = '<div class="fac-empty"><p>No factions yet</p><p style="opacity:0.5;font-size:12px;">Create factions from the sidebar to begin tracking</p></div>';
     return;
   }
-  grid.innerHTML = factions.map(f => {
+  const visibleFactions = craftCanSeeHidden() ? factions : factions.filter(f => !f.hidden);
+  grid.innerHTML = visibleFactions.map(f => {
     const rep = getRepLevel(f.reputation);
     const facConnections = contacts.filter(c => c.factionId === f.id);
     const isSel = f.id === selectedFactionId;
@@ -12807,11 +12346,12 @@ function renderFactionGrid() {
 // ---- Contacts Grid ----
 function renderContactsGrid() {
   const grid = document.getElementById('facContactsGrid'); if (!grid) return;
-  if (contacts.length === 0) {
+  if ((craftCanSeeHidden() ? contacts : contacts.filter(c => !c.hidden)).length === 0) {
     grid.innerHTML = '<div class="fac-empty"><p>No contacts yet</p><p style="opacity:0.5;font-size:12px;">Add contacts from the sidebar</p></div>';
     return;
   }
-  grid.innerHTML = contacts.map(c => {
+  const visibleContacts = craftCanSeeHidden() ? contacts : contacts.filter(c => !c.hidden);
+  grid.innerHTML = visibleContacts.map(c => {
     const fac = factions.find(f => f.id === c.factionId);
     const isSel = c.id === selectedContactId;
     const typeIcon = c.type === 'cohort' ? '⚔ ' : '';
@@ -13043,8 +12583,9 @@ function renderOrgAssociations(o) {
 }
 function renderOrgsSidebar() {
   const list = document.getElementById('orgsList'); if (!list) return;
-  if (organizations.length === 0) { list.innerHTML = '<div class="empty-pins-message">No organizations yet</div>'; return; }
-  list.innerHTML = organizations.map(o => {
+  const visibleOrgs = craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden);
+  if ((craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden)).length === 0) { list.innerHTML = '<div class="empty-pins-message">No organizations yet</div>'; return; }
+  list.innerHTML = visibleOrgs.map(o => {
     const sel = o.id === selectedOrgId ? ' active' : '';
     const h = o.hidden ? ' item-hidden' : '';
     return `<div class="sidebar-item${sel}${h}" onclick="selectOrg('${o.id}')" oncontextmenu="showFacContactContextMenu(event,'org','${o.id}')" style="border-left:3px solid ${o.color};position:relative;">
@@ -13057,11 +12598,12 @@ function renderOrgsSidebar() {
 }
 function renderOrgsGrid() {
   const grid = document.getElementById('facOrgsGrid'); if (!grid) return;
-  if (organizations.length === 0) {
+  if ((craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden)).length === 0) {
     grid.innerHTML = '<div class="fac-empty"><p>No organizations yet</p><p style="opacity:0.5;font-size:12px;">Add organizations from the sidebar to track guilds, companies, churches, etc.</p></div>';
     return;
   }
-  grid.innerHTML = organizations.map(o => {
+  const visibleOrgs = craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden);
+  grid.innerHTML = visibleOrgs.map(o => {
     const isSel = o.id === selectedOrgId;
     const tagsHtml = (o.tags || []).slice(0,4).map(t => `<span class="card-tag">${t}</span>`).join('');
 
@@ -15755,12 +15297,8 @@ function initSoundboard(){
 // ============================================
 
 window.craftGetState = function() {
-  // IMPORTANT:
-  // Do NOT call saveCurrentChapter() here.
-  // craftGetState() is invoked by the sync engine even when the write editor is
-  // hidden or mid-rerender. Saving from here can accidentally overwrite chapter
-  // content with an empty editor snapshot.
-  // Chapter content is persisted via write editor input handlers instead.
+  // Save current chapter content + indent/justify state before serializing
+  if (typeof saveCurrentChapter === 'function') saveCurrentChapter();
   return {
     boards: JSON.parse(JSON.stringify(boards)),
     currentBoardId: currentBoardId,
@@ -15885,8 +15423,8 @@ window.craftSetState = function(state, skipRender) {
         }
         if (typeof chapters !== 'undefined') {
           const curCh = chapters.find(c => c.id === currentChapterId);
-          if (curCh && curCh.hidden) {
-            const vis = chapters.find(c => !c.hidden);
+          if (curCh && isChapterEffectivelyHidden(curCh)) {
+            const vis = chapters.find(c => !isChapterEffectivelyHidden(c));
             if (vis) currentChapterId = vis.id;
           }
         }
