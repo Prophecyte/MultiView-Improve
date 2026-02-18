@@ -384,7 +384,7 @@ function initEventListeners() {
   writeEditor.addEventListener('input', updateWordCount);
   writeEditor.addEventListener('input', processWikiLinksInEditor);
 
-  // Persist writing on every edit (debounced sync via craft-app.js)
+  // Persist writing edits + schedule sync
   writeEditor.addEventListener('input', () => {
     saveCurrentChapter();
     if (window.craftSchedulePush) window.craftSchedulePush();
@@ -3410,9 +3410,31 @@ function selectChapter(chapterId) {
 
 function saveCurrentChapter() {
   const chapter = chapters.find((c) => c.id === currentChapterId);
-  if (chapter) {
-    chapter.content = document.getElementById('writeEditor').innerHTML;
-    const text = document.getElementById('writeEditor').textContent;
+  const editor = document.getElementById('writeEditor');
+  if (!chapter || !editor) return;
+
+  // Guard against accidentally wiping chapter text during background sync or view switches.
+  // Only persist when we're actively in the Write view or the writing UI is focused.
+  const active = document.activeElement;
+  const writingUIFocused =
+    active === editor ||
+    editor.contains(active) ||
+    active === document.getElementById('writeChapterTitle') ||
+    active === document.getElementById('writeChapterLabel');
+
+  const inWriteView = (typeof currentView !== 'undefined' && currentView === 'write');
+
+  // If we're not actively writing and the editor looks empty, don't overwrite existing content.
+  const html = editor.innerHTML;
+  const textContent = editor.textContent || '';
+  const looksEmpty = !textContent.trim() && (!html || html === '<br>' || html === '<div><br></div>');
+
+  if (!inWriteView && !writingUIFocused && looksEmpty && chapter.content) {
+    return;
+  }
+
+  chapter.content = html;
+  const text = textContent;
     chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
     // Persist indent/justify toggles
     chapter.indentMode = writeIndentMode;
