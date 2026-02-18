@@ -167,16 +167,19 @@ export const handler = async (event) => {
 
       // Get members with online status
       const members = await sql`
-        SELECT m.display_name, m.color, m.is_owner, m.user_id, m.guest_id, m.role, m.can_view_hidden,
+        SELECT m.display_name, m.color,
+               CASE WHEN m.user_id IS NOT NULL AND m.user_id = cr.owner_id THEN true ELSE m.is_owner END as is_owner,
+               m.user_id, m.guest_id, m.role, m.can_view_hidden,
                CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status,
                COALESCE(p.active_view, 'board') as active_view
         FROM craft_room_members m
+        JOIN craft_rooms cr ON cr.id = m.craft_room_id
         LEFT JOIN craft_room_presence p ON (
           (m.user_id IS NOT NULL AND m.user_id = p.user_id AND m.craft_room_id = p.craft_room_id) OR
           (m.guest_id IS NOT NULL AND m.guest_id = p.guest_id AND m.craft_room_id = p.craft_room_id)
         )
         WHERE m.craft_room_id = ${roomId}
-        ORDER BY m.is_owner DESC, m.display_name
+        ORDER BY is_owner DESC, m.display_name
       `;
 
       return { statusCode: 200, headers, body: JSON.stringify({
@@ -192,6 +195,8 @@ export const handler = async (event) => {
     if (event.httpMethod === 'PUT' && subPath === '/sync') {
       // Check membership and role
       let member = null;
+      const [roomMeta] = await sql`SELECT owner_id FROM craft_rooms WHERE id = ${roomId}`;
+      const isRoomOwner = !!(user && roomMeta && roomMeta.owner_id === user.id);
       if (user) {
         const [m] = await sql`
           SELECT is_owner, role FROM craft_room_members
@@ -205,8 +210,13 @@ export const handler = async (event) => {
         `;
         member = m;
       }
+      // Treat the craft_rooms.owner_id as authoritative owner, even if craft_room_members flags are stale
+      if (!member && isRoomOwner) {
+        member = { is_owner: true, role: 'owner' };
+      }
+
       if (!member) return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not a member' }) };
-      if (!member.is_owner && member.role !== 'editor') {
+      if (!isRoomOwner && !member.is_owner && member.role !== 'editor') {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'View only - no edit permission' }) };
       }
 
@@ -247,10 +257,16 @@ export const handler = async (event) => {
       }
 
       if (user) {
+        // Ensure the real room owner is always marked as owner in members (helps permissions + saving)
+        const [roomMeta] = await sql`SELECT owner_id FROM craft_rooms WHERE id = ${roomId}`;
+        const isRoomOwner = !!(roomMeta && roomMeta.owner_id === user.id);
         await sql`
           INSERT INTO craft_room_members (craft_room_id, user_id, display_name, is_owner, role)
-          VALUES (${roomId}, ${user.id}, ${displayName}, false, 'viewer')
-          ON CONFLICT (craft_room_id, user_id) DO UPDATE SET display_name = ${displayName}
+          VALUES (${roomId}, ${user.id}, ${displayName}, ${isRoomOwner}, ${isRoomOwner ? 'owner' : 'viewer'})
+          ON CONFLICT (craft_room_id, user_id) DO UPDATE SET
+            display_name = ${displayName},
+            is_owner = (COALESCE(craft_room_members.is_owner, false) OR ${isRoomOwner}),
+            role = CASE WHEN ${isRoomOwner} THEN 'owner' ELSE craft_room_members.role END
         `;
         // Update presence
         await sql`
@@ -315,16 +331,19 @@ export const handler = async (event) => {
     // ─── GET /:id/members - List members ───
     if (event.httpMethod === 'GET' && subPath === '/members') {
       const members = await sql`
-        SELECT m.display_name, m.color, m.is_owner, m.user_id, m.guest_id, m.role, m.can_view_hidden,
+        SELECT m.display_name, m.color,
+               CASE WHEN m.user_id IS NOT NULL AND m.user_id = cr.owner_id THEN true ELSE m.is_owner END as is_owner,
+               m.user_id, m.guest_id, m.role, m.can_view_hidden,
                CASE WHEN p.last_seen > NOW() - INTERVAL '30 seconds' THEN 'online' ELSE 'offline' END as status,
                COALESCE(p.active_view, 'board') as active_view
         FROM craft_room_members m
+        JOIN craft_rooms cr ON cr.id = m.craft_room_id
         LEFT JOIN craft_room_presence p ON (
           (m.user_id IS NOT NULL AND m.user_id = p.user_id AND m.craft_room_id = p.craft_room_id) OR
           (m.guest_id IS NOT NULL AND m.guest_id = p.guest_id AND m.craft_room_id = p.craft_room_id)
         )
         WHERE m.craft_room_id = ${roomId}
-        ORDER BY m.is_owner DESC, m.display_name
+        ORDER BY is_owner DESC, m.display_name
       `;
       return { statusCode: 200, headers, body: JSON.stringify({ members }) };
     }
