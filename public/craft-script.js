@@ -383,12 +383,7 @@ function initEventListeners() {
   const writeEditor = document.getElementById('writeEditor');
   writeEditor.addEventListener('input', updateWordCount);
   writeEditor.addEventListener('input', processWikiLinksInEditor);
-
-  // Persist writing edits + schedule sync
-  writeEditor.addEventListener('input', () => {
-    saveCurrentChapter();
-    if (window.craftSchedulePush) window.craftSchedulePush();
-  });
+  writeEditor.addEventListener('input', () => { saveCurrentChapter(); if (window.craftSchedulePush) window.craftSchedulePush(); });
 
   // Chapter title/label sync
   document.getElementById('writeChapterTitle').addEventListener('input', (e) => {
@@ -396,7 +391,7 @@ function initEventListeners() {
     if (chapter) {
       chapter.title = e.target.value;
       renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
+    if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -405,7 +400,7 @@ function initEventListeners() {
     if (chapter) {
       chapter.label = e.target.value;
       renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
+    if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -417,41 +412,42 @@ function initEventListeners() {
   // Font selects (apply to selection if text is selected, or if editor is empty — never change whole chapter with existing content)
   document.getElementById('fontFamily').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
-    const selection = window.getSelection();
+    // Restore per-chapter typography
+    editor.style.fontSize = ((chapter.fontSize || 16) + 'px');
+    if (chapter.fontFamily) editor.style.fontFamily = chapter.fontFamily;
+    else editor.style.removeProperty('font-family');
+    const chapter = chapters.find((c) => c.id === currentChapterId);
+    const val = e.target.value;
 
-    if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Use execCommand for robust cross-element selection handling (like Google Docs)
-      document.execCommand('fontName', false, e.target.value);
-      saveCurrentChapter();
-    } else if (!editor.textContent.trim()) {
-      // Editor is empty - set default for new content
-      editor.style.fontFamily = e.target.value;
-    }
+    // Apply as the chapter's default font (predictable; avoids invalid span-wrapping around block nodes)
+    editor.style.fontFamily = val;
+    if (chapter) chapter.fontFamily = val;
+
+    // Clean any accidental leading empty blocks that can appear during formatting changes
+    cleanupWriteEditorLeadingSpace(editor);
+
+    saveCurrentChapter();
+    if (window.craftSchedulePush) window.craftSchedulePush();
     editor.focus();
   });
 
   document.getElementById('fontSize').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
-    const selection = window.getSelection();
-    const sizeVal = e.target.value;
+    const chapter = chapters.find((c) => c.id === currentChapterId);
+    const sizeVal = parseInt(e.target.value, 10) || 16;
 
-    if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Use span wrapping instead of execCommand to avoid font-family reset
-      const range = selection.getRangeAt(0);
-      const fragment = range.extractContents();
-      const wrapper = document.createElement('span');
-      wrapper.style.fontSize = sizeVal + 'px';
-      wrapper.appendChild(fragment);
-      range.insertNode(wrapper);
-      // Re-select
-      selection.removeAllRanges();
-      const newRange = document.createRange();
-      newRange.selectNodeContents(wrapper);
-      selection.addRange(newRange);
-      saveCurrentChapter();
-    } else if (!editor.textContent.trim()) {
-      editor.style.fontSize = sizeVal + 'px';
-    }
+    // Apply as the chapter's default font size (predictable; avoids wrapping block selections which can create huge blank space)
+    editor.style.fontSize = sizeVal + 'px';
+    if (chapter) chapter.fontSize = sizeVal;
+
+    // Keep line-height stable relative to text size (use unitless so it scales cleanly)
+    // If you prefer fixed pixel line-height, change this to e.g. editor.style.lineHeight = (sizeVal * 1.8) + 'px';
+    editor.style.lineHeight = '1.8';
+
+    cleanupWriteEditorLeadingSpace(editor);
+
+    saveCurrentChapter();
+    if (window.craftSchedulePush) window.craftSchedulePush();
     editor.focus();
   });
 
@@ -3238,6 +3234,35 @@ function renderChaptersList() {
       <span class="chapter-words">${wordCount}</span>
     </div>`;
     const headerEl = folderEl.querySelector('.folder-header');
+    // Folder drag & drop (reorder folders)
+    headerEl.draggable = true;
+    headerEl.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/folder-id', folder.id);
+      e.dataTransfer.effectAllowed = 'move';
+      headerEl.classList.add('dragging');
+    });
+    headerEl.addEventListener('dragend', () => headerEl.classList.remove('dragging'));
+    headerEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const draggingFolderId = e.dataTransfer.getData('text/folder-id');
+      if (draggingFolderId && draggingFolderId !== folder.id) folderEl.classList.add('drag-over');
+    });
+    headerEl.addEventListener('dragleave', () => folderEl.classList.remove('drag-over'));
+    headerEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      folderEl.classList.remove('drag-over');
+      const draggingFolderId = e.dataTransfer.getData('text/folder-id');
+      if (!draggingFolderId || draggingFolderId === folder.id) return;
+
+      const fromIdx = chapterFolders.findIndex(f => f.id === draggingFolderId);
+      const toIdx = chapterFolders.findIndex(f => f.id === folder.id);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      const [moved] = chapterFolders.splice(fromIdx, 1);
+      chapterFolders.splice(toIdx, 0, moved);
+      renderChaptersList();
+      if (window.craftSchedulePush) window.craftSchedulePush();
+    });
     headerEl.addEventListener('click', (e) => {
       if (e.target.tagName === 'INPUT') return;
       folder.collapsed = !folder.collapsed;
@@ -3287,6 +3312,31 @@ function renderChaptersList() {
       list.appendChild(folderBody);
     }
   });
+
+  // Dropzone to pull chapters out of folders
+  const unfiledZone = document.createElement('div');
+  unfiledZone.className = 'unfiled-dropzone';
+  unfiledZone.textContent = 'Drop here to remove from folder';
+  unfiledZone.addEventListener('dragover', (e) => {
+    const chapterId = e.dataTransfer.getData('text/chapter-id');
+    if (!chapterId) return;
+    e.preventDefault();
+    unfiledZone.classList.add('drag-over');
+  });
+  unfiledZone.addEventListener('dragleave', () => unfiledZone.classList.remove('drag-over'));
+  unfiledZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    unfiledZone.classList.remove('drag-over');
+    const chapterId = e.dataTransfer.getData('text/chapter-id');
+    if (!chapterId) return;
+    const ch = chapters.find(c => c.id === chapterId);
+    if (ch) {
+      ch.folderId = null;
+      renderChaptersList();
+      if (window.craftSchedulePush) window.craftSchedulePush();
+    }
+  });
+  list.appendChild(unfiledZone);
 
   // Unfiled chapters
   chapters.filter(c => !c.folderId).forEach(chapter => {
@@ -3368,6 +3418,29 @@ function deleteChapter(chapterId) {
   }
 }
 
+
+function cleanupWriteEditorLeadingSpace(editor) {
+  if (!editor) return;
+
+  // Remove leading empty blocks (<div><br></div>, <p><br></p>, stray <br>) that can get inserted by formatting changes.
+  // These can look like an un-deletable giant blank area at the top.
+  const isEmptyBlock = (el) => {
+    if (!el || el.nodeType !== 1) return false;
+    const tag = el.tagName;
+    if (tag !== 'DIV' && tag !== 'P' && tag !== 'SPAN') return false;
+    const txt = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
+    const html = (el.innerHTML || '').trim().toLowerCase();
+    return txt === '' && (html === '' || html === '<br>' || html === '&nbsp;' || html === '<br/>' || html === '<br />' || html === '<div><br></div>');
+  };
+
+  while (editor.firstChild) {
+    const n = editor.firstChild;
+    if (n.nodeType === 3 && !(n.textContent || '').trim()) { editor.removeChild(n); continue; }
+    if (n.nodeType === 1 && n.tagName === 'BR') { editor.removeChild(n); continue; }
+    if (isEmptyBlock(n)) { editor.removeChild(n); continue; }
+    break;
+  }
+}
 function selectChapter(chapterId) {
   saveCurrentChapter();
   currentChapterId = chapterId;
@@ -3413,33 +3486,22 @@ function saveCurrentChapter() {
   const editor = document.getElementById('writeEditor');
   if (!chapter || !editor) return;
 
-  // Guard against accidentally wiping chapter text during background sync or view switches.
-  // Only persist when we're actively in the Write view or the writing UI is focused.
-  const active = document.activeElement;
-  const writingUIFocused =
-    active === editor ||
-    editor.contains(active) ||
-    active === document.getElementById('writeChapterTitle') ||
-    active === document.getElementById('writeChapterLabel');
+  cleanupWriteEditorLeadingSpace(editor);
 
-  const inWriteView = (typeof currentView !== 'undefined' && currentView === 'write');
+  chapter.content = editor.innerHTML;
+  const text = editor.textContent || '';
+  chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
 
-  // If we're not actively writing and the editor looks empty, don't overwrite existing content.
-  const html = editor.innerHTML;
-  const textContent = editor.textContent || '';
-  const looksEmpty = !textContent.trim() && (!html || html === '<br>' || html === '<div><br></div>');
+  // Persist toggles
+  chapter.indentMode = writeIndentMode;
+  chapter.justifyMode = writeJustifyMode;
 
-  if (!inWriteView && !writingUIFocused && looksEmpty && chapter.content) {
-    return;
-  }
-
-  chapter.content = html;
-  const text = textContent;
-    chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    // Persist indent/justify toggles
-    chapter.indentMode = writeIndentMode;
-    chapter.justifyMode = writeJustifyMode;
- }
+  // Persist typography defaults
+  const fs = parseInt(editor.style.fontSize, 10);
+  if (!Number.isNaN(fs) && fs > 0) chapter.fontSize = fs;
+  const ff = (editor.style.fontFamily || '').trim();
+  if (ff) chapter.fontFamily = ff;
+}
 
 function addChapterTagFromInput() {
   const chapter = chapters.find((c) => c.id === currentChapterId);
