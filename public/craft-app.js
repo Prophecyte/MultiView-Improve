@@ -196,10 +196,14 @@
         delete state.viewSettings;
         var payload = { state: state };
         if (!getToken()) payload.guestId = getGuestId();
-        lastPushedHash = getStateHash();
+        // IMPORTANT: only advance lastPushedHash after a successful push.
+        // If we set it before the PUT and the request fails (permissions/network),
+        // the client will think it's synced and never retry, causing data loss on refresh.
+        var pendingHash = getStateHash();
         return apiRequest('/craftrooms/' + roomId + '/sync', { method: 'PUT', body: JSON.stringify(payload) })
           .then(function(d) {
             localVersion = d.version || localVersion;
+            lastPushedHash = pendingHash;
             setSyncStatus('synced');
           });
       })
@@ -207,6 +211,8 @@
         if (e.message !== 'kicked') {
           console.warn('Push failed:', e.message);
           setSyncStatus('error');
+          // Keep dirty so we retry on next schedule/poll instead of silently dropping changes
+          stateDirty = true;
           if (e.message.indexOf('View only') >= 0) myRole = 'viewer';
         }
       })
