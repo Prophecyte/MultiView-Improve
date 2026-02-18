@@ -3439,8 +3439,7 @@ function saveCurrentChapter() {
     // Persist indent/justify toggles
     chapter.indentMode = writeIndentMode;
     chapter.justifyMode = writeJustifyMode;
-  }
-}
+ }
 
 function addChapterTagFromInput() {
   const chapter = chapters.find((c) => c.id === currentChapterId);
