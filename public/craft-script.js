@@ -974,6 +974,10 @@ function switchView(view) {
   writeView?.classList.remove('hidden');
   chaptersSection?.classList.remove('hidden');
   get('chapterDetails')?.classList.remove('hidden');
+  // Write view doesn't use card details empty state
+  get('emptyState')?.classList.add('hidden');
+  get('cardDetails')?.classList.add('hidden');
+  get('pinDetails')?.classList.add('hidden');
 
   requestAnimationFrame(() => {
     const chapter = chapters.find((c) => c.id === currentChapterId);
@@ -1005,6 +1009,10 @@ function switchView(view) {
     get('cardDetails')?.classList.add('hidden');
     get('pinDetails')?.classList.add('hidden');
     get('chapterDetails')?.classList.remove('hidden');
+  // Write view doesn't use card details empty state
+  get('emptyState')?.classList.add('hidden');
+  get('cardDetails')?.classList.add('hidden');
+  get('pinDetails')?.classList.add('hidden');
     get('detailsPanel')?.classList.remove('collapsed');
   });
 }
@@ -13864,11 +13872,14 @@ function renderMVNav(panelIdx, viewType, items) {
   const nav = panel.querySelector('.mv-panel-nav');
   const currentId = mvPanelState[panelIdx].itemId;
 
-  nav.innerHTML = items.map(item =>
-    `<div class="mv-nav-item ${item.id === currentId ? 'active' : ''}" data-id="${item.id}">
+  nav.innerHTML = items.map(item => {
+    const isHidden = craftCanSeeHidden() && item.hidden;
+    return `
+    <div class="mv-nav-item ${item.id === currentId ? 'active' : ''} ${isHidden ? 'is-hidden' : ''}" data-id="${item.id}">
       <span class="mv-nav-label">${item.name}</span>
-    </div>`
-  ).join('');
+      ${isHidden ? '<span class="mv-hidden-badge" title="Hidden from guests/viewers">HIDDEN</span>' : ''}
+    </div>`;
+  }).join('');
 
   nav.querySelectorAll('.mv-nav-item').forEach(el => {
     el.addEventListener('click', () => {

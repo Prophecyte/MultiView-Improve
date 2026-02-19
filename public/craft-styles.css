@@ -9368,3 +9368,18 @@ body.mm-dragging .mindmap-canvas {
 [title] { -webkit-font-smoothing: auto; }
 [title]:hover::after { display: none !important; }
 /* Override browser tooltip by clearing title on hover via JS below */
+
+
+/* DM Screen hidden indicator */
+.mv-nav-item.is-hidden .mv-nav-label {
+  opacity: 0.75;
+}
+.mv-hidden-badge {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.25);
+  opacity: 0.9;
+}
