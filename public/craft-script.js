@@ -11995,29 +11995,102 @@ function createRandomContact() {
 }
 
 function createRandomOrganization() {
-  const starters = ['Saint','Iron','Sun','Moon','Azure','Black','Golden','Temple of','Hall of','The'];
-  const cores = ['Archive','Guild','Society','Circle','Institute','House','Cabal','Orchard','Watch','Exchange','Conclave','Forge'];
-  const places = ['Seagard','Oldtown','Rookery','Cinder Wharf','Glass District','Northgate','Southbank','Sable Row'];
-  const leaders = ['—','High Warden','Provost','Mistress','Captain','Curator','Magister','Speaker','Prior'];
+  // Name parts
+  const starters = ['Saint','Iron','Sun','Moon','Azure','Black','Golden','Temple of','Hall of','The','Silver','Crimson','Verdant','Obsidian','Ivory','Storm','Cinder','Gilded'];
+  const cores = ['Archive','Guild','Society','Circle','Institute','House','Cabal','Orchard','Watch','Exchange','Conclave','Forge','Company','Order','Syndicate','Consortium','Chantry','College'];
+  const places = ['Seagard','Oldtown','Rookery','Cinder Wharf','Glass District','Northgate','Southbank','Sable Row','Riverbend','Moonmarket','Ironholt','Highwater'];
+  const leaders = ['—','High Warden','Provost','Mistress','Captain','Curator','Magister','Speaker','Prior','Director','Grandmaster','Matron'];
+
+  // Flavor generators
+  const statusList = ['Active','Dormant','Secretive','Fractured','Ascendant','Under Siege','Outlawed','Reforming','Splintered','Bankrupt','Sanctioned'];
+  const influenceList = ['Local','Regional','Widespread','Underground','Courtly','Guildwide','Cross-border'];
+  const domains = ['trade','information','medicine','security','smuggling','scholarship','religion','craft','transport','espionage','charity','mercenary work','artifact recovery','politics','monster hunting','shipping','banking','entertainment'];
+  const methods = [
+    'runs a tight network of agents and informants',
+    'operates openly behind polished doors and stamped ledgers',
+    'keeps its work quiet—favours, debts, and whispered names',
+    'moves goods through back alleys, docks, and hidden caches',
+    'maintains a public face while its real work happens after dark',
+    'recruits specialists and sells expertise to the highest bidder'
+  ];
+  const hooks = [
+    'They have enemies in the city watch.',
+    'They’re rumored to keep a vault of forbidden records.',
+    'Their leadership is divided behind closed doors.',
+    'They sponsor expeditions and “lose” inconvenient witnesses.',
+    'They protect their own—at a price.',
+    'They’ve recently absorbed a smaller rival.'
+  ];
+
+  const goalVerbs = ['secure','control','expose','eliminate','recover','expand','undermine','protect','monopolize','reform','weaponize','sabotage'];
+  const goalTargets = [
+    'a trade route',
+    'a rival guild',
+    'a noble patron',
+    'a hidden archive',
+    'a smuggling corridor',
+    'a dangerous relic',
+    'a political seat',
+    'a district’s protection racket',
+    'the city’s supply of a rare reagent',
+    'a network of informants',
+    'a border checkpoint',
+    'a scandal that could topple a house'
+  ];
+  const motives = [
+    'profit above all',
+    'ideology and reform',
+    'revenge for an old betrayal',
+    'survival after a recent crackdown',
+    'faith and devotion',
+    'loyalty to a patron family',
+    'a long con generations in the making',
+    'fear of a coming threat'
+  ];
+
+  const assets = [
+    'safehouses',
+    'warehouse space on the docks',
+    'blackmail files',
+    'hired blades',
+    'trained scribes and couriers',
+    'a fleet of carts and drivers',
+    'a clandestine printing press',
+    'a licensed charter and legal protections',
+    'a well-paid informant inside the guard',
+    'a reliquary of oddities',
+    'a small fortune in hard coin',
+    'a stable of “legitimate” storefronts'
+  ];
 
   const name = `${_mvChoice(starters)} ${_mvChoice(cores)}`.replace('The The','The');
+  const type = _mvChoice(['Guild','Temple','Council','Company','School','Cult','Syndicate','Order']);
+  const location = _mvChoice(places);
+  const domain = _mvChoice(domains);
+
+  // Generated text blocks
+  const description = `${name} is a ${type.toLowerCase()} based in ${location} that deals in ${domain}. It ${_mvChoice(methods)}. ${_mvChoice(hooks)}`;
+  const goals = `Goal: ${_mvChoice(goalVerbs)} ${_mvChoice(goalTargets)}. Motive: ${_mvChoice(motives)}.`;
+  const resources = `Assets: ${_mvChoice(assets)}, ${_mvChoice(assets)}, ${_mvChoice(assets)}.`;
+
   const org = {
     id: _mvId('org'),
     name,
-    type: _mvChoice(['Guild','Temple','Council','Company','School','Cult']) ,
-    location: _mvChoice(places),
-    leader: `${_mvChoice(leaders)} ${_mvChoice(['Alden','Brina','Corvin','Dalia','Esmé','Fenn','Garrick','Hale','Iona','Jarek'])}`.replace('— ','').trim(),
+    type,
+    location,
+    leader: `${_mvChoice(leaders)} ${_mvChoice(['Alden','Brina','Corvin','Dalia','Esmé','Fenn','Garrick','Hale','Iona','Jarek','Kael','Liora','Maren','Nox','Orin','Perrin','Quill'])}`.replace('— ','').trim(),
     color: window._orgCreateColor || '#6366f1',
-    status: _mvChoice(['Active','Dormant','Secretive','Fractured']),
-    influence: _mvChoice(['Local','Regional','Widespread']),
-    description: '',
-    goals: '',
-    resources: '',
+    status: _mvChoice(statusList),
+    influence: _mvChoice(influenceList),
+    description,
+    goals,
+    resources,
     notes: '',
     image: null,
     hidden: false,
     tags: []
   };
+
   organizations.push(org);
   selectedOrgId = org.id;
   renderOrgsGrid(); renderOrgsSidebar(); showOrgDetail(); showNotif('Random organization generated');
