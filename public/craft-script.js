@@ -3461,12 +3461,17 @@ function selectChapter(chapterId) {
 }
 
 function saveCurrentChapter() {
+  // Only persist from the editor when the Write view is active.
+  // Prevents wiping chapter.content during board/map views or immediately after refresh.
+  if (typeof currentView !== 'undefined' && currentView !== 'write') return;
+  const editorEl = document.getElementById('writeEditor');
+  if (!editorEl) return;
   const chapter = chapters.find((c) => c.id === currentChapterId);
   // Prevent non-hidden viewers from writing into content that is (now) hidden via sync
   if (chapter && !craftCanSeeHidden() && isChapterEffectivelyHidden(chapter)) return;
   if (chapter) {
-    chapter.content = document.getElementById('writeEditor').innerHTML;
-    const text = document.getElementById('writeEditor').textContent;
+    chapter.content = editorEl.innerHTML;
+    const text = editorEl.textContent;
     chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
     // Persist indent/justify toggles
     chapter.indentMode = writeIndentMode;
@@ -8063,7 +8068,7 @@ function execFormatCommand(command) {
 }
 
 function updateWordCount() {
-  const text = document.getElementById('writeEditor').textContent;
+  const text = editorEl.textContent;
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   document.getElementById('wordCount').textContent = `${words.toLocaleString()} words`;
 
@@ -15365,8 +15370,8 @@ function initSoundboard(){
 // ============================================
 
 window.craftGetState = function() {
-  // Save current chapter content + indent/justify state before serializing
-  if (typeof saveCurrentChapter === 'function') saveCurrentChapter();
+  // Save current chapter content only when the Write view is active (prevents wiping content on load/refresh)
+  if (typeof saveCurrentChapter === 'function' && (typeof currentView !== 'undefined' && currentView === 'write')) saveCurrentChapter();
   return {
     boards: JSON.parse(JSON.stringify(boards)),
     currentBoardId: currentBoardId,
