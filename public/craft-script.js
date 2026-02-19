@@ -973,6 +973,7 @@ function switchView(view) {
   // write
   writeView?.classList.remove('hidden');
   chaptersSection?.classList.remove('hidden');
+  get('chapterDetails')?.classList.remove('hidden');
 
   requestAnimationFrame(() => {
     const chapter = chapters.find((c) => c.id === currentChapterId);
@@ -3424,6 +3425,7 @@ function selectChapter(chapterId) {
   }
   currentChapterId = chapterId;
   renderChaptersList();
+  document.getElementById('chapterDetails')?.classList.remove('hidden');
 
   const chapter = chapters.find((c) => c.id === chapterId);
   if (chapter) {
@@ -15434,13 +15436,35 @@ window.craftSetState = function(state, skipRender) {
   if (state.currentChapterId) currentChapterId = state.currentChapterId;
 
   // Redirect viewers off hidden chapters/folders as soon as hidden state syncs in
+  var _redirectedOffHidden = false;
   if (!craftCanSeeHidden()) {
     const cur = chapters.find(c => c.id === currentChapterId) || chapters.find(c => c.id === _prevChapterId);
     if (cur && isChapterEffectivelyHidden(cur)) {
       const nextId = getNextVisibleChapterId(cur.id);
-      if (nextId) currentChapterId = nextId;
+      if (nextId) {
+        currentChapterId = nextId;
+        _redirectedOffHidden = true;
+      } else {
+        // No visible chapter available; force-clear what the viewer was seeing
+        _redirectedOffHidden = true;
+      }
     }
   }
+
+  // If we just redirected (or the current chapter became hidden), immediately clear the write surface
+  // so guests/users don't keep seeing stale hidden content.
+  if (_redirectedOffHidden && !craftCanSeeHidden()) {
+    const ed = document.getElementById('writeEditor');
+    const t = document.getElementById('writeChapterTitle');
+    const l = document.getElementById('writeChapterLabel');
+    if (ed) ed.innerHTML = '';
+    if (t) t.value = '';
+    if (l) l.value = '';
+    document.getElementById('chapterDetailName') && (document.getElementById('chapterDetailName').textContent = '-');
+    document.getElementById('chapterTagsDisplay') && (document.getElementById('chapterTagsDisplay').innerHTML = '');
+    document.getElementById('chapterAssociationsList') && (document.getElementById('chapterAssociationsList').innerHTML = '');
+  }
+
   if (state.associations) associations = state.associations;
   if (state.destinationMarkers) destinationMarkers = state.destinationMarkers;
   if (state.diceHistory) diceHistory = state.diceHistory;
@@ -15497,7 +15521,12 @@ window.craftSetState = function(state, skipRender) {
     }
   } catch(e) { console.warn('Sound sync (non-fatal):', e); }
   
-  if (!skipRender) {
+    // If a viewer was redirected off a hidden chapter, immediately load the next visible chapter
+  // into the write UI (prevents the old hidden content from lingering on screen).
+  if (_redirectedOffHidden && currentView === 'write') {
+    try { selectChapter(currentChapterId); } catch (e) {}
+  }
+if (!skipRender) {
     try {
       // Users without hidden access: auto-switch away from hidden containers
       if (!window.craftCanViewHidden) {
