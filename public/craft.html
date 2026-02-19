@@ -1836,7 +1836,7 @@
 
           <!-- Faction Sidebar Sections -->
           <div class="sidebar-section factions-list-section hidden" id="factionsListSection">
-            <div class="section-header"><span>Factions</span></div>
+            <div class="section-header"><span>Factions</span><button class="icon-btn sm" id="randomFactionBtn" title="Generate a random faction">🎲</button></div>
             <div id="factionsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No factions yet</div>
             </div>
@@ -1845,7 +1845,7 @@
             </div>
           </div>
           <div class="sidebar-section contacts-list-section hidden" id="contactsListSection">
-            <div class="section-header"><span>Contacts</span></div>
+            <div class="section-header"><span>Contacts</span><button class="icon-btn sm" id="randomContactBtn" title="Generate a random contact">🎲</button></div>
             <div id="contactsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No contacts yet</div>
             </div>
@@ -1854,7 +1854,7 @@
             </div>
           </div>
           <div class="sidebar-section orgs-list-section hidden" id="orgsListSection">
-            <div class="section-header"><span>Organizations</span></div>
+            <div class="section-header"><span>Organizations</span><button class="icon-btn sm" id="randomOrgBtn" title="Generate a random organization">🎲</button></div>
             <div id="orgsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No organizations yet</div>
             </div>
@@ -2935,7 +2935,11 @@
               <input type="text" class="popup-input" id="conCreateName" placeholder="Contact name..." />
               <label class="popup-label">Role <span style="font-weight:400;opacity:0.6">(optional)</span></label>
               <input type="text" class="popup-input" id="conCreateRole" placeholder="Role or title..." />
-              <label class="popup-label">Faction <span style="font-weight:400;opacity:0.6">(optional)</span></label>
+                            <label class="popup-label">Species <span style="font-weight:400;opacity:0.6">(optional)</span></label>
+              <input type="text" class="popup-input" id="conCreateSpecies" placeholder="" />
+              <label class="popup-label">Connected to <span style="font-weight:400;opacity:0.6">(optional)</span></label>
+              <input type="text" class="popup-input" id="conCreateConnectedTo" placeholder="" />
+<label class="popup-label">Faction <span style="font-weight:400;opacity:0.6">(optional)</span></label>
               <select class="popup-input" id="conCreateFaction"><option value="">— Independent —</option></select>
               <label class="popup-label">Disposition</label>
               <select class="popup-input" id="conCreateDisp">
@@ -4213,6 +4217,15 @@
                 <label class="detail-label">Type</label>
                 <input type="text" class="detail-input" id="conDetailType" placeholder="e.g. Informant, Patron, Spy..." />
               </div>
+              <div class="detail-section">
+                <label class="detail-label">Species</label>
+                <input type="text" class="detail-input" id="conDetailSpecies" placeholder="" />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Connected to</label>
+                <input type="text" class="detail-input" id="conDetailConnectedTo" placeholder="" />
+              </div>
+
               <div class="detail-section">
                 <label class="detail-label">Description</label>
                 <textarea class="detail-input" id="conDetailDesc" rows="3" style="resize:vertical;" placeholder="Description..."></textarea>

@@ -11863,6 +11863,97 @@ const REP_LEVELS = [
   {val:3,label:'Allied',color:'#a78bfa'}
 ];
 
+// --- Simple random generators for Connections ---
+function _mvChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function _mvId(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
+
+function createRandomFaction() {
+  const adjectives = ['Crimson','Silver','Gilded','Hollow','Emerald','Obsidian','Ivory','Sable','Vigilant','Wayward','Silent','Radiant','Broken','Stormborn','Umbral'];
+  const nouns = ['Lanterns','Covenant','Synod','Circle','Company','Order','Cartel','Consortium','Brotherhood','Sisters','Wardens','Knives','Crows','Wolves','Masques'];
+  const domains = ['Dockside','Old Quarter','Market Ward','The Heights','Lower City','Harbor','Outer Ring','Canal District','Ashfields','The Spires'];
+  const statuses = ['Active','Dormant','Fragmented','Rising','Fading'];
+  const tiers = ['', 'Tier 0 (Weak)', 'Tier I', 'Tier II', 'Tier III', 'Tier IV'];
+  const name = `The ${_mvChoice(adjectives)} ${_mvChoice(nouns)}`;
+  const desc = `${_mvChoice(['Known for','Whispered to be','Feared for','Celebrated for','Infamous for'])} ${_mvChoice(['quiet deals','bold raids','iron discipline','beautiful lies','unbreakable oaths'])} in ${_mvChoice(domains)}.`;
+  const color = FAC_COLORS[factions.length % FAC_COLORS.length];
+
+  factions.push({
+    id: _mvId('fac'),
+    name,
+    color,
+    reputation: 0,
+    tier: _mvChoice(tiers),
+    status: _mvChoice(statuses),
+    description: desc,
+    notes: '',
+    claims: [],
+    tags: [],
+    image: null
+  });
+  selectedFactionId = factions[factions.length-1].id;
+  renderFactionGrid(); renderFactionsSidebar(); showFacDetail(); showNotif('Random faction generated');
+}
+
+function createRandomContact() {
+  const first = ['Ari','Cass','Dain','Elowen','Jory','Kael','Lysa','Mara','Nico','Orin','Perrin','Rhea','Sera','Talon','Vera','Wren'];
+  const last = ['Ashford','Briar','Crowe','Dusk','Evers','Fallow','Graves','Harrow','Ire','Kestrel','Locke','Mourn','Pike','Rowan','Sable','Thorne'];
+  const roles = ['Fixer','Informant','Smuggler','Archivist','Fence','Bodyguard','Apothecary','Cartographer','Scribe','Broker','Scout','Counsel'];
+  const types = ['contact','patron','rival','ally','informant'];
+  const disp = ['Allied','Friendly','Neutral','Suspicious','Hostile'];
+
+  const name = `${_mvChoice(first)} ${_mvChoice(last)}`;
+  const role = _mvChoice(roles);
+  const factionId = factions.length ? _mvChoice(factions).id : '';
+
+  contacts.push({
+    id: _mvId('con'),
+    name,
+    factionId,
+    role,
+    disposition: _mvChoice(disp),
+    type: _mvChoice(types),
+    species: '',        // leave blank (requested)
+    connectedTo: '',    // leave blank by default (requested field)
+    description: '',
+    notes: '',
+    tags: [],
+    image: null
+  });
+
+  selectedContactId = contacts[contacts.length-1].id;
+  renderFactionGrid(); renderContactsSidebar(); renderContactsGrid(); renderFactionsSidebar(); showFacDetail(); showNotif('Random contact generated');
+}
+
+function createRandomOrganization() {
+  const starters = ['Saint','Iron','Sun','Moon','Azure','Black','Golden','Temple of','Hall of','The'];
+  const cores = ['Archive','Guild','Society','Circle','Institute','House','Cabal','Orchard','Watch','Exchange','Conclave','Forge'];
+  const places = ['Seagard','Oldtown','Rookery','Cinder Wharf','Glass District','Northgate','Southbank','Sable Row'];
+  const leaders = ['—','High Warden','Provost','Mistress','Captain','Curator','Magister','Speaker','Prior'];
+
+  const name = `${_mvChoice(starters)} ${_mvChoice(cores)}`.replace('The The','The');
+  const org = {
+    id: _mvId('org'),
+    name,
+    type: _mvChoice(['Guild','Temple','Council','Company','School','Cult']) ,
+    location: _mvChoice(places),
+    leader: `${_mvChoice(leaders)} ${_mvChoice(['Alden','Brina','Corvin','Dalia','Esmé','Fenn','Garrick','Hale','Iona','Jarek'])}`.replace('— ','').trim(),
+    color: window._orgCreateColor || '#6366f1',
+    status: _mvChoice(['Active','Dormant','Secretive','Fractured']),
+    influence: _mvChoice(['Local','Regional','Widespread']),
+    description: '',
+    goals: '',
+    resources: '',
+    notes: '',
+    image: null,
+    hidden: false,
+    tags: []
+  };
+  organizations.push(org);
+  selectedOrgId = org.id;
+  renderOrgsGrid(); renderOrgsSidebar(); showOrgDetail(); showNotif('Random organization generated');
+}
+
+
 // ---- Standalone Tag Functions (wired via addEventListener) ----
 function addFacTagFromInput() {
   const input = document.getElementById('facDetailTagsInput');
@@ -12025,6 +12116,8 @@ function confirmFactionCreate() {
 function openContactCreateModal() {
   document.getElementById('conCreateName').value = '';
   document.getElementById('conCreateRole').value = '';
+  document.getElementById('conCreateSpecies').value = '';
+  document.getElementById('conCreateConnectedTo').value = '';
   document.getElementById('conCreateDisp').value = 'Neutral';
   document.getElementById('conCreateType').value = 'contact';
   document.getElementById('conCreateNotes').value = '';
@@ -12043,6 +12136,8 @@ function confirmContactCreate() {
     role: document.getElementById('conCreateRole').value.trim(),
     disposition: document.getElementById('conCreateDisp').value,
     type: document.getElementById('conCreateType').value,
+    species: document.getElementById('conCreateSpecies').value.trim(),
+    connectedTo: document.getElementById('conCreateConnectedTo').value.trim(),
     description: '', notes: document.getElementById('conCreateNotes').value.trim(),
     tags: [], image: null
   });
@@ -12286,7 +12381,24 @@ function showContactDetail() {
   typeSel.value = c.type || '';
   typeSel.oninput = function() { c.type = this.value; renderContactsGrid(); renderContactsSidebar(); renderFactionGrid(); };
 
-  // Description
+  
+  // Species
+  const speciesInp = get('conDetailSpecies');
+  if (speciesInp) {
+    speciesInp.value = c.species || '';
+    speciesInp.oninput = function() { c.species = this.value; };
+    speciesInp.onblur = function() { c.species = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
+  }
+
+  // Connected to
+  const conToInp = get('conDetailConnectedTo');
+  if (conToInp) {
+    conToInp.value = c.connectedTo || '';
+    conToInp.oninput = function() { c.connectedTo = this.value; };
+    conToInp.onblur = function() { c.connectedTo = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
+  }
+
+// Description
   get('conDetailDesc').value = c.description || '';
   get('conDetailDesc').onblur = function() { c.description = this.value; renderContactsGrid(); };
 
@@ -13444,6 +13556,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addFactionBtn')?.addEventListener('click', openFactionCreateModal);
   document.getElementById('addContactBtn')?.addEventListener('click', openContactCreateModal);
   document.getElementById('addOrgBtn')?.addEventListener('click', openOrgCreateModal);
+
+  // Connections randomizers (left sidebar)
+  document.getElementById('randomFactionBtn')?.addEventListener('click', () => createRandomFaction());
+  document.getElementById('randomContactBtn')?.addEventListener('click', () => createRandomContact());
+  document.getElementById('randomOrgBtn')?.addEventListener('click', () => createRandomOrganization());
   document.getElementById('facDetailAddClaim')?.addEventListener('click', () => { if (selectedFactionId) openClaimAdd(selectedFactionId); });
   document.getElementById('facDetailDelete')?.addEventListener('click', () => { if (selectedFactionId) deleteFaction(selectedFactionId); });
   document.getElementById('conDetailDelete')?.addEventListener('click', () => { if (selectedContactId) deleteContact(selectedContactId); });
