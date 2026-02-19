@@ -11895,15 +11895,78 @@ function createRandomFaction() {
 }
 
 function createRandomContact() {
-  const first = ['Ari','Cass','Dain','Elowen','Jory','Kael','Lysa','Mara','Nico','Orin','Perrin','Rhea','Sera','Talon','Vera','Wren'];
-  const last = ['Ashford','Briar','Crowe','Dusk','Evers','Fallow','Graves','Harrow','Ire','Kestrel','Locke','Mourn','Pike','Rowan','Sable','Thorne'];
-  const roles = ['Fixer','Informant','Smuggler','Archivist','Fence','Bodyguard','Apothecary','Cartographer','Scribe','Broker','Scout','Counsel'];
+  // Species list spans common fantasy + sci-fi TTRPG lineages
+  const speciesList = [
+    'Human','Elf','Dwarf','Halfling','Gnome','Half-Elf','Half-Orc','Orc','Tiefling','Aasimar','Dragonborn','Genasi',
+    'Goblin','Kobold','Hobgoblin','Bugbear','Kenku','Tabaxi','Lizardfolk','Triton','Firbolg','Goliath','Tortle','Yuan-ti',
+    'Changeling','Shifter','Warforged','Autognome','Plasmoid','Githyanki','Githzerai',
+    'Kitsune','Tengu','Leshy','Ratfolk','Catfolk',
+    'Android','Ysoki'
+  ];
+
+  // Name pools keyed by species (falls back to generic)
+  const namePools = {
+    Human: { first:['Ari','Cass','Dain','Elowen','Jory','Kael','Lysa','Mara','Nico','Orin','Perrin','Rhea','Sera','Talon','Vera','Wren','Bram','Iris','Hale','Mina'], last:['Ashford','Briar','Crowe','Dusk','Evers','Fallow','Graves','Harrow','Ire','Kestrel','Locke','Mourn','Pike','Rowan','Sable','Thorne','Vale','West','Fen','Marsh'] },
+    Elf: { first:['Aelar','Sylra','Thia','Vaelis','Lethar','Eryndor','Nyss','Ilyana','Faelar','Serelis','Caelynn','Ryn','Elandra','Lirael'], last:['Moonwhisper','Dawnfall','Silversong','Nightbloom','Starbough','Windriver','Gloamleaf','Sunweave'] },
+    Dwarf: { first:['Borin','Helja','Dagna','Rurik','Thora','Kelda','Bramm','Gunn','Orsik','Sigrid'], last:['Ironbeard','Stonehelm','Forgehand','Coppervein','Grimhammer','Deepdelver','Oakenshield'] },
+    Halfling: { first:['Pip','Merri','Ros','Tansy','Bramble','Lark','Clover','Wynn','Nim'], last:['Goodbarrel','Tealeaf','Hilltopple','Greenbottle','Underbough'] },
+    Gnome: { first:['Fizz','Nim','Tink','Quill','Bix','Poppy','Wizzle','Runa'], last:['Gearwhistle','Copperkettle','Brightspark','Wandwright','Fizzlebang'] },
+    Tiefling: { first:['Zara','Malik','Riven','Vex','Seraphine','Kaine','Nyx','Vesper','Ashe','Lilith'], last:['Ember','Ashen','Blackthorn','Nocturne','Sable','Grim'] },
+    Dragonborn: { first:['Arjhan','Kava','Rhogar','Sora','Balasar','Medrash','Akra','Torinn'], last:['Flamegaze','Stormscale','Ironfang','Emberclaw','Ashscale'] },
+    Goblin: { first:['Snip','Rikka','Skeg','Taz','Nib','Grin','Mox','Pog'], last:['Quicktooth','Rustwhisper','Sootfoot','Grimwink'] },
+    Kobold: { first:['Skit','Zik','Trik','Nix','Vik','Kizz','Razz'], last:['Scale','Sparks','Tunnel','Pebble'] },
+    Tabaxi: { first:['Soft-Step','Midnight','Saffron','Whisper','Cinder','River','Bright-Eye'], last:['of the Reed','of Nine Bells','of Ashen Roofs','of the Long Road'] },
+    Warforged: { first:['Unit','Cobalt','Axiom','Mercury','Vigil','Atlas','Kestrel'], last:['-17','-3','Prime','Mk II','Series 9'] },
+    Kitsune: { first:['Akari','Hana','Kyo','Ren','Suzu','Yori','Mika'], last:['Nozomi','Kitsuragi','Inari','Kagemori'] },
+    Tengu: { first:['Kuro','Sabi','Tori','Kaze','Rook','Caw'], last:['Feather','Blackwing','Stormbeak','Inkplume'] },
+    Android: { first:['K-','A-','V-','N-','S-'], last:['042','119','7X','313','808'] },
+  };
+
+  const roles = ['Fixer','Informant','Smuggler','Archivist','Fence','Bodyguard','Apothecary','Cartographer','Scribe','Broker','Scout','Counsel','Merchant','Bounty Hunter','Dock Boss','Gang Liaison'];
   const types = ['contact','patron','rival','ally','informant'];
   const disp = ['Allied','Friendly','Neutral','Suspicious','Hostile'];
+  const occupations = ['Merchant','Guide','Dockworker','Mercenary','Healer','Scholar','Fence','Courier','Innkeeper','Sailor','Guard','Priest','Mechanic','Artist','Gambler','Constable'];
+  const quirks = [
+    'never stops humming under their breath','keeps meticulous ledgers for everything','won’t sit with their back to a door','collects buttons like trophies',
+    'talks to animals like they reply','always smells faintly of smoke and citrus','laughs at the worst possible moments','writes tiny poems on receipts'
+  ];
+  const goals = [
+    'pay off an old debt','protect their family’s name','find a missing sibling','earn a pardon','take over a rival gang’s turf','open a legitimate business',
+    'recover a stolen heirloom','map a safer route through the district','prove a conspiracy is real'
+  ];
+  const hobbies = ['street cooking','dice games','bird-keeping','lockpicking puzzles','gardening','sparring','scrimshaw','tinkering','storytelling','fishing'];
+  const appearanceBits = [
+    'scar over one brow','ink-stained fingers','a weathered coat with too many pockets','a bright sash that never matches','gold tooth and a sharp grin',
+    'carefully braided hair','a cane they don’t really need','well-worn boots with hidden knife-sheaths'
+  ];
+  const backgroundBits = [
+    'Used to run with a small gang before going independent.',
+    'Former adventurer who got tired of bleeding for other people’s glory.',
+    'A merchant’s child who learned secrets in every marketplace.',
+    'Raised by extended family; the home is crowded, loud, and fiercely loyal.',
+    'Once worked for a noble household and knows how the powerful lie.',
+    'Survived a disaster that taught them to never waste a second chance.'
+  ];
 
-  const name = `${_mvChoice(first)} ${_mvChoice(last)}`;
+  const species = _mvChoice(speciesList);
+  const pool = namePools[species] || namePools.Human;
+  const first = _mvChoice(pool.first);
+  const last = _mvChoice(pool.last);
+  const name = `${first} ${last}`.replace('  ',' ').trim();
+
   const role = _mvChoice(roles);
   const factionId = factions.length ? _mvChoice(factions).id : '';
+
+  const age = String(Math.floor(18 + Math.random()*53)); // 18–70
+  const occupation = _mvChoice(occupations);
+  const pq = _mvChoice(quirks);
+  const goal = _mvChoice(goals);
+  const hobby = _mvChoice(hobbies);
+  const appearance = _mvChoice(appearanceBits);
+  const bg = _mvChoice(backgroundBits);
+
+  // Short description: high-signal “at a glance” + a hook
+  const desc = `${occupation}. Often found ${_mvChoice(['between jobs','at the docks','in a crowded market','near a back-alley tavern','on the road','in a quiet archive'])}. ${bg} Known for ${pq}.`;
 
   contacts.push({
     id: _mvId('con'),
@@ -11912,9 +11975,16 @@ function createRandomContact() {
     role,
     disposition: _mvChoice(disp),
     type: _mvChoice(types),
-    species: '',        // leave blank (requested)
-    connectedTo: '',    // leave blank by default (requested field)
-    description: '',
+    species,
+    connectedTo: '',
+    age,
+    occupation,
+    personalityQuirks: pq,
+    goals: goal,
+    hobbies: hobby,
+    background: bg,
+    appearance: appearance,
+    description: desc,
     notes: '',
     tags: [],
     image: null
@@ -12138,8 +12208,17 @@ function confirmContactCreate() {
     type: document.getElementById('conCreateType').value,
     species: document.getElementById('conCreateSpecies').value.trim(),
     connectedTo: document.getElementById('conCreateConnectedTo').value.trim(),
-    description: '', notes: document.getElementById('conCreateNotes').value.trim(),
-    tags: [], image: null
+    age: '',
+    occupation: '',
+    personalityQuirks: '',
+    goals: '',
+    hobbies: '',
+    background: '',
+    appearance: '',
+    description: '',
+    notes: document.getElementById('conCreateNotes').value.trim(),
+    tags: [],
+    image: null
   });
   closeContactCreateModal();
   renderFactionGrid(); renderContactsSidebar(); renderContactsGrid(); renderFactionsSidebar(); showNotif('Contact added');
@@ -12398,6 +12477,62 @@ function showContactDetail() {
     conToInp.onblur = function() { c.connectedTo = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
   }
 
+  // Age
+  const ageInp = get('conDetailAge');
+  if (ageInp) {
+    ageInp.value = c.age || '';
+    ageInp.oninput = function() { c.age = this.value; };
+    ageInp.onblur = function() { c.age = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
+  }
+
+  // Occupation
+  const occInp = get('conDetailOccupation');
+  if (occInp) {
+    occInp.value = c.occupation || '';
+    occInp.oninput = function() { c.occupation = this.value; };
+    occInp.onblur = function() { c.occupation = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
+  }
+
+  // Personality quirks
+  const quirksInp = get('conDetailQuirks');
+  if (quirksInp) {
+    quirksInp.value = c.personalityQuirks || '';
+    quirksInp.oninput = function() { c.personalityQuirks = this.value; };
+    quirksInp.onblur = function() { c.personalityQuirks = this.value.trim(); renderContactsGrid(); };
+  }
+
+  // Goals
+  const goalsInp = get('conDetailGoals');
+  if (goalsInp) {
+    goalsInp.value = c.goals || '';
+    goalsInp.oninput = function() { c.goals = this.value; };
+    goalsInp.onblur = function() { c.goals = this.value.trim(); renderContactsGrid(); };
+  }
+
+  // Hobbies
+  const hobbiesInp = get('conDetailHobbies');
+  if (hobbiesInp) {
+    hobbiesInp.value = c.hobbies || '';
+    hobbiesInp.oninput = function() { c.hobbies = this.value; };
+    hobbiesInp.onblur = function() { c.hobbies = this.value.trim(); renderContactsGrid(); };
+  }
+
+  // Brief background
+  const bgInp = get('conDetailBackground');
+  if (bgInp) {
+    bgInp.value = c.background || '';
+    bgInp.oninput = function() { c.background = this.value; };
+    bgInp.onblur = function() { c.background = this.value.trim(); renderContactsGrid(); };
+  }
+
+  // Appearance
+  const appInp = get('conDetailAppearance');
+  if (appInp) {
+    appInp.value = c.appearance || '';
+    appInp.oninput = function() { c.appearance = this.value; };
+    appInp.onblur = function() { c.appearance = this.value.trim(); renderContactsGrid(); };
+  }
+
 // Description
   get('conDetailDesc').value = c.description || '';
   get('conDetailDesc').onblur = function() { c.description = this.value; renderContactsGrid(); };
@@ -12520,6 +12655,17 @@ function renderContactsGrid() {
     const typeIcon = c.type === 'cohort' ? '⚔ ' : '';
     const imgHtml = c.image ? `<img src="${c.image}" class="con-card-icon" alt="" />` : '';
     const tagPills = (c.tags||[]).slice(0,4).map(t => `<span class="fac-tag-pill-sm">${t}</span>`).join('');
+    const _esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const metaBits = [];
+    if (c.species) metaBits.push(_esc(c.species));
+    if (c.age) metaBits.push('Age ' + _esc(c.age));
+    if (c.occupation) metaBits.push(_esc(c.occupation));
+    const metaLine = metaBits.length ? `<div class="fac-contact-card-extra">${metaBits.map(b=>`<span class="fac-contact-card-extra-bit">${b}</span>`).join('<span class="fac-contact-card-extra-dot">·</span>')}</div>` : '';
+    const quirkLine = c.personalityQuirks ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Quirk</span> ${_esc(c.personalityQuirks)}</div>` : '';
+    const goalLine = c.goals ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Goal</span> ${_esc(c.goals)}</div>` : '';
+    const hobbyLine = c.hobbies ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Hobby</span> ${_esc(c.hobbies)}</div>` : '';
+    const bgLine = c.background ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">BG</span> ${_esc(c.background)}</div>` : '';
+    const appLine = c.appearance ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Look</span> ${_esc(c.appearance)}</div>` : '';
 
     // Description with read more (preserve newlines)
     let descHtml = '';
@@ -12543,6 +12689,7 @@ function renderContactsGrid() {
         </div>
         <span class="fac-contact-disp ${c.disposition?.toLowerCase()||'neutral'}">${c.disposition || 'Neutral'}</span>
       </div>
+      ${metaLine}${goalLine}${quirkLine}${hobbyLine}${bgLine}${appLine}
       ${c.type && c.type !== 'contact' ? `<div class="fac-contact-card-type">${c.type}</div>` : ''}
       ${descHtml}
       ${tagPills ? `<div class="fac-card-pills" style="margin-top:4px;">${tagPills}</div>` : ''}

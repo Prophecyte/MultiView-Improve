@@ -6884,6 +6884,33 @@ select optgroup {
 .fac-contact-card-role { font-size: 11px; color: var(--text-secondary); }
 .fac-contact-card-faction { font-size: 11px; }
 
+
+.fac-contact-card-extra {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 6px 0;
+}
+.fac-contact-card-extra-bit { opacity: 0.95; }
+.fac-contact-card-extra-dot { opacity: 0.35; }
+.fac-contact-card-extra2 {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.25;
+  margin: 0 0 4px 0;
+  max-height: 2.5em;
+  overflow: hidden;
+}
+.fac-contact-card-extra-label {
+  font-weight: 700;
+  color: var(--text-primary);
+  opacity: 0.75;
+  margin-right: 6px;
+}
+
 /* Faction color picker in create modal */
 
 /* Randomizer Card */
