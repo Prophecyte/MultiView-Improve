@@ -1444,25 +1444,6 @@ body {
   border-radius: var(--radius-sm);
 }
 
-
-.folder-header.dragging {
-  opacity: 0.6;
-}
-.unfiled-dropzone {
-  margin: 6px 0 8px;
-  padding: 6px 8px;
-  border: 1px dashed rgba(212, 168, 36, 0.25);
-  border-radius: var(--radius-sm);
-  font-size: 10px;
-  color: var(--text-muted);
-  text-align: center;
-  background: rgba(212, 168, 36, 0.03);
-}
-.unfiled-dropzone.drag-over {
-  background: rgba(212, 168, 36, 0.10);
-  border-color: rgba(212, 168, 36, 0.45);
-  color: var(--gold);
-}
 /* Pins List */
 .pins-list {
   display: flex;
