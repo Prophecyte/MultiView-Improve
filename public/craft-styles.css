@@ -6884,33 +6884,6 @@ select optgroup {
 .fac-contact-card-role { font-size: 11px; color: var(--text-secondary); }
 .fac-contact-card-faction { font-size: 11px; }
 
-
-.fac-contact-card-extra {
-  font-size: 11px;
-  color: var(--text-secondary);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 2px 0 6px 0;
-}
-.fac-contact-card-extra-bit { opacity: 0.95; }
-.fac-contact-card-extra-dot { opacity: 0.35; }
-.fac-contact-card-extra2 {
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.25;
-  margin: 0 0 4px 0;
-  max-height: 2.5em;
-  overflow: hidden;
-}
-.fac-contact-card-extra-label {
-  font-weight: 700;
-  color: var(--text-primary);
-  opacity: 0.75;
-  margin-right: 6px;
-}
-
 /* Faction color picker in create modal */
 
 /* Randomizer Card */
@@ -9395,72 +9368,3 @@ body.mm-dragging .mindmap-canvas {
 [title] { -webkit-font-smoothing: auto; }
 [title]:hover::after { display: none !important; }
 /* Override browser tooltip by clearing title on hover via JS below */
-
-
-/* DM Screen hidden indicator */
-.mv-nav-item.is-hidden .mv-nav-label {
-  opacity: 0.75;
-}
-.mv-hidden-badge {
-  margin-left: auto;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.25);
-  opacity: 0.9;
-}
-/* MV (GM Screen) writing folder tree */
-.mv-folder {
-  margin: 4px 0;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.mv-folder-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 11px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05);
-}
-
-.mv-folder-header:hover {
-  background: rgba(255,255,255,0.04);
-  color: var(--text-primary);
-}
-
-.mv-folder-toggle {
-  width: 14px;
-  text-align: center;
-  opacity: 0.8;
-  flex-shrink: 0;
-}
-
-.mv-folder-name {
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-.mv-folder-children {
-  padding: 4px 0 2px 0;
-}
-
-.mv-folder-children .mv-nav-item {
-  padding-left: 28px;
-  border-left-color: transparent;
-}
-
-.mv-folder.is-hidden .mv-folder-header {
-  opacity: 0.85;
-}
-
-.mv-unfiled .mv-folder-header {
-  background: rgba(212,168,36,0.05);
-  border-color: rgba(212,168,36,0.15);
-}
-

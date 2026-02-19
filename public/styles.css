@@ -2700,6 +2700,13 @@ body {
   z-index: 100;
 }
 
+
+.home-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .home-content {
   max-width: 1200px;
   margin: 0 auto;

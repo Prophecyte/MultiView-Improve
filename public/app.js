@@ -3615,7 +3615,10 @@ function HomePage(props) {
     React.createElement(DragonFire, null),
     React.createElement('header', { className: 'home-header' },
       React.createElement('div', { className: 'logo-small' }, React.createElement('span', { className: 'dragon-icon' }, '🐉'), React.createElement('span', null, 'Multiview')),
-      React.createElement(UserMenu, { user: user, onSettings: function() { setSettingsOpen(true); }, onLogout: props.onLogout })
+      React.createElement('div', { className: 'home-header-right' },
+        React.createElement('a', { className: 'btn', href: '/desktop.html', target: '_blank', rel: 'noopener noreferrer', title: 'Download the Multiview desktop app' }, React.createElement(Icon, { name: 'download', size: 'sm' }), ' Desktop App'),
+        React.createElement(UserMenu, { user: user, onSettings: function() { setSettingsOpen(true); }, onLogout: props.onLogout })
+      )
     ),
     React.createElement('main', { className: 'home-content' },
       React.createElement('div', { className: 'home-welcome' },

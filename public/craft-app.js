@@ -90,7 +90,6 @@
   var syncTimer = null, heartbeatTimer = null, pushTimer = null, memberTimer = null;
   var isPushing = false, isPulling = false;
   var syncStatus = 'connecting', stateDirty = false;
-  var lastSyncError = '';
   var kickHandled = false;
 
   function quickHash(str) { var h = 0; for (var i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; } return h.toString(36); }
@@ -180,7 +179,6 @@
     // Pull-before-push: check if server has newer data to avoid overwriting
     isPushing = true; stateDirty = false;
     setSyncStatus('syncing');
-    lastSyncError = '';
     apiRequest('/craftrooms/' + roomId + '/version')
       .then(function(vd) {
         if (vd.version > localVersion) {
@@ -198,34 +196,22 @@
         delete state.viewSettings;
         var payload = { state: state };
         if (!getToken()) payload.guestId = getGuestId();
-        // IMPORTANT: only advance lastPushedHash after a successful push.
-        // If we set it before the PUT and the request fails (permissions/network),
-        // the client will think it's synced and never retry, causing data loss on refresh.
-        var pendingHash = getStateHash();
+        lastPushedHash = getStateHash();
         return apiRequest('/craftrooms/' + roomId + '/sync', { method: 'PUT', body: JSON.stringify(payload) })
           .then(function(d) {
             localVersion = d.version || localVersion;
-            lastPushedHash = pendingHash;
             setSyncStatus('synced');
           });
       })
       .catch(function(e) {
         if (e.message !== 'kicked') {
-          lastSyncError = e.message || 'Unknown error';
-          console.warn('Push failed:', lastSyncError);
+          console.warn('Push failed:', e.message);
           setSyncStatus('error');
-          // Keep dirty so we retry on next schedule/poll instead of silently dropping changes
-          stateDirty = true;
           if (e.message.indexOf('View only') >= 0) myRole = 'viewer';
         }
       })
       .finally(function() { isPushing = false; });
   }
-
-  // Allow other scripts to force an immediate push (used by write editor autosave)
-  window.craftForcePush = function() {
-    try { pushState(); } catch (e) {}
-  };
 
   function schedulePush() {
     stateDirty = true;
@@ -261,20 +247,6 @@
   function updateMyRole() {
     var myId = currentUser ? (currentUser.id || currentUser.guestId) : null;
     if (!myId) return;
-
-    // IMPORTANT: Treat craft_rooms.owner_id as the source of truth for ownership.
-    // The members list can sometimes be stale/missing owner flags, which would
-    // incorrectly downgrade the owner to "viewer" and prevent state from saving.
-    if (currentUser && currentUser.id && roomInfo && roomInfo.owner_id && roomInfo.owner_id === currentUser.id) {
-      myRole = 'owner';
-      isOwner = true;
-      window.craftIsOwner = true;
-      window.craftCanViewHidden = true;
-      document.body.classList.toggle('craft-not-owner', false);
-      document.body.classList.toggle('craft-no-hidden-access', false);
-      return;
-    }
-
     for (var i = 0; i < members.length; i++) {
       var mid = members[i].user_id || members[i].guest_id;
       if (mid === myId) {
@@ -305,9 +277,7 @@
     var el = document.getElementById('craftSyncPill');
     if (!el) return;
     el.className = 'sync-pill ' + s;
-    el.textContent = s === 'synced' ? 'Synced' : s === 'syncing' ? 'Syncing...' : 'Sync failed';
-    // Put the last error in a tooltip so you can see the real reason even if console filters are on.
-    el.title = (s === 'error' && lastSyncError) ? ('Sync error: ' + lastSyncError) : '';
+    el.textContent = s === 'synced' ? 'Synced' : s === 'syncing' ? 'Syncing...' : 'Offline';
   }
 
   function setRoomTitle(name) {

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multiview Desktop App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#d4a824" />
+</head>
+<body>
+  <div class="home-page">
+    <div class="dragon-fire"></div>
+    <header class="home-header">
+      <a class="logo-small" href="/"><span class="dragon-icon">🐉</span><span>Multiview</span></a>
+      <div class="home-header-right">
+        <a class="btn primary" href="/" title="Back to rooms">Back to app</a>
+      </div>
+    </header>
+
+    <main class="home-content" style="max-width: 860px;">
+      <div class="panel" style="padding: 24px;">
+        <h2 style="margin-top:0;">Desktop App</h2>
+        <p style="margin: 10px 0 16px; line-height:1.6;">
+          We’re building a desktop version of Multiview (Electron) so you can keep the same rooms, syncing, and Craft tools —
+          with a more “app-like” experience.
+        </p>
+
+        <div class="card-grid" style="grid-template-columns: 1fr; gap: 12px;">
+          <div class="card" style="padding: 16px;">
+            <h3 style="margin:0 0 8px;">Downloads</h3>
+            <p style="margin:0; opacity:.9;">
+              Coming soon. When builds are available, you’ll see Windows / macOS / Linux download links here.
+            </p>
+          </div>
+
+          <div class="card" style="padding: 16px;">
+            <h3 style="margin:0 0 8px;">What it includes</h3>
+            <ul style="margin:0; padding-left: 18px; line-height:1.7;">
+              <li>Same login & rooms as the web app</li>
+              <li>Watch rooms + Craft rooms (boards, writing, maps, timelines)</li>
+              <li>Optional desktop-only upgrades later: offline cache, file import/export, auto-updates</li>
+            </ul>
+          </div>
+        </div>
+
+        <p style="margin: 16px 0 0; opacity:.85;">
+          Tip: you can keep using the web app normally — the desktop app will connect to the same backend.
+        </p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

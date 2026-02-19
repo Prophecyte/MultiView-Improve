@@ -34,46 +34,6 @@ let chapters = [
 let currentChapterId = 'chapter-1';
 let chapterFolders = []; // { id, name, collapsed, hidden }
 
-// Hidden-permission helpers
-function craftCanSeeHidden() { return !!window.craftCanViewHidden; }
-function getChapterFolder(folderId) {
-  if (!folderId) return null;
-  return (typeof chapterFolders !== "undefined" && Array.isArray(chapterFolders)) ? chapterFolders.find(f => f.id === folderId) : null;
-}
-function isChapterEffectivelyHidden(ch) {
-  if (!ch) return false;
-  if (ch.hidden) return true;
-  const f = getChapterFolder(ch.folderId);
-  return !!(f && f.hidden);
-}
-function isFolderEffectivelyHidden(folder) {
-  return !!(folder && folder.hidden);
-}
-
-
-
-// Visible navigation helpers (used when hidden content is toggled while other viewers are on it)
-function getVisibleChaptersList() {
-  return chapters.filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c));
-}
-function getNextVisibleChapterId(fromId) {
-  const visible = getVisibleChaptersList();
-  if (!visible.length) return null;
-  const idx = visible.findIndex(c => c.id === fromId);
-  if (idx === -1) return visible[0].id;
-  if (idx + 1 < visible.length) return visible[idx + 1].id;
-  if (idx - 1 >= 0) return visible[idx - 1].id;
-  return visible[0].id;
-}
-function getNextVisibleByArray(arr, fromId, isHiddenFn) {
-  const visible = arr.filter(x => craftCanSeeHidden() || !isHiddenFn(x));
-  if (!visible.length) return null;
-  const idx = visible.findIndex(x => x.id === fromId);
-  if (idx === -1) return visible[0].id;
-  if (idx + 1 < visible.length) return visible[idx + 1].id;
-  if (idx - 1 >= 0) return visible[idx - 1].id;
-  return visible[0].id;
-}
 // Bidirectional associations: { sourceType, sourceId, targetType, targetId }
 let associations = [];
 
@@ -423,16 +383,6 @@ function initEventListeners() {
   const writeEditor = document.getElementById('writeEditor');
   writeEditor.addEventListener('input', updateWordCount);
   writeEditor.addEventListener('input', processWikiLinksInEditor);
-  // Persist writing to the room state (server sync), not local/desktop only
-  writeEditor.addEventListener('input', () => {
-    saveCurrentChapter();
-    if (window.craftSchedulePush) window.craftSchedulePush();
-    // In some cases polling/pulling can delay pushes; force an immediate attempt shortly after edits.
-    if (window.craftForcePush) {
-      clearTimeout(window.__craftWriteForcePushT);
-      window.__craftWriteForcePushT = setTimeout(() => { try { window.craftForcePush(); } catch(e) {} }, 1200);
-    }
-  });
 
   // Chapter title/label sync
   document.getElementById('writeChapterTitle').addEventListener('input', (e) => {
@@ -440,7 +390,6 @@ function initEventListeners() {
     if (chapter) {
       chapter.title = e.target.value;
       renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -449,7 +398,6 @@ function initEventListeners() {
     if (chapter) {
       chapter.label = e.target.value;
       renderChaptersList();
-      if (window.craftSchedulePush) window.craftSchedulePush();
     }
   });
 
@@ -973,11 +921,6 @@ function switchView(view) {
   // write
   writeView?.classList.remove('hidden');
   chaptersSection?.classList.remove('hidden');
-  get('chapterDetails')?.classList.remove('hidden');
-  // Write view doesn't use card details empty state
-  get('emptyState')?.classList.add('hidden');
-  get('cardDetails')?.classList.add('hidden');
-  get('pinDetails')?.classList.add('hidden');
 
   requestAnimationFrame(() => {
     const chapter = chapters.find((c) => c.id === currentChapterId);
@@ -1009,10 +952,6 @@ function switchView(view) {
     get('cardDetails')?.classList.add('hidden');
     get('pinDetails')?.classList.add('hidden');
     get('chapterDetails')?.classList.remove('hidden');
-  // Write view doesn't use card details empty state
-  get('emptyState')?.classList.add('hidden');
-  get('cardDetails')?.classList.add('hidden');
-  get('pinDetails')?.classList.add('hidden');
     get('detailsPanel')?.classList.remove('collapsed');
   });
 }
@@ -3273,17 +3212,16 @@ function renderChaptersList() {
       menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
       menu.style.top = Math.min(e.clientY, window.innerHeight - 140) + 'px';
     });
-    if (isChapterEffectivelyHidden(chapter)) item.classList.add('item-hidden');
+    if (chapter.hidden) item.classList.add('item-hidden');
     return item;
   }
 
   // Render folders first, then unfiled chapters
   chapterFolders.forEach(folder => {
-    if (!craftCanSeeHidden() && isFolderEffectivelyHidden(folder)) return;
     const folderEl = document.createElement('div');
-    folderEl.className = 'chapter-folder' + (isFolderEffectivelyHidden(folder) ? ' item-hidden' : '');
+    folderEl.className = 'chapter-folder' + (folder.hidden ? ' item-hidden' : '');
     folderEl.dataset.folderId = folder.id;
-    const folderChapters = chapters.filter(c => c.folderId === folder.id).filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c));
+    const folderChapters = chapters.filter(c => c.folderId === folder.id);
     const wordCount = folderChapters.reduce((s, c) => s + (c.words || 0), 0);
     folderEl.innerHTML = `<div class="folder-header" data-folder-id="${folder.id}">
       <span class="folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
@@ -3343,7 +3281,7 @@ function renderChaptersList() {
   });
 
   // Unfiled chapters
-  chapters.filter(c => !c.folderId).filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c)).forEach(chapter => {
+  chapters.filter(c => !c.folderId).forEach(chapter => {
     const item = createChapterItem(chapter);
     item.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/chapter-id', chapter.id);
@@ -3424,16 +3362,8 @@ function deleteChapter(chapterId) {
 
 function selectChapter(chapterId) {
   saveCurrentChapter();
-  const target = chapters.find((c) => c.id === chapterId);
-  // If user cannot view hidden content, never select a hidden chapter (including hidden folders)
-  if (target && !craftCanSeeHidden() && isChapterEffectivelyHidden(target)) {
-    const fallbackId = getNextVisibleChapterId(target.id);
-    const fallback = fallbackId ? chapters.find(c => c.id === fallbackId) : null;
-    if (fallback) chapterId = fallback.id;
-  }
   currentChapterId = chapterId;
   renderChaptersList();
-  document.getElementById('chapterDetails')?.classList.remove('hidden');
 
   const chapter = chapters.find((c) => c.id === chapterId);
   if (chapter) {
@@ -3471,17 +3401,10 @@ function selectChapter(chapterId) {
 }
 
 function saveCurrentChapter() {
-  // Only persist from the editor when the Write view is active.
-  // Prevents wiping chapter.content during board/map views or immediately after refresh.
-  if (typeof currentView !== 'undefined' && currentView !== 'write') return;
-  const editorEl = document.getElementById('writeEditor');
-  if (!editorEl) return;
   const chapter = chapters.find((c) => c.id === currentChapterId);
-  // Prevent non-hidden viewers from writing into content that is (now) hidden via sync
-  if (chapter && !craftCanSeeHidden() && isChapterEffectivelyHidden(chapter)) return;
   if (chapter) {
-    chapter.content = editorEl.innerHTML;
-    const text = editorEl.textContent;
+    chapter.content = document.getElementById('writeEditor').innerHTML;
+    const text = document.getElementById('writeEditor').textContent;
     chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
     // Persist indent/justify toggles
     chapter.indentMode = writeIndentMode;
@@ -8078,7 +8001,7 @@ function execFormatCommand(command) {
 }
 
 function updateWordCount() {
-  const text = editorEl.textContent;
+  const text = document.getElementById('writeEditor').textContent;
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   document.getElementById('wordCount').textContent = `${words.toLocaleString()} words`;
 
@@ -11379,12 +11302,11 @@ function renderEncountersSidebar() {
 
 function renderCombatants() {
   const list = document.getElementById('ctCombatantsList'); if (!list) return;
-  const visibleCombatants = craftCanSeeHidden() ? combatants : combatants.filter(c => !c.hidden);
-  if (visibleCombatants.length === 0) {
+  if (combatants.length === 0) {
     list.innerHTML = '<div class="ct-empty"><p>No combatants</p><p style="opacity:0.5;font-size:12px;">Add creatures from the sidebar to begin</p></div>';
     return;
   }
-  list.innerHTML = visibleCombatants.map((c, i) => {
+  list.innerHTML = combatants.map((c, i) => {
     const isActive = combatActive && i === combatTurnIndex;
     const isSel = c.id === selectedCombatantId;
     const hpPct = c.maxHP > 0 ? Math.min(100, (c.currentHP / c.maxHP) * 100) : 100;
@@ -11701,7 +11623,7 @@ function fillScreenPanel(index, type) {
   if (!el) return;
   if (type === 'initiative') {
     let html = '';
-    const sorted = (craftCanSeeHidden() ? [...combatants] : combatants.filter(c => !c.hidden)).sort((a, b) => (b.initiative || 0) - (a.initiative || 0));
+    const sorted = [...combatants].sort((a, b) => (b.initiative || 0) - (a.initiative || 0));
     sorted.forEach((c, i) => {
       const isCurrent = i === combatTurnIndex && combatRound > 0;
       html += `<div style="padding:3px 6px;${isCurrent ? 'background:rgba(212,168,36,0.15);border-radius:4px;' : ''}display:flex;justify-content:space-between;font-size:12px;">
@@ -11862,240 +11784,6 @@ const REP_LEVELS = [
   {val:2,label:'Friendly',color:'#22c55e'},
   {val:3,label:'Allied',color:'#a78bfa'}
 ];
-
-// --- Simple random generators for Connections ---
-function _mvChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function _mvId(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
-
-function createRandomFaction() {
-  const adjectives = ['Crimson','Silver','Gilded','Hollow','Emerald','Obsidian','Ivory','Sable','Vigilant','Wayward','Silent','Radiant','Broken','Stormborn','Umbral'];
-  const nouns = ['Lanterns','Covenant','Synod','Circle','Company','Order','Cartel','Consortium','Brotherhood','Sisters','Wardens','Knives','Crows','Wolves','Masques'];
-  const domains = ['Dockside','Old Quarter','Market Ward','The Heights','Lower City','Harbor','Outer Ring','Canal District','Ashfields','The Spires'];
-  const statuses = ['Active','Dormant','Fragmented','Rising','Fading'];
-  const tiers = ['', 'Tier 0 (Weak)', 'Tier I', 'Tier II', 'Tier III', 'Tier IV'];
-  const name = `The ${_mvChoice(adjectives)} ${_mvChoice(nouns)}`;
-  const desc = `${_mvChoice(['Known for','Whispered to be','Feared for','Celebrated for','Infamous for'])} ${_mvChoice(['quiet deals','bold raids','iron discipline','beautiful lies','unbreakable oaths'])} in ${_mvChoice(domains)}.`;
-  const color = FAC_COLORS[factions.length % FAC_COLORS.length];
-
-  factions.push({
-    id: _mvId('fac'),
-    name,
-    color,
-    reputation: 0,
-    tier: _mvChoice(tiers),
-    status: _mvChoice(statuses),
-    description: desc,
-    notes: '',
-    claims: [],
-    tags: [],
-    image: null
-  });
-  selectedFactionId = factions[factions.length-1].id;
-  renderFactionGrid(); renderFactionsSidebar(); showFacDetail(); showNotif('Random faction generated');
-}
-
-function createRandomContact() {
-  // Species list spans common fantasy + sci-fi TTRPG lineages
-  const speciesList = [
-    'Human','Elf','Dwarf','Halfling','Gnome','Half-Elf','Half-Orc','Orc','Tiefling','Aasimar','Dragonborn','Genasi',
-    'Goblin','Kobold','Hobgoblin','Bugbear','Kenku','Tabaxi','Lizardfolk','Triton','Firbolg','Goliath','Tortle','Yuan-ti',
-    'Changeling','Shifter','Warforged','Autognome','Plasmoid','Githyanki','Githzerai',
-    'Kitsune','Tengu','Leshy','Ratfolk','Catfolk',
-    'Android','Ysoki'
-  ];
-
-  // Name pools keyed by species (falls back to generic)
-  const namePools = {
-    Human: { first:['Ari','Cass','Dain','Elowen','Jory','Kael','Lysa','Mara','Nico','Orin','Perrin','Rhea','Sera','Talon','Vera','Wren','Bram','Iris','Hale','Mina'], last:['Ashford','Briar','Crowe','Dusk','Evers','Fallow','Graves','Harrow','Ire','Kestrel','Locke','Mourn','Pike','Rowan','Sable','Thorne','Vale','West','Fen','Marsh'] },
-    Elf: { first:['Aelar','Sylra','Thia','Vaelis','Lethar','Eryndor','Nyss','Ilyana','Faelar','Serelis','Caelynn','Ryn','Elandra','Lirael'], last:['Moonwhisper','Dawnfall','Silversong','Nightbloom','Starbough','Windriver','Gloamleaf','Sunweave'] },
-    Dwarf: { first:['Borin','Helja','Dagna','Rurik','Thora','Kelda','Bramm','Gunn','Orsik','Sigrid'], last:['Ironbeard','Stonehelm','Forgehand','Coppervein','Grimhammer','Deepdelver','Oakenshield'] },
-    Halfling: { first:['Pip','Merri','Ros','Tansy','Bramble','Lark','Clover','Wynn','Nim'], last:['Goodbarrel','Tealeaf','Hilltopple','Greenbottle','Underbough'] },
-    Gnome: { first:['Fizz','Nim','Tink','Quill','Bix','Poppy','Wizzle','Runa'], last:['Gearwhistle','Copperkettle','Brightspark','Wandwright','Fizzlebang'] },
-    Tiefling: { first:['Zara','Malik','Riven','Vex','Seraphine','Kaine','Nyx','Vesper','Ashe','Lilith'], last:['Ember','Ashen','Blackthorn','Nocturne','Sable','Grim'] },
-    Dragonborn: { first:['Arjhan','Kava','Rhogar','Sora','Balasar','Medrash','Akra','Torinn'], last:['Flamegaze','Stormscale','Ironfang','Emberclaw','Ashscale'] },
-    Goblin: { first:['Snip','Rikka','Skeg','Taz','Nib','Grin','Mox','Pog'], last:['Quicktooth','Rustwhisper','Sootfoot','Grimwink'] },
-    Kobold: { first:['Skit','Zik','Trik','Nix','Vik','Kizz','Razz'], last:['Scale','Sparks','Tunnel','Pebble'] },
-    Tabaxi: { first:['Soft-Step','Midnight','Saffron','Whisper','Cinder','River','Bright-Eye'], last:['of the Reed','of Nine Bells','of Ashen Roofs','of the Long Road'] },
-    Warforged: { first:['Unit','Cobalt','Axiom','Mercury','Vigil','Atlas','Kestrel'], last:['-17','-3','Prime','Mk II','Series 9'] },
-    Kitsune: { first:['Akari','Hana','Kyo','Ren','Suzu','Yori','Mika'], last:['Nozomi','Kitsuragi','Inari','Kagemori'] },
-    Tengu: { first:['Kuro','Sabi','Tori','Kaze','Rook','Caw'], last:['Feather','Blackwing','Stormbeak','Inkplume'] },
-    Android: { first:['K-','A-','V-','N-','S-'], last:['042','119','7X','313','808'] },
-  };
-
-  const roles = ['Fixer','Informant','Smuggler','Archivist','Fence','Bodyguard','Apothecary','Cartographer','Scribe','Broker','Scout','Counsel','Merchant','Bounty Hunter','Dock Boss','Gang Liaison'];
-  const types = ['contact','patron','rival','ally','informant'];
-  const disp = ['Allied','Friendly','Neutral','Suspicious','Hostile'];
-  const occupations = ['Merchant','Guide','Dockworker','Mercenary','Healer','Scholar','Fence','Courier','Innkeeper','Sailor','Guard','Priest','Mechanic','Artist','Gambler','Constable'];
-  const quirks = [
-    'never stops humming under their breath','keeps meticulous ledgers for everything','won’t sit with their back to a door','collects buttons like trophies',
-    'talks to animals like they reply','always smells faintly of smoke and citrus','laughs at the worst possible moments','writes tiny poems on receipts'
-  ];
-  const goals = [
-    'pay off an old debt','protect their family’s name','find a missing sibling','earn a pardon','take over a rival gang’s turf','open a legitimate business',
-    'recover a stolen heirloom','map a safer route through the district','prove a conspiracy is real'
-  ];
-  const hobbies = ['street cooking','dice games','bird-keeping','lockpicking puzzles','gardening','sparring','scrimshaw','tinkering','storytelling','fishing'];
-  const appearanceBits = [
-    'scar over one brow','ink-stained fingers','a weathered coat with too many pockets','a bright sash that never matches','gold tooth and a sharp grin',
-    'carefully braided hair','a cane they don’t really need','well-worn boots with hidden knife-sheaths'
-  ];
-  const backgroundBits = [
-    'Used to run with a small gang before going independent.',
-    'Former adventurer who got tired of bleeding for other people’s glory.',
-    'A merchant’s child who learned secrets in every marketplace.',
-    'Raised by extended family; the home is crowded, loud, and fiercely loyal.',
-    'Once worked for a noble household and knows how the powerful lie.',
-    'Survived a disaster that taught them to never waste a second chance.'
-  ];
-
-  const species = _mvChoice(speciesList);
-  const pool = namePools[species] || namePools.Human;
-  const first = _mvChoice(pool.first);
-  const last = _mvChoice(pool.last);
-  const name = `${first} ${last}`.replace('  ',' ').trim();
-
-  const role = _mvChoice(roles);
-  const factionId = factions.length ? _mvChoice(factions).id : '';
-
-  const age = String(Math.floor(18 + Math.random()*53)); // 18–70
-  const occupation = _mvChoice(occupations);
-  const pq = _mvChoice(quirks);
-  const goal = _mvChoice(goals);
-  const hobby = _mvChoice(hobbies);
-  const appearance = _mvChoice(appearanceBits);
-  const bg = _mvChoice(backgroundBits);
-
-  // Short description: high-signal “at a glance” + a hook
-  const desc = `${occupation}. Often found ${_mvChoice(['between jobs','at the docks','in a crowded market','near a back-alley tavern','on the road','in a quiet archive'])}. ${bg} Known for ${pq}.`;
-
-  contacts.push({
-    id: _mvId('con'),
-    name,
-    factionId,
-    role,
-    disposition: _mvChoice(disp),
-    type: _mvChoice(types),
-    species,
-    connectedTo: '',
-    age,
-    occupation,
-    personalityQuirks: pq,
-    goals: goal,
-    hobbies: hobby,
-    background: bg,
-    appearance: appearance,
-    description: desc,
-    notes: '',
-    tags: [],
-    image: null
-  });
-
-  selectedContactId = contacts[contacts.length-1].id;
-  renderFactionGrid(); renderContactsSidebar(); renderContactsGrid(); renderFactionsSidebar(); showFacDetail(); showNotif('Random contact generated');
-}
-
-function createRandomOrganization() {
-  // Name parts
-  const starters = ['Saint','Iron','Sun','Moon','Azure','Black','Golden','Temple of','Hall of','The','Silver','Crimson','Verdant','Obsidian','Ivory','Storm','Cinder','Gilded'];
-  const cores = ['Archive','Guild','Society','Circle','Institute','House','Cabal','Orchard','Watch','Exchange','Conclave','Forge','Company','Order','Syndicate','Consortium','Chantry','College'];
-  const places = ['Seagard','Oldtown','Rookery','Cinder Wharf','Glass District','Northgate','Southbank','Sable Row','Riverbend','Moonmarket','Ironholt','Highwater'];
-  const leaders = ['—','High Warden','Provost','Mistress','Captain','Curator','Magister','Speaker','Prior','Director','Grandmaster','Matron'];
-
-  // Flavor generators
-  const statusList = ['Active','Dormant','Secretive','Fractured','Ascendant','Under Siege','Outlawed','Reforming','Splintered','Bankrupt','Sanctioned'];
-  const influenceList = ['Local','Regional','Widespread','Underground','Courtly','Guildwide','Cross-border'];
-  const domains = ['trade','information','medicine','security','smuggling','scholarship','religion','craft','transport','espionage','charity','mercenary work','artifact recovery','politics','monster hunting','shipping','banking','entertainment'];
-  const methods = [
-    'runs a tight network of agents and informants',
-    'operates openly behind polished doors and stamped ledgers',
-    'keeps its work quiet—favours, debts, and whispered names',
-    'moves goods through back alleys, docks, and hidden caches',
-    'maintains a public face while its real work happens after dark',
-    'recruits specialists and sells expertise to the highest bidder'
-  ];
-  const hooks = [
-    'They have enemies in the city watch.',
-    'They’re rumored to keep a vault of forbidden records.',
-    'Their leadership is divided behind closed doors.',
-    'They sponsor expeditions and “lose” inconvenient witnesses.',
-    'They protect their own—at a price.',
-    'They’ve recently absorbed a smaller rival.'
-  ];
-
-  const goalVerbs = ['secure','control','expose','eliminate','recover','expand','undermine','protect','monopolize','reform','weaponize','sabotage'];
-  const goalTargets = [
-    'a trade route',
-    'a rival guild',
-    'a noble patron',
-    'a hidden archive',
-    'a smuggling corridor',
-    'a dangerous relic',
-    'a political seat',
-    'a district’s protection racket',
-    'the city’s supply of a rare reagent',
-    'a network of informants',
-    'a border checkpoint',
-    'a scandal that could topple a house'
-  ];
-  const motives = [
-    'profit above all',
-    'ideology and reform',
-    'revenge for an old betrayal',
-    'survival after a recent crackdown',
-    'faith and devotion',
-    'loyalty to a patron family',
-    'a long con generations in the making',
-    'fear of a coming threat'
-  ];
-
-  const assets = [
-    'safehouses',
-    'warehouse space on the docks',
-    'blackmail files',
-    'hired blades',
-    'trained scribes and couriers',
-    'a fleet of carts and drivers',
-    'a clandestine printing press',
-    'a licensed charter and legal protections',
-    'a well-paid informant inside the guard',
-    'a reliquary of oddities',
-    'a small fortune in hard coin',
-    'a stable of “legitimate” storefronts'
-  ];
-
-  const name = `${_mvChoice(starters)} ${_mvChoice(cores)}`.replace('The The','The');
-  const type = _mvChoice(['Guild','Temple','Council','Company','School','Cult','Syndicate','Order']);
-  const location = _mvChoice(places);
-  const domain = _mvChoice(domains);
-
-  // Generated text blocks
-  const description = `${name} is a ${type.toLowerCase()} based in ${location} that deals in ${domain}. It ${_mvChoice(methods)}. ${_mvChoice(hooks)}`;
-  const goals = `Goal: ${_mvChoice(goalVerbs)} ${_mvChoice(goalTargets)}. Motive: ${_mvChoice(motives)}.`;
-  const resources = `Assets: ${_mvChoice(assets)}, ${_mvChoice(assets)}, ${_mvChoice(assets)}.`;
-
-  const org = {
-    id: _mvId('org'),
-    name,
-    type,
-    location,
-    leader: `${_mvChoice(leaders)} ${_mvChoice(['Alden','Brina','Corvin','Dalia','Esmé','Fenn','Garrick','Hale','Iona','Jarek','Kael','Liora','Maren','Nox','Orin','Perrin','Quill'])}`.replace('— ','').trim(),
-    color: window._orgCreateColor || '#6366f1',
-    status: _mvChoice(statusList),
-    influence: _mvChoice(influenceList),
-    description,
-    goals,
-    resources,
-    notes: '',
-    image: null,
-    hidden: false,
-    tags: []
-  };
-
-  organizations.push(org);
-  selectedOrgId = org.id;
-  renderOrgsGrid(); renderOrgsSidebar(); showOrgDetail(); showNotif('Random organization generated');
-}
-
 
 // ---- Standalone Tag Functions (wired via addEventListener) ----
 function addFacTagFromInput() {
@@ -12259,8 +11947,6 @@ function confirmFactionCreate() {
 function openContactCreateModal() {
   document.getElementById('conCreateName').value = '';
   document.getElementById('conCreateRole').value = '';
-  document.getElementById('conCreateSpecies').value = '';
-  document.getElementById('conCreateConnectedTo').value = '';
   document.getElementById('conCreateDisp').value = 'Neutral';
   document.getElementById('conCreateType').value = 'contact';
   document.getElementById('conCreateNotes').value = '';
@@ -12279,19 +11965,8 @@ function confirmContactCreate() {
     role: document.getElementById('conCreateRole').value.trim(),
     disposition: document.getElementById('conCreateDisp').value,
     type: document.getElementById('conCreateType').value,
-    species: document.getElementById('conCreateSpecies').value.trim(),
-    connectedTo: document.getElementById('conCreateConnectedTo').value.trim(),
-    age: '',
-    occupation: '',
-    personalityQuirks: '',
-    goals: '',
-    hobbies: '',
-    background: '',
-    appearance: '',
-    description: '',
-    notes: document.getElementById('conCreateNotes').value.trim(),
-    tags: [],
-    image: null
+    description: '', notes: document.getElementById('conCreateNotes').value.trim(),
+    tags: [], image: null
   });
   closeContactCreateModal();
   renderFactionGrid(); renderContactsSidebar(); renderContactsGrid(); renderFactionsSidebar(); showNotif('Contact added');
@@ -12533,80 +12208,7 @@ function showContactDetail() {
   typeSel.value = c.type || '';
   typeSel.oninput = function() { c.type = this.value; renderContactsGrid(); renderContactsSidebar(); renderFactionGrid(); };
 
-  
-  // Species
-  const speciesInp = get('conDetailSpecies');
-  if (speciesInp) {
-    speciesInp.value = c.species || '';
-    speciesInp.oninput = function() { c.species = this.value; };
-    speciesInp.onblur = function() { c.species = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
-  }
-
-  // Connected to
-  const conToInp = get('conDetailConnectedTo');
-  if (conToInp) {
-    conToInp.value = c.connectedTo || '';
-    conToInp.oninput = function() { c.connectedTo = this.value; };
-    conToInp.onblur = function() { c.connectedTo = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
-  }
-
-  // Age
-  const ageInp = get('conDetailAge');
-  if (ageInp) {
-    ageInp.value = c.age || '';
-    ageInp.oninput = function() { c.age = this.value; };
-    ageInp.onblur = function() { c.age = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
-  }
-
-  // Occupation
-  const occInp = get('conDetailOccupation');
-  if (occInp) {
-    occInp.value = c.occupation || '';
-    occInp.oninput = function() { c.occupation = this.value; };
-    occInp.onblur = function() { c.occupation = this.value.trim(); renderContactsGrid(); renderContactsSidebar(); };
-  }
-
-  // Personality quirks
-  const quirksInp = get('conDetailQuirks');
-  if (quirksInp) {
-    quirksInp.value = c.personalityQuirks || '';
-    quirksInp.oninput = function() { c.personalityQuirks = this.value; };
-    quirksInp.onblur = function() { c.personalityQuirks = this.value.trim(); renderContactsGrid(); };
-  }
-
-  // Goals
-  const goalsInp = get('conDetailGoals');
-  if (goalsInp) {
-    goalsInp.value = c.goals || '';
-    goalsInp.oninput = function() { c.goals = this.value; };
-    goalsInp.onblur = function() { c.goals = this.value.trim(); renderContactsGrid(); };
-  }
-
-  // Hobbies
-  const hobbiesInp = get('conDetailHobbies');
-  if (hobbiesInp) {
-    hobbiesInp.value = c.hobbies || '';
-    hobbiesInp.oninput = function() { c.hobbies = this.value; };
-    hobbiesInp.onblur = function() { c.hobbies = this.value.trim(); renderContactsGrid(); };
-  }
-
-  // Brief background
-  const bgInp = get('conDetailBackground');
-  if (bgInp) {
-    bgInp.value = c.background || '';
-    bgInp.oninput = function() { c.background = this.value; };
-    bgInp.onblur = function() { c.background = this.value.trim(); renderContactsGrid(); };
-  }
-
-  // Appearance
-  const appInp = get('conDetailAppearance');
-  if (appInp) {
-    appInp.value = c.appearance || '';
-    appInp.oninput = function() { c.appearance = this.value; };
-    appInp.onblur = function() { c.appearance = this.value.trim(); renderContactsGrid(); };
-  }
-
-// Description
+  // Description
   get('conDetailDesc').value = c.description || '';
   get('conDetailDesc').onblur = function() { c.description = this.value; renderContactsGrid(); };
 
@@ -12626,7 +12228,7 @@ function showContactDetail() {
 // ---- Sidebar Renders ----
 function renderFactionsSidebar() {
   const el = document.getElementById('factionsList'); if (!el) return;
-  if ((craftCanSeeHidden() ? factions : factions.filter(f => !f.hidden)).length === 0) { el.innerHTML = '<div class="empty-pins-message">No factions yet</div>'; return; }
+  if (factions.length === 0) { el.innerHTML = '<div class="empty-pins-message">No factions yet</div>'; return; }
   el.innerHTML = factions.map(f => {
     const rep = getRepLevel(f.reputation);
     const active = f.id === selectedFactionId ? ' active' : '';
@@ -12641,7 +12243,7 @@ function renderFactionsSidebar() {
 
 function renderContactsSidebar() {
   const el = document.getElementById('contactsList'); if (!el) return;
-  if ((craftCanSeeHidden() ? contacts : contacts.filter(c => !c.hidden)).length === 0) { el.innerHTML = '<div class="empty-pins-message">No contacts yet</div>'; return; }
+  if (contacts.length === 0) { el.innerHTML = '<div class="empty-pins-message">No contacts yet</div>'; return; }
   el.innerHTML = contacts.map(c => {
     const fac = factions.find(f => f.id === c.factionId);
     const active = c.id === selectedContactId ? ' active' : '';
@@ -12658,12 +12260,11 @@ function renderContactsSidebar() {
 // ---- Faction Grid ----
 function renderFactionGrid() {
   const grid = document.getElementById('facGrid'); if (!grid) return;
-  if ((craftCanSeeHidden() ? factions : factions.filter(f => !f.hidden)).length === 0) {
+  if (factions.length === 0) {
     grid.innerHTML = '<div class="fac-empty"><p>No factions yet</p><p style="opacity:0.5;font-size:12px;">Create factions from the sidebar to begin tracking</p></div>';
     return;
   }
-  const visibleFactions = craftCanSeeHidden() ? factions : factions.filter(f => !f.hidden);
-  grid.innerHTML = visibleFactions.map(f => {
+  grid.innerHTML = factions.map(f => {
     const rep = getRepLevel(f.reputation);
     const facConnections = contacts.filter(c => c.factionId === f.id);
     const isSel = f.id === selectedFactionId;
@@ -12717,28 +12318,16 @@ function renderFactionGrid() {
 // ---- Contacts Grid ----
 function renderContactsGrid() {
   const grid = document.getElementById('facContactsGrid'); if (!grid) return;
-  if ((craftCanSeeHidden() ? contacts : contacts.filter(c => !c.hidden)).length === 0) {
+  if (contacts.length === 0) {
     grid.innerHTML = '<div class="fac-empty"><p>No contacts yet</p><p style="opacity:0.5;font-size:12px;">Add contacts from the sidebar</p></div>';
     return;
   }
-  const visibleContacts = craftCanSeeHidden() ? contacts : contacts.filter(c => !c.hidden);
-  grid.innerHTML = visibleContacts.map(c => {
+  grid.innerHTML = contacts.map(c => {
     const fac = factions.find(f => f.id === c.factionId);
     const isSel = c.id === selectedContactId;
     const typeIcon = c.type === 'cohort' ? '⚔ ' : '';
     const imgHtml = c.image ? `<img src="${c.image}" class="con-card-icon" alt="" />` : '';
     const tagPills = (c.tags||[]).slice(0,4).map(t => `<span class="fac-tag-pill-sm">${t}</span>`).join('');
-    const _esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const metaBits = [];
-    if (c.species) metaBits.push(_esc(c.species));
-    if (c.age) metaBits.push('Age ' + _esc(c.age));
-    if (c.occupation) metaBits.push(_esc(c.occupation));
-    const metaLine = metaBits.length ? `<div class="fac-contact-card-extra">${metaBits.map(b=>`<span class="fac-contact-card-extra-bit">${b}</span>`).join('<span class="fac-contact-card-extra-dot">·</span>')}</div>` : '';
-    const quirkLine = c.personalityQuirks ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Quirk</span> ${_esc(c.personalityQuirks)}</div>` : '';
-    const goalLine = c.goals ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Goal</span> ${_esc(c.goals)}</div>` : '';
-    const hobbyLine = c.hobbies ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Hobby</span> ${_esc(c.hobbies)}</div>` : '';
-    const bgLine = c.background ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">BG</span> ${_esc(c.background)}</div>` : '';
-    const appLine = c.appearance ? `<div class="fac-contact-card-extra2"><span class="fac-contact-card-extra-label">Look</span> ${_esc(c.appearance)}</div>` : '';
 
     // Description with read more (preserve newlines)
     let descHtml = '';
@@ -12762,7 +12351,6 @@ function renderContactsGrid() {
         </div>
         <span class="fac-contact-disp ${c.disposition?.toLowerCase()||'neutral'}">${c.disposition || 'Neutral'}</span>
       </div>
-      ${metaLine}${goalLine}${quirkLine}${hobbyLine}${bgLine}${appLine}
       ${c.type && c.type !== 'contact' ? `<div class="fac-contact-card-type">${c.type}</div>` : ''}
       ${descHtml}
       ${tagPills ? `<div class="fac-card-pills" style="margin-top:4px;">${tagPills}</div>` : ''}
@@ -12966,9 +12554,8 @@ function renderOrgAssociations(o) {
 }
 function renderOrgsSidebar() {
   const list = document.getElementById('orgsList'); if (!list) return;
-  const visibleOrgs = craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden);
-  if ((craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden)).length === 0) { list.innerHTML = '<div class="empty-pins-message">No organizations yet</div>'; return; }
-  list.innerHTML = visibleOrgs.map(o => {
+  if (organizations.length === 0) { list.innerHTML = '<div class="empty-pins-message">No organizations yet</div>'; return; }
+  list.innerHTML = organizations.map(o => {
     const sel = o.id === selectedOrgId ? ' active' : '';
     const h = o.hidden ? ' item-hidden' : '';
     return `<div class="sidebar-item${sel}${h}" onclick="selectOrg('${o.id}')" oncontextmenu="showFacContactContextMenu(event,'org','${o.id}')" style="border-left:3px solid ${o.color};position:relative;">
@@ -12981,12 +12568,11 @@ function renderOrgsSidebar() {
 }
 function renderOrgsGrid() {
   const grid = document.getElementById('facOrgsGrid'); if (!grid) return;
-  if ((craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden)).length === 0) {
+  if (organizations.length === 0) {
     grid.innerHTML = '<div class="fac-empty"><p>No organizations yet</p><p style="opacity:0.5;font-size:12px;">Add organizations from the sidebar to track guilds, companies, churches, etc.</p></div>';
     return;
   }
-  const visibleOrgs = craftCanSeeHidden() ? organizations : organizations.filter(o => !o.hidden);
-  grid.innerHTML = visibleOrgs.map(o => {
+  grid.innerHTML = organizations.map(o => {
     const isSel = o.id === selectedOrgId;
     const tagsHtml = (o.tags || []).slice(0,4).map(t => `<span class="card-tag">${t}</span>`).join('');
 
@@ -13776,11 +13362,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addFactionBtn')?.addEventListener('click', openFactionCreateModal);
   document.getElementById('addContactBtn')?.addEventListener('click', openContactCreateModal);
   document.getElementById('addOrgBtn')?.addEventListener('click', openOrgCreateModal);
-
-  // Connections randomizers (left sidebar)
-  document.getElementById('randomFactionBtn')?.addEventListener('click', () => createRandomFaction());
-  document.getElementById('randomContactBtn')?.addEventListener('click', () => createRandomContact());
-  document.getElementById('randomOrgBtn')?.addEventListener('click', () => createRandomOrganization());
   document.getElementById('facDetailAddClaim')?.addEventListener('click', () => { if (selectedFactionId) openClaimAdd(selectedFactionId); });
   document.getElementById('facDetailDelete')?.addEventListener('click', () => { if (selectedFactionId) deleteFaction(selectedFactionId); });
   document.getElementById('conDetailDelete')?.addEventListener('click', () => { if (selectedContactId) deleteContact(selectedContactId); });
@@ -14181,52 +13762,24 @@ function loadMVPanel(panelIdx, viewType) {
 
 function getMVNavItems(viewType) {
   switch (viewType) {
-    // DM Screen should respect the same hidden rules as the main UI:
-    // - Guests/viewers shouldn't see hidden items
-    // - If a folder is hidden, all chapters inside are effectively hidden
-    case 'board':
-      return boards
-        .filter(b => craftCanSeeHidden() || !b.hidden)
-        .map(b => ({ id: b.id, name: b.name || 'Untitled Board', hidden: !!b.hidden }));
-    case 'map':
-      return maps
-        .filter(m => craftCanSeeHidden() || !m.hidden)
-        .map(m => ({ id: m.id, name: m.name || 'Untitled Map', hidden: !!m.hidden }));
-    case 'write':
-      return chapters
-        .filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c))
-        .map(c => ({
-          id: c.id,
-          name: c.title || 'Untitled',
-          // hidden when the chapter itself is hidden OR it lives under a hidden folder
-          hidden: isChapterEffectivelyHidden(c)
-        }));
-    case 'timeline':
-      return timelines
-        .filter(t => craftCanSeeHidden() || !t.hidden)
-        .map(t => ({ id: t.id, name: t.name || 'Untitled', hidden: !!t.hidden }));
+    case 'board': return boards.map(b => ({ id: b.id, name: b.name || 'Untitled Board' }));
+    case 'map': return maps.map(m => ({ id: m.id, name: m.name || 'Untitled Map' }));
+    case 'write': return chapters.map(c => ({ id: c.id, name: c.title || 'Untitled' }));
+    case 'timeline': return timelines.map(t => ({ id: t.id, name: t.name || 'Untitled' }));
     default: return [];
   }
 }
 
 function renderMVNav(panelIdx, viewType, items) {
-  if (viewType === 'write') {
-    renderMVWriteNav(panelIdx);
-    return;
-  }
-
   const panel = document.querySelector(`.mv-panel[data-panel="${panelIdx}"]`);
   const nav = panel.querySelector('.mv-panel-nav');
   const currentId = mvPanelState[panelIdx].itemId;
 
-  nav.innerHTML = items.map(item => {
-    const isHidden = craftCanSeeHidden() && item.hidden;
-    return `
-    <div class="mv-nav-item ${item.id === currentId ? 'active' : ''} ${isHidden ? 'is-hidden' : ''}" data-id="${item.id}">
+  nav.innerHTML = items.map(item =>
+    `<div class="mv-nav-item ${item.id === currentId ? 'active' : ''}" data-id="${item.id}">
       <span class="mv-nav-label">${item.name}</span>
-      ${isHidden ? '<span class="mv-hidden-badge" title="Hidden from guests/viewers">HIDDEN</span>' : ''}
-    </div>`;
-  }).join('');
+    </div>`
+  ).join('');
 
   nav.querySelectorAll('.mv-nav-item').forEach(el => {
     el.addEventListener('click', () => {
@@ -14237,122 +13790,7 @@ function renderMVNav(panelIdx, viewType, items) {
   });
 }
 
-function renderMVWriteNav(panelIdx) {
-  const panel = document.querySelector(`.mv-panel[data-panel="${panelIdx}"]`);
-  const nav = panel.querySelector('.mv-panel-nav');
-  const currentId = mvPanelState[panelIdx].itemId;
-
-  // Build folders + unfiled chapters, respecting hidden rules
-  nav.innerHTML = '';
-
-  const canSeeHidden = craftCanSeeHidden();
-
-  const createChapterNavItem = (chapter) => {
-    const el = document.createElement('div');
-    const isEffHidden = isChapterEffectivelyHidden(chapter);
-    const showHiddenBadge = canSeeHidden && isEffHidden;
-    el.className = `mv-nav-item ${chapter.id === currentId ? 'active' : ''} ${showHiddenBadge ? 'is-hidden' : ''}`;
-    el.dataset.id = chapter.id;
-    el.innerHTML = `
-      <span class="mv-nav-label">${chapter.title || 'Untitled'}</span>
-      ${showHiddenBadge ? '<span class="mv-hidden-badge" title="Hidden from guests/viewers">HIDDEN</span>' : ''}
-    `;
-    el.addEventListener('click', () => {
-      nav.querySelectorAll('.mv-nav-item').forEach(n => n.classList.remove('active'));
-      el.classList.add('active');
-      mvSwitchToItem(panelIdx, 'write', chapter.id);
-    });
-    return el;
-  };
-
-  const createFolderBlock = (folder) => {
-    const folderHidden = isFolderEffectivelyHidden(folder);
-    if (!canSeeHidden && folderHidden) return null;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = `mv-folder ${canSeeHidden && folderHidden ? 'is-hidden' : ''}`;
-    wrapper.dataset.folderId = folder.id;
-
-    const header = document.createElement('div');
-    header.className = 'mv-folder-header';
-    header.innerHTML = `
-      <span class="mv-folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
-      <span class="mv-folder-name">${folder.name || 'Folder'}</span>
-      ${canSeeHidden && folderHidden ? '<span class="mv-hidden-badge" title="Hidden from guests/viewers">HIDDEN</span>' : ''}
-    `;
-    header.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      folder.collapsed = !folder.collapsed;
-      if (window.craftSchedulePush) window.craftSchedulePush();
-      renderMVWriteNav(panelIdx);
-    });
-
-    const children = document.createElement('div');
-    children.className = 'mv-folder-children';
-    if (folder.collapsed) children.style.display = 'none';
-
-    const folderChapters = chapters
-      .filter(c => c.folderId === folder.id)
-      .filter(c => canSeeHidden || !isChapterEffectivelyHidden(c));
-
-    folderChapters.forEach(ch => children.appendChild(createChapterNavItem(ch)));
-
-    wrapper.appendChild(header);
-    wrapper.appendChild(children);
-    return wrapper;
-  };
-
-  // Folders
-  chapterFolders.forEach(folder => {
-    const block = createFolderBlock(folder);
-    if (block) nav.appendChild(block);
-  });
-
-  // Unfiled
-  const unfiled = chapters
-    .filter(c => !c.folderId)
-    .filter(c => canSeeHidden || !isChapterEffectivelyHidden(c));
-
-  if (unfiled.length) {
-    const unfiledWrap = document.createElement('div');
-    unfiledWrap.className = 'mv-folder mv-unfiled';
-
-    const header = document.createElement('div');
-    header.className = 'mv-folder-header';
-    header.innerHTML = `
-      <span class="mv-folder-toggle">▾</span>
-      <span class="mv-folder-name">Unfiled</span>
-    `;
-    // Unfiled isn't collapsible for now (keeps UI simple)
-    const children = document.createElement('div');
-    children.className = 'mv-folder-children';
-    unfiled.forEach(ch => children.appendChild(createChapterNavItem(ch)));
-
-    unfiledWrap.appendChild(header);
-    unfiledWrap.appendChild(children);
-    nav.appendChild(unfiledWrap);
-  }
-}
-
 function mvSwitchToItem(panelIdx, viewType, itemId) {
-  // Coerce hidden items to the next visible item for viewers/guests
-  if (!craftCanSeeHidden()) {
-    if (viewType === 'write') {
-      const ch = chapters.find(c => c.id === itemId);
-      if (ch && isChapterEffectivelyHidden(ch)) itemId = getNextVisibleChapterId(itemId);
-    } else if (viewType === 'board') {
-      const b = boards.find(b => b.id === itemId);
-      if (b && b.hidden) itemId = getNextVisibleByArray(boards, itemId, x => !!x.hidden);
-    } else if (viewType === 'map') {
-      const m = maps.find(m => m.id === itemId);
-      if (m && m.hidden) itemId = getNextVisibleByArray(maps, itemId, x => !!x.hidden);
-    } else if (viewType === 'timeline') {
-      const t = timelines.find(t => t.id === itemId);
-      if (t && t.hidden) itemId = getNextVisibleByArray(timelines, itemId, x => !!x.hidden);
-    }
-  }
-
   mvPanelState[panelIdx].itemId = itemId;
 
   // Highlight in nav
@@ -15828,8 +15266,8 @@ function initSoundboard(){
 // ============================================
 
 window.craftGetState = function() {
-  // Save current chapter content only when the Write view is active (prevents wiping content on load/refresh)
-  if (typeof saveCurrentChapter === 'function' && (typeof currentView !== 'undefined' && currentView === 'write')) saveCurrentChapter();
+  // Save current chapter content + indent/justify state before serializing
+  if (typeof saveCurrentChapter === 'function') saveCurrentChapter();
   return {
     boards: JSON.parse(JSON.stringify(boards)),
     currentBoardId: currentBoardId,
@@ -15878,10 +15316,7 @@ window.craftGetState = function() {
 
 window.craftSetState = function(state, skipRender) {
   if (!state) return;
-
-  // Remember what this client was looking at (used for redirect when items get hidden)
-  var _prevChapterId = currentChapterId;
-
+  
   // Core data - currentView and viewSettings are NEVER synced (local only)
   if (state.boards) boards = state.boards;
   if (state.currentBoardId) currentBoardId = state.currentBoardId;
@@ -15890,37 +15325,6 @@ window.craftSetState = function(state, skipRender) {
   if (state.chapters) chapters = state.chapters;
   if (state.chapterFolders) chapterFolders = state.chapterFolders;
   if (state.currentChapterId) currentChapterId = state.currentChapterId;
-
-  // Redirect viewers off hidden chapters/folders as soon as hidden state syncs in
-  var _redirectedOffHidden = false;
-  if (!craftCanSeeHidden()) {
-    const cur = chapters.find(c => c.id === currentChapterId) || chapters.find(c => c.id === _prevChapterId);
-    if (cur && isChapterEffectivelyHidden(cur)) {
-      const nextId = getNextVisibleChapterId(cur.id);
-      if (nextId) {
-        currentChapterId = nextId;
-        _redirectedOffHidden = true;
-      } else {
-        // No visible chapter available; force-clear what the viewer was seeing
-        _redirectedOffHidden = true;
-      }
-    }
-  }
-
-  // If we just redirected (or the current chapter became hidden), immediately clear the write surface
-  // so guests/users don't keep seeing stale hidden content.
-  if (_redirectedOffHidden && !craftCanSeeHidden()) {
-    const ed = document.getElementById('writeEditor');
-    const t = document.getElementById('writeChapterTitle');
-    const l = document.getElementById('writeChapterLabel');
-    if (ed) ed.innerHTML = '';
-    if (t) t.value = '';
-    if (l) l.value = '';
-    document.getElementById('chapterDetailName') && (document.getElementById('chapterDetailName').textContent = '-');
-    document.getElementById('chapterTagsDisplay') && (document.getElementById('chapterTagsDisplay').innerHTML = '');
-    document.getElementById('chapterAssociationsList') && (document.getElementById('chapterAssociationsList').innerHTML = '');
-  }
-
   if (state.associations) associations = state.associations;
   if (state.destinationMarkers) destinationMarkers = state.destinationMarkers;
   if (state.diceHistory) diceHistory = state.diceHistory;
@@ -15977,12 +15381,7 @@ window.craftSetState = function(state, skipRender) {
     }
   } catch(e) { console.warn('Sound sync (non-fatal):', e); }
   
-    // If a viewer was redirected off a hidden chapter, immediately load the next visible chapter
-  // into the write UI (prevents the old hidden content from lingering on screen).
-  if (_redirectedOffHidden && currentView === 'write') {
-    try { selectChapter(currentChapterId); } catch (e) {}
-  }
-if (!skipRender) {
+  if (!skipRender) {
     try {
       // Users without hidden access: auto-switch away from hidden containers
       if (!window.craftCanViewHidden) {
@@ -15993,9 +15392,9 @@ if (!skipRender) {
         }
         if (typeof chapters !== 'undefined') {
           const curCh = chapters.find(c => c.id === currentChapterId);
-          if (curCh && isChapterEffectivelyHidden(curCh)) {
-            const nextId = getNextVisibleChapterId(curCh.id);
-            if (nextId) currentChapterId = nextId;
+          if (curCh && curCh.hidden) {
+            const vis = chapters.find(c => !c.hidden);
+            if (vis) currentChapterId = vis.id;
           }
         }
         if (typeof timelines !== 'undefined') {
@@ -16006,33 +15405,6 @@ if (!skipRender) {
           }
         }
       }
-
-      // Multiview (GM/DM screen): enforce the same hidden filtering + redirect if a currently-selected item becomes hidden
-      if (typeof multiviewActive !== 'undefined' && multiviewActive && typeof mvPanelState !== 'undefined') {
-        try {
-          for (let pi = 0; pi < mvPanelState.length; pi++) {
-            const st = mvPanelState[pi];
-            if (!st || !st.viewType) continue;
-
-            const items = getMVNavItems(st.viewType);
-            if (!items || items.length === 0) continue;
-
-            // If the current item is not visible anymore (hidden/removed), move to the next visible one
-            if (st.itemId && !items.some(it => it.id === st.itemId)) {
-              let next = items[0].id;
-              if (st.viewType === 'write') next = getNextVisibleChapterId(st.itemId) || items[0].id;
-              if (st.viewType === 'board') next = getNextVisibleByArray(boards, st.itemId, x => !!x.hidden) || items[0].id;
-              if (st.viewType === 'map') next = getNextVisibleByArray(maps, st.itemId, x => !!x.hidden) || items[0].id;
-              if (st.viewType === 'timeline') next = getNextVisibleByArray(timelines, st.itemId, x => !!x.hidden) || items[0].id;
-              st.itemId = next;
-            }
-
-            renderMVNav(pi, st.viewType, items);
-            mvSwitchToItem(pi, st.viewType, st.itemId || items[0].id);
-          }
-        } catch (e) {}
-      }
-
 
       // Always render sidebar lists for all tabs
       renderBoardsList();

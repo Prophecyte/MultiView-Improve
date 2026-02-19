@@ -1836,7 +1836,7 @@
 
           <!-- Faction Sidebar Sections -->
           <div class="sidebar-section factions-list-section hidden" id="factionsListSection">
-            <div class="section-header"><span>Factions</span><button class="icon-btn sm" id="randomFactionBtn" title="Generate a random faction">🎲</button></div>
+            <div class="section-header"><span>Factions</span></div>
             <div id="factionsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No factions yet</div>
             </div>
@@ -1845,7 +1845,7 @@
             </div>
           </div>
           <div class="sidebar-section contacts-list-section hidden" id="contactsListSection">
-            <div class="section-header"><span>Contacts</span><button class="icon-btn sm" id="randomContactBtn" title="Generate a random contact">🎲</button></div>
+            <div class="section-header"><span>Contacts</span></div>
             <div id="contactsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No contacts yet</div>
             </div>
@@ -1854,7 +1854,7 @@
             </div>
           </div>
           <div class="sidebar-section orgs-list-section hidden" id="orgsListSection">
-            <div class="section-header"><span>Organizations</span><button class="icon-btn sm" id="randomOrgBtn" title="Generate a random organization">🎲</button></div>
+            <div class="section-header"><span>Organizations</span></div>
             <div id="orgsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No organizations yet</div>
             </div>
@@ -2935,11 +2935,7 @@
               <input type="text" class="popup-input" id="conCreateName" placeholder="Contact name..." />
               <label class="popup-label">Role <span style="font-weight:400;opacity:0.6">(optional)</span></label>
               <input type="text" class="popup-input" id="conCreateRole" placeholder="Role or title..." />
-                            <label class="popup-label">Species <span style="font-weight:400;opacity:0.6">(optional)</span></label>
-              <input type="text" class="popup-input" id="conCreateSpecies" placeholder="" />
-              <label class="popup-label">Connected to <span style="font-weight:400;opacity:0.6">(optional)</span></label>
-              <input type="text" class="popup-input" id="conCreateConnectedTo" placeholder="" />
-<label class="popup-label">Faction <span style="font-weight:400;opacity:0.6">(optional)</span></label>
+              <label class="popup-label">Faction <span style="font-weight:400;opacity:0.6">(optional)</span></label>
               <select class="popup-input" id="conCreateFaction"><option value="">— Independent —</option></select>
               <label class="popup-label">Disposition</label>
               <select class="popup-input" id="conCreateDisp">
@@ -3380,14 +3376,7 @@
           </div>
 
           <div class="panel-body" id="panelBody">
-            
-
-            <div class="chapter-details hidden" id="chapterDetails">
-              <div class="detail-section">
-                <label class="detail-label">Chapter</label>
-                <div class="chapter-detail-name" id="chapterDetailName">-</div>
-              
-<div class="empty-state" id="emptyState">
+            <div class="empty-state" id="emptyState">
               <p>Select a card to view details</p>
             </div>
 
@@ -4016,7 +4005,13 @@
               <div class="detail-section" style="padding-top:8px;">
                 <button class="btn danger sm" id="pathDeleteBtn" style="width:100%;">Delete Path</button>
               </div>
-            </div></div>
+            </div>
+
+            <div class="chapter-details hidden" id="chapterDetails">
+              <div class="detail-section">
+                <label class="detail-label">Chapter</label>
+                <div class="chapter-detail-name" id="chapterDetailName">-</div>
+              </div>
               <div class="detail-section">
                 <label class="detail-label">Tags</label>
                 <input
@@ -4217,44 +4212,6 @@
                 <label class="detail-label">Type</label>
                 <input type="text" class="detail-input" id="conDetailType" placeholder="e.g. Informant, Patron, Spy..." />
               </div>
-              <div class="detail-section">
-                <label class="detail-label">Species</label>
-                <input type="text" class="detail-input" id="conDetailSpecies" placeholder="" />
-              </div>
-              <div class="detail-section">
-                <label class="detail-label">Connected to</label>
-                <input type="text" class="detail-input" id="conDetailConnectedTo" placeholder="" />
-              </div>
-
-              <div class="detail-section">
-                <label class="detail-label">Age</label>
-                <input type="text" class="detail-input" id="conDetailAge" placeholder="" />
-              </div>
-              <div class="detail-section">
-                <label class="detail-label">Occupation</label>
-                <input type="text" class="detail-input" id="conDetailOccupation" placeholder="" />
-              </div>
-              <div class="detail-section">
-                <label class="detail-label">Personality quirks</label>
-                <textarea class="detail-input" id="conDetailQuirks" rows="2" style="resize:vertical;" placeholder=""></textarea>
-              </div>
-              <div class="detail-section">
-                <label class="detail-label">Goals</label>
-                <textarea class="detail-input" id="conDetailGoals" rows="2" style="resize:vertical;" placeholder=""></textarea>
-              </div>
-              <div class="detail-section">
-                <label class="detail-label">Hobbies</label>
-                <input type="text" class="detail-input" id="conDetailHobbies" placeholder="" />
-              </div>
-              <div class="detail-section">
-                <label class="detail-label">Brief background</label>
-                <textarea class="detail-input" id="conDetailBackground" rows="3" style="resize:vertical;" placeholder=""></textarea>
-              </div>
-              <div class="detail-section">
-                <label class="detail-label">Appearance</label>
-                <textarea class="detail-input" id="conDetailAppearance" rows="2" style="resize:vertical;" placeholder=""></textarea>
-              </div>
-
               <div class="detail-section">
                 <label class="detail-label">Description</label>
                 <textarea class="detail-input" id="conDetailDesc" rows="3" style="resize:vertical;" placeholder="Description..."></textarea>
