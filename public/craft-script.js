@@ -13873,6 +13873,11 @@ function getMVNavItems(viewType) {
 }
 
 function renderMVNav(panelIdx, viewType, items) {
+  if (viewType === 'write') {
+    renderMVWriteNav(panelIdx);
+    return;
+  }
+
   const panel = document.querySelector(`.mv-panel[data-panel="${panelIdx}"]`);
   const nav = panel.querySelector('.mv-panel-nav');
   const currentId = mvPanelState[panelIdx].itemId;
@@ -13893,6 +13898,104 @@ function renderMVNav(panelIdx, viewType, items) {
       mvSwitchToItem(panelIdx, viewType, el.dataset.id);
     });
   });
+}
+
+function renderMVWriteNav(panelIdx) {
+  const panel = document.querySelector(`.mv-panel[data-panel="${panelIdx}"]`);
+  const nav = panel.querySelector('.mv-panel-nav');
+  const currentId = mvPanelState[panelIdx].itemId;
+
+  // Build folders + unfiled chapters, respecting hidden rules
+  nav.innerHTML = '';
+
+  const canSeeHidden = craftCanSeeHidden();
+
+  const createChapterNavItem = (chapter) => {
+    const el = document.createElement('div');
+    const isEffHidden = isChapterEffectivelyHidden(chapter);
+    const showHiddenBadge = canSeeHidden && isEffHidden;
+    el.className = `mv-nav-item ${chapter.id === currentId ? 'active' : ''} ${showHiddenBadge ? 'is-hidden' : ''}`;
+    el.dataset.id = chapter.id;
+    el.innerHTML = `
+      <span class="mv-nav-label">${chapter.title || 'Untitled'}</span>
+      ${showHiddenBadge ? '<span class="mv-hidden-badge" title="Hidden from guests/viewers">HIDDEN</span>' : ''}
+    `;
+    el.addEventListener('click', () => {
+      nav.querySelectorAll('.mv-nav-item').forEach(n => n.classList.remove('active'));
+      el.classList.add('active');
+      mvSwitchToItem(panelIdx, 'write', chapter.id);
+    });
+    return el;
+  };
+
+  const createFolderBlock = (folder) => {
+    const folderHidden = isFolderEffectivelyHidden(folder);
+    if (!canSeeHidden && folderHidden) return null;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = `mv-folder ${canSeeHidden && folderHidden ? 'is-hidden' : ''}`;
+    wrapper.dataset.folderId = folder.id;
+
+    const header = document.createElement('div');
+    header.className = 'mv-folder-header';
+    header.innerHTML = `
+      <span class="mv-folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
+      <span class="mv-folder-name">${folder.name || 'Folder'}</span>
+      ${canSeeHidden && folderHidden ? '<span class="mv-hidden-badge" title="Hidden from guests/viewers">HIDDEN</span>' : ''}
+    `;
+    header.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      folder.collapsed = !folder.collapsed;
+      if (window.craftSchedulePush) window.craftSchedulePush();
+      renderMVWriteNav(panelIdx);
+    });
+
+    const children = document.createElement('div');
+    children.className = 'mv-folder-children';
+    if (folder.collapsed) children.style.display = 'none';
+
+    const folderChapters = chapters
+      .filter(c => c.folderId === folder.id)
+      .filter(c => canSeeHidden || !isChapterEffectivelyHidden(c));
+
+    folderChapters.forEach(ch => children.appendChild(createChapterNavItem(ch)));
+
+    wrapper.appendChild(header);
+    wrapper.appendChild(children);
+    return wrapper;
+  };
+
+  // Folders
+  chapterFolders.forEach(folder => {
+    const block = createFolderBlock(folder);
+    if (block) nav.appendChild(block);
+  });
+
+  // Unfiled
+  const unfiled = chapters
+    .filter(c => !c.folderId)
+    .filter(c => canSeeHidden || !isChapterEffectivelyHidden(c));
+
+  if (unfiled.length) {
+    const unfiledWrap = document.createElement('div');
+    unfiledWrap.className = 'mv-folder mv-unfiled';
+
+    const header = document.createElement('div');
+    header.className = 'mv-folder-header';
+    header.innerHTML = `
+      <span class="mv-folder-toggle">▾</span>
+      <span class="mv-folder-name">Unfiled</span>
+    `;
+    // Unfiled isn't collapsible for now (keeps UI simple)
+    const children = document.createElement('div');
+    children.className = 'mv-folder-children';
+    unfiled.forEach(ch => children.appendChild(createChapterNavItem(ch)));
+
+    unfiledWrap.appendChild(header);
+    unfiledWrap.appendChild(children);
+    nav.appendChild(unfiledWrap);
+  }
 }
 
 function mvSwitchToItem(panelIdx, viewType, itemId) {

@@ -9383,3 +9383,57 @@ body.mm-dragging .mindmap-canvas {
   border: 1px solid rgba(255,255,255,0.25);
   opacity: 0.9;
 }
+/* MV (GM Screen) writing folder tree */
+.mv-folder {
+  margin: 4px 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.mv-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 11px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.mv-folder-header:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+}
+
+.mv-folder-toggle {
+  width: 14px;
+  text-align: center;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.mv-folder-name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.mv-folder-children {
+  padding: 4px 0 2px 0;
+}
+
+.mv-folder-children .mv-nav-item {
+  padding-left: 28px;
+  border-left-color: transparent;
+}
+
+.mv-folder.is-hidden .mv-folder-header {
+  opacity: 0.85;
+}
+
+.mv-unfiled .mv-folder-header {
+  background: rgba(212,168,36,0.05);
+  border-color: rgba(212,168,36,0.15);
+}
+
