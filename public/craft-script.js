@@ -13850,19 +13850,24 @@ function getMVNavItems(viewType) {
     case 'board':
       return boards
         .filter(b => craftCanSeeHidden() || !b.hidden)
-        .map(b => ({ id: b.id, name: b.name || 'Untitled Board' }));
+        .map(b => ({ id: b.id, name: b.name || 'Untitled Board', hidden: !!b.hidden }));
     case 'map':
       return maps
         .filter(m => craftCanSeeHidden() || !m.hidden)
-        .map(m => ({ id: m.id, name: m.name || 'Untitled Map' }));
+        .map(m => ({ id: m.id, name: m.name || 'Untitled Map', hidden: !!m.hidden }));
     case 'write':
       return chapters
         .filter(c => craftCanSeeHidden() || !isChapterEffectivelyHidden(c))
-        .map(c => ({ id: c.id, name: c.title || 'Untitled' }));
+        .map(c => ({
+          id: c.id,
+          name: c.title || 'Untitled',
+          // hidden when the chapter itself is hidden OR it lives under a hidden folder
+          hidden: isChapterEffectivelyHidden(c)
+        }));
     case 'timeline':
       return timelines
         .filter(t => craftCanSeeHidden() || !t.hidden)
-        .map(t => ({ id: t.id, name: t.name || 'Untitled' }));
+        .map(t => ({ id: t.id, name: t.name || 'Untitled', hidden: !!t.hidden }));
     default: return [];
   }
 }
