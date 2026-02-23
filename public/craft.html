@@ -1843,6 +1843,19 @@
             <div style="padding:4px 12px 8px;">
               <button class="btn primary sm full-width" id="addFactionBtn">+ Add Faction</button>
             </div>
+            <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
+            <div style="padding:4px 12px 8px;" id="facQuickGen">
+              <select class="detail-input" id="facGenType" style="margin-bottom:6px;font-size:11px;">
+                <option value="faction">Faction Name</option>
+                <option value="npc">NPC Name</option>
+                <option value="disposition">Disposition</option>
+                <option value="motivation">Motivation</option>
+                <option value="org">Organization</option>
+                <option value="location">Location</option>
+              </select>
+              <button class="btn secondary sm full-width" id="facGenRollBtn" style="gap:6px;">🎲 Generate</button>
+              <div id="facGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
+            </div>
           </div>
           <div class="sidebar-section contacts-list-section hidden" id="contactsListSection">
             <div class="section-header"><span>Contacts</span></div>
@@ -1852,6 +1865,18 @@
             <div style="padding:4px 12px 8px;">
               <button class="btn primary sm full-width" id="addContactBtn">+ Add Contact</button>
             </div>
+            <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
+            <div style="padding:4px 12px 8px;" id="contactQuickGen">
+              <select class="detail-input" id="contactGenType" style="margin-bottom:6px;font-size:11px;">
+                <option value="npc">NPC Name</option>
+                <option value="disposition">Disposition</option>
+                <option value="trait">Personality Trait</option>
+                <option value="occupation">Occupation</option>
+                <option value="secret">Secret</option>
+              </select>
+              <button class="btn secondary sm full-width" id="contactGenRollBtn" style="gap:6px;">🎲 Generate</button>
+              <div id="contactGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
+            </div>
           </div>
           <div class="sidebar-section orgs-list-section hidden" id="orgsListSection">
             <div class="section-header"><span>Organizations</span></div>
@@ -1860,6 +1885,17 @@
             </div>
             <div style="padding:4px 12px 8px;">
               <button class="btn primary sm full-width" id="addOrgBtn">+ Add Organization</button>
+            </div>
+            <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
+            <div style="padding:4px 12px 8px;" id="orgQuickGen">
+              <select class="detail-input" id="orgGenType" style="margin-bottom:6px;font-size:11px;">
+                <option value="org">Organization Name</option>
+                <option value="faction">Guild / Faction</option>
+                <option value="motivation">Motivation</option>
+                <option value="location">Headquarters</option>
+              </select>
+              <button class="btn secondary sm full-width" id="orgGenRollBtn" style="gap:6px;">🎲 Generate</button>
+              <div id="orgGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
             </div>
           </div>
         </aside>

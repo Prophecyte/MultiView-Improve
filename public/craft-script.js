@@ -3164,9 +3164,20 @@ function renderChaptersList() {
   const list = document.getElementById('chaptersList');
   list.innerHTML = '';
 
+  // Helper: is a chapter effectively hidden (directly or via folder)
+  function isChapterEffectivelyHidden(ch) {
+    if (ch.hidden) return true;
+    if (ch.folderId) {
+      const f = chapterFolders.find(f => f.id === ch.folderId);
+      if (f && f.hidden) return true;
+    }
+    return false;
+  }
+
   function createChapterItem(chapter) {
     const item = document.createElement('div');
-    item.className = `chapter-item${chapter.id === currentChapterId ? ' active' : ''}`;
+    const effectivelyHidden = isChapterEffectivelyHidden(chapter);
+    item.className = `chapter-item${chapter.id === currentChapterId ? ' active' : ''}${effectivelyHidden ? ' item-hidden' : ''}`;
     item.dataset.chapterId = chapter.id;
     item.draggable = true;
 
@@ -3192,6 +3203,7 @@ function renderChaptersList() {
       if (chapter.id === currentChapterId) {
         document.getElementById('writeChapterLabel').value = e.target.value;
       }
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
     });
     labelInput.addEventListener('click', (e) => e.stopPropagation());
 
@@ -3201,6 +3213,7 @@ function renderChaptersList() {
       if (chapter.id === currentChapterId) {
         document.getElementById('writeChapterTitle').value = e.target.value;
       }
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
     });
     titleInput.addEventListener('click', (e) => e.stopPropagation());
 
@@ -3226,26 +3239,28 @@ function renderChaptersList() {
       menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
       menu.style.top = Math.min(e.clientY, window.innerHeight - 140) + 'px';
     });
-    if (chapter.hidden) item.classList.add('item-hidden');
     return item;
   }
 
   // Render folders first, then unfiled chapters
-  chapterFolders.forEach(folder => {
+  chapterFolders.forEach((folder, folderIdx) => {
     const folderEl = document.createElement('div');
     folderEl.className = 'chapter-folder' + (folder.hidden ? ' item-hidden' : '');
     folderEl.dataset.folderId = folder.id;
+    folderEl.draggable = true;
     const folderChapters = chapters.filter(c => c.folderId === folder.id);
     const wordCount = folderChapters.reduce((s, c) => s + (c.words || 0), 0);
+    const chapterCount = folderChapters.length;
     folderEl.innerHTML = `<div class="folder-header" data-folder-id="${folder.id}">
+      <span class="drag-handle">⋮⋮</span>
       <span class="folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
       <svg class="folder-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
       <input type="text" class="folder-name-input" value="${folder.name}" />
-      <span class="chapter-words">${wordCount}</span>
+      <span class="folder-meta">${chapterCount}<span class="chapter-words">${wordCount}</span></span>
     </div>`;
     const headerEl = folderEl.querySelector('.folder-header');
     headerEl.addEventListener('click', (e) => {
-      if (e.target.tagName === 'INPUT') return;
+      if (e.target.tagName === 'INPUT' || e.target.classList.contains('drag-handle')) return;
       folder.collapsed = !folder.collapsed;
       renderChaptersList();
     });
@@ -3261,17 +3276,40 @@ function renderChaptersList() {
         menu.style.top = Math.min(e.clientY, window.innerHeight - 140) + 'px';
       }
     });
-    folderEl.querySelector('.folder-name-input').addEventListener('change', (e) => { folder.name = e.target.value; });
+    folderEl.querySelector('.folder-name-input').addEventListener('change', (e) => {
+      folder.name = e.target.value;
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+    });
     folderEl.querySelector('.folder-name-input').addEventListener('click', (e) => e.stopPropagation());
 
-    // Drop on folder to move chapter in
-    folderEl.addEventListener('dragover', (e) => { e.preventDefault(); folderEl.classList.add('drag-over'); });
+    // Folder drag/drop for reordering folders
+    folderEl.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/folder-id', folder.id);
+      e.dataTransfer.effectAllowed = 'move';
+      folderEl.classList.add('dragging');
+    });
+    folderEl.addEventListener('dragend', () => folderEl.classList.remove('dragging'));
+    folderEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      // Accept folders for reorder AND chapters for move-into
+      folderEl.classList.add('drag-over');
+    });
     folderEl.addEventListener('dragleave', () => folderEl.classList.remove('drag-over'));
     folderEl.addEventListener('drop', (e) => {
       e.preventDefault();
       folderEl.classList.remove('drag-over');
+      const droppedFolderId = e.dataTransfer.getData('text/folder-id');
       const chapterId = e.dataTransfer.getData('text/chapter-id');
-      if (chapterId) {
+      if (droppedFolderId && droppedFolderId !== folder.id) {
+        // Reorder folders
+        const fromIdx = chapterFolders.findIndex(f => f.id === droppedFolderId);
+        const toIdx = chapterFolders.findIndex(f => f.id === folder.id);
+        if (fromIdx >= 0 && toIdx >= 0) {
+          const [moved] = chapterFolders.splice(fromIdx, 1);
+          chapterFolders.splice(toIdx, 0, moved);
+          renderChaptersList();
+        }
+      } else if (chapterId) {
         const ch = chapters.find(c => c.id === chapterId);
         if (ch) { ch.folderId = folder.id; renderChaptersList(); }
       }
@@ -3302,6 +3340,24 @@ function renderChaptersList() {
     }, true);
     list.appendChild(item);
   });
+
+  // Drop zone at bottom to unfolder chapters
+  const unfileZone = document.createElement('div');
+  unfileZone.className = 'chapter-unfile-zone';
+  unfileZone.textContent = '';
+  unfileZone.addEventListener('dragover', (e) => { e.preventDefault(); unfileZone.classList.add('drag-over'); unfileZone.textContent = 'Drop to remove from folder'; });
+  unfileZone.addEventListener('dragleave', () => { unfileZone.classList.remove('drag-over'); unfileZone.textContent = ''; });
+  unfileZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    unfileZone.classList.remove('drag-over');
+    unfileZone.textContent = '';
+    const chapterId = e.dataTransfer.getData('text/chapter-id');
+    if (chapterId) {
+      const ch = chapters.find(c => c.id === chapterId);
+      if (ch && ch.folderId) { ch.folderId = null; renderChaptersList(); showNotif('Removed from folder'); }
+    }
+  });
+  list.appendChild(unfileZone);
 }
 
 let ctxChapterId = null;
@@ -3417,10 +3473,18 @@ function selectChapter(chapterId) {
 function saveCurrentChapter() {
   const chapter = chapters.find((c) => c.id === currentChapterId);
   if (chapter) {
-    chapter.content = document.getElementById('writeEditor').innerHTML;
-    const text = document.getElementById('writeEditor').textContent;
-    chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    // Persist indent/justify toggles
+    // CRITICAL: Only read editor DOM when we're actually on the write view.
+    // The editor is only populated when write view is active.
+    // Reading it from other views returns empty/stale content and overwrites saved data.
+    if (currentView === 'write') {
+      const editorEl = document.getElementById('writeEditor');
+      if (editorEl) {
+        chapter.content = editorEl.innerHTML;
+        const text = editorEl.textContent;
+        chapter.words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      }
+    }
+    // Persist indent/justify toggles (these are stored in JS vars, safe from any view)
     chapter.indentMode = writeIndentMode;
     chapter.justifyMode = writeJustifyMode;
   }
@@ -13416,6 +13480,44 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addFactionBtn')?.addEventListener('click', openFactionCreateModal);
   document.getElementById('addContactBtn')?.addEventListener('click', openContactCreateModal);
   document.getElementById('addOrgBtn')?.addEventListener('click', openOrgCreateModal);
+
+  // Quick Generators
+  const GEN_TABLES = {
+    faction: ['The Iron Covenant', 'Crimson Veil', 'Order of the Ashen Crown', 'The Verdant Circle', 'Shadow Syndicate', 'Silver Talon Company', 'The Obsidian Hand', 'Dawn Wardens', 'The Pale Court', 'Blackthorn Pact', 'Seekers of the Lost Flame', 'The Gilded Serpent', 'Storm Brotherhood', 'Children of the Abyss', 'The Jade Accord', 'Hollow Crown Collective', 'Nightbloom Society', 'The Amber Legion', 'Frost Sentinels', 'Dusk Reapers'],
+    npc: ['Aldric Thorn', 'Sera Nighthollow', 'Bjorn Ironfist', 'Lysara Dawnwhisper', 'Gavriel Ashford', 'Mira Stonewell', 'Dorian Blackwood', 'Elara Sunshadow', 'Kael Emberstrike', 'Yseult Ravenmoor', 'Rowan Deepcrest', 'Thessa Greyveil', 'Harken Coldforge', 'Nyx Silverbane', 'Orion Duskwalker', 'Faye Willowmere', 'Silas Grimshaw', 'Celeste Thornwick', 'Raven Ashmore', 'Lucian Dreadmoor'],
+    disposition: ['Friendly', 'Hostile', 'Cautious', 'Indifferent', 'Suspicious', 'Fearful', 'Eager to please', 'Manipulative', 'Respectful', 'Contemptuous', 'Secretive', 'Welcoming', 'Greedy', 'Protective', 'Treacherous'],
+    motivation: ['Power and control', 'Revenge for a past wrong', 'Protecting their family', 'Amassing wealth', 'Religious devotion', 'Knowledge and forbidden lore', 'Survival at any cost', 'Restoring lost honor', 'Escaping a dark past', 'Political dominance', 'True love', 'Overthrowing tyranny', 'Fulfilling a prophecy', 'Redemption', 'Building a legacy'],
+    org: ['The Merchant\'s Consortium', 'Holy Order of St. Maren', 'Arcane Research Institute', 'Thieves\' Brotherhood', 'The Explorer\'s Guild', 'Royal Guard Regiment', 'The Alchemists\' Union', 'Seafarers\' Alliance', 'The Artisan Collective', 'Bounty Hunters\' League', 'The Scholarly Archive', 'Mercenary Company', 'Temple of the Eternal', 'The Underground Network', 'Rangers of the Wilds'],
+    location: ['The Scarlet Citadel', 'Whisperwood Manor', 'Ironhold Keep', 'Shadowfen Trading Post', 'The Gilded Spire', 'Ravencrest Tower', 'Dusthaven Outpost', 'The Crystal Vault', 'Moonrise Sanctuary', 'Blackmire Stronghold', 'Stormwatch Bastion', 'The Hollow Library', 'Sunfire Cathedral', 'Driftwood Tavern', 'The Ember Forge'],
+    trait: ['Compulsive liar', 'Overly generous', 'Paranoid about strangers', 'Speaks in riddles', 'Collects unusual objects', 'Never breaks a promise', 'Terrified of magic', 'Laughs at inappropriate times', 'Obsessed with cleanliness', 'Can\'t resist a gamble', 'Whispers when angry', 'Fiercely loyal', 'Chronic procrastinator', 'Always has a plan B', 'Trusts animals more than people'],
+    occupation: ['Blacksmith', 'Herbalist', 'Spy', 'Merchant prince', 'Street performer', 'Grave digger', 'Cartographer', 'Ship captain', 'Bounty hunter', 'Apothecary', 'Scribe', 'Gladiator', 'Court advisor', 'Smuggler', 'Innkeeper', 'Assassin', 'Healer', 'Tax collector', 'Locksmith', 'Monster hunter'],
+    secret: ['Is secretly a shapeshifter', 'Murdered their sibling', 'Works as a double agent', 'Owes a massive debt to a dragon', 'Is heir to a fallen kingdom', 'Stole a powerful artifact', 'Has a terminal illness', 'Is being blackmailed', 'Witnessed an atrocity and said nothing', 'Made a pact with a fiend', 'Is hiding a fugitive', 'Embezzles from their employer', 'Was once a different person entirely', 'Knows the location of a great treasure', 'Is plotting a coup']
+  };
+
+  function rollGenerator(type) {
+    const table = GEN_TABLES[type];
+    if (!table || !table.length) return 'No table found';
+    return table[Math.floor(Math.random() * table.length)];
+  }
+
+  function wireGenerator(btnId, selectId, resultId) {
+    document.getElementById(btnId)?.addEventListener('click', () => {
+      const type = document.getElementById(selectId)?.value || 'faction';
+      const result = rollGenerator(type);
+      const el = document.getElementById(resultId);
+      if (el) {
+        el.textContent = result;
+        el.style.display = 'block';
+        el.style.animation = 'none';
+        el.offsetHeight; // reflow
+        el.style.animation = 'fadeIn 0.2s ease';
+      }
+    });
+  }
+  wireGenerator('facGenRollBtn', 'facGenType', 'facGenResult');
+  wireGenerator('contactGenRollBtn', 'contactGenType', 'contactGenResult');
+  wireGenerator('orgGenRollBtn', 'orgGenType', 'orgGenResult');
+
   document.getElementById('facDetailAddClaim')?.addEventListener('click', () => { if (selectedFactionId) openClaimAdd(selectedFactionId); });
   document.getElementById('facDetailDelete')?.addEventListener('click', () => { if (selectedFactionId) deleteFaction(selectedFactionId); });
   document.getElementById('conDetailDelete')?.addEventListener('click', () => { if (selectedContactId) deleteContact(selectedContactId); });
@@ -13810,16 +13912,36 @@ function loadMVPanel(panelIdx, viewType) {
     nav.innerHTML = '';
   }
 
-  // Trigger re-render
-  mvSwitchToItem(panelIdx, viewType, navItems.length > 0 ? navItems[0].id : null);
+  // Trigger re-render - pick first selectable (non-folder) item
+  const firstSelectable = navItems.find(i => !i.isFolder);
+  mvSwitchToItem(panelIdx, viewType, firstSelectable ? firstSelectable.id : null);
 }
 
 function getMVNavItems(viewType) {
+  const canSeeHidden = !!window.craftCanViewHidden;
   switch (viewType) {
-    case 'board': return boards.map(b => ({ id: b.id, name: b.name || 'Untitled Board' }));
-    case 'map': return maps.map(m => ({ id: m.id, name: m.name || 'Untitled Map' }));
-    case 'write': return chapters.map(c => ({ id: c.id, name: c.title || 'Untitled' }));
-    case 'timeline': return timelines.map(t => ({ id: t.id, name: t.name || 'Untitled' }));
+    case 'board': return boards.filter(b => canSeeHidden || !b.hidden).map(b => ({ id: b.id, name: b.name || 'Untitled Board' }));
+    case 'map': return maps.filter(m => canSeeHidden || !m.hidden).map(m => ({ id: m.id, name: m.name || 'Untitled Map' }));
+    case 'write': {
+      const items = [];
+      // Add folders with their chapters nested
+      chapterFolders.forEach(folder => {
+        if (!canSeeHidden && folder.hidden) return;
+        items.push({ id: 'folder:' + folder.id, name: '📁 ' + (folder.name || 'Folder'), isFolder: true, folderId: folder.id });
+        const folderChapters = chapters.filter(c => c.folderId === folder.id);
+        folderChapters.forEach(c => {
+          if (!canSeeHidden && (c.hidden || folder.hidden)) return;
+          items.push({ id: c.id, name: '   ' + (c.title || 'Untitled'), inFolder: true });
+        });
+      });
+      // Unfiled chapters
+      chapters.filter(c => !c.folderId).forEach(c => {
+        if (!canSeeHidden && c.hidden) return;
+        items.push({ id: c.id, name: c.title || 'Untitled' });
+      });
+      return items;
+    }
+    case 'timeline': return timelines.filter(t => canSeeHidden || !t.hidden).map(t => ({ id: t.id, name: t.name || 'Untitled' }));
     default: return [];
   }
 }
@@ -13829,13 +13951,18 @@ function renderMVNav(panelIdx, viewType, items) {
   const nav = panel.querySelector('.mv-panel-nav');
   const currentId = mvPanelState[panelIdx].itemId;
 
-  nav.innerHTML = items.map(item =>
-    `<div class="mv-nav-item ${item.id === currentId ? 'active' : ''}" data-id="${item.id}">
+  nav.innerHTML = items.map(item => {
+    if (item.isFolder) {
+      return `<div class="mv-nav-item mv-nav-folder" data-folder-id="${item.folderId}">
+        <span class="mv-nav-label">${item.name}</span>
+      </div>`;
+    }
+    return `<div class="mv-nav-item ${item.id === currentId ? 'active' : ''}${item.inFolder ? ' mv-nav-indented' : ''}" data-id="${item.id}">
       <span class="mv-nav-label">${item.name}</span>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 
-  nav.querySelectorAll('.mv-nav-item').forEach(el => {
+  nav.querySelectorAll('.mv-nav-item:not(.mv-nav-folder)').forEach(el => {
     el.addEventListener('click', () => {
       nav.querySelectorAll('.mv-nav-item').forEach(n => n.classList.remove('active'));
       el.classList.add('active');
