@@ -809,15 +809,28 @@
   }
 
   window.addEventListener('beforeunload', function() {
-    if (stateDirty && roomId && window.craftGetState && myRole !== 'viewer') {
+    // Force save current chapter content before unload
+    if (window.craftGetState) {
+      try { 
+        if (typeof saveCurrentChapter === 'function') saveCurrentChapter();
+      } catch(e) {}
+    }
+    if (roomId && window.craftGetState && myRole !== 'viewer') {
       var state = window.craftGetState();
       delete state.currentView;
       delete state.viewSettings;
-      var p = JSON.stringify({ state: state, guestId: getToken() ? undefined : getGuestId() });
+      var payload = { state: state };
+      if (!getToken()) payload.guestId = getGuestId();
+      // Include token in body since sendBeacon can't set headers
+      var token = getToken();
+      if (token) payload.token = token;
+      var p = JSON.stringify(payload);
       navigator.sendBeacon(API_BASE + '/craftrooms/' + roomId + '/sync', new Blob([p], { type: 'application/json' }));
     }
     if (roomId) {
       var lp = {}; if (!getToken()) lp.guestId = getGuestId();
+      var token2 = getToken();
+      if (token2) lp.token = token2;
       navigator.sendBeacon(API_BASE + '/craftrooms/' + roomId + '/leave', new Blob([JSON.stringify(lp)], { type: 'application/json' }));
     }
   });

@@ -4418,13 +4418,17 @@ function Room(props) {
     // Handle visibility changes - sync when tab becomes visible
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
-        console.log('Tab visible - forcing sync from server...');
+        console.log('Tab visible - forcing full sync from server...');
         api.presence.heartbeat(room.id, 'online').catch(console.error);
         
         // Reset sync tracking refs to force accepting server state
         // This ensures we always get the latest state after being away
         lastSyncedState.current = null;
         lastSyncedTime.current = -1;
+        
+        // Clear local change timestamp so sync isn't blocked
+        // After being in background, we should always defer to server state
+        lastLocalChange.current = 0;
         
         // Sync from server
         syncRoomState();
@@ -4435,9 +4439,10 @@ function Room(props) {
     window.addEventListener('focus', function() {
       api.presence.heartbeat(room.id, 'online').catch(console.error);
       
-      // Also force sync on focus
+      // Also force sync on focus - reset everything to accept server state
       lastSyncedState.current = null;
       lastSyncedTime.current = -1;
+      lastLocalChange.current = 0;
       syncRoomState();
     });
     
@@ -4462,6 +4467,13 @@ function Room(props) {
     // Do not broadcast local files (blob URLs) - they only work locally
     if (video && video.url && video.url.startsWith('blob:')) {
       console.log('>>> SKIPPING BROADCAST (local file)');
+      return;
+    }
+    
+    // Do not broadcast from background/hidden tabs - prevents idle guests from
+    // overwriting the room's current video/playlist with stale data
+    if (document.visibilityState === 'hidden') {
+      console.log('>>> SKIPPING BROADCAST (tab hidden)');
       return;
     }
     
@@ -4493,6 +4505,13 @@ function Room(props) {
     lastSyncedState.current = state;
     lastSyncedTime.current = time;
     
+    // Don't mark as local change or broadcast from background tabs
+    // This prevents idle guests from overwriting the room state
+    if (document.visibilityState === 'hidden') {
+      console.log('>>> IGNORING player state change (tab hidden)');
+      return;
+    }
+    
     // Only mark as local change if not during initial sync
     // This prevents player load events from blocking sync
     if (!isInitialSync.current) {
@@ -4511,6 +4530,12 @@ function Room(props) {
   function handlePlayerSeek(time) {
     console.log('Player seeked to:', time);
     lastSyncedTime.current = time;
+    
+    // Don't mark as local change or broadcast from background tabs
+    if (document.visibilityState === 'hidden') {
+      console.log('>>> IGNORING player seek (tab hidden)');
+      return;
+    }
     
     // Only mark as local change if not during initial sync
     if (!isInitialSync.current) {

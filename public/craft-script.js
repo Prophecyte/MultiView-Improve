@@ -384,12 +384,23 @@ function initEventListeners() {
   writeEditor.addEventListener('input', updateWordCount);
   writeEditor.addEventListener('input', processWikiLinksInEditor);
 
+  // Debounced save + sync for write editor content
+  let _writeSaveTimer = null;
+  writeEditor.addEventListener('input', () => {
+    clearTimeout(_writeSaveTimer);
+    _writeSaveTimer = setTimeout(() => {
+      saveCurrentChapter();
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+    }, 400);
+  });
+
   // Chapter title/label sync
   document.getElementById('writeChapterTitle').addEventListener('input', (e) => {
     const chapter = chapters.find((c) => c.id === currentChapterId);
     if (chapter) {
       chapter.title = e.target.value;
       renderChaptersList();
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
     }
   });
 
@@ -398,6 +409,7 @@ function initEventListeners() {
     if (chapter) {
       chapter.label = e.target.value;
       renderChaptersList();
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
     }
   });
 
@@ -750,6 +762,8 @@ function initEventListeners() {
 // View Switching
 // ============================================
 function switchView(view) {
+  // Save current chapter content before switching away from write view
+  if (currentView === 'write') saveCurrentChapter();
   currentView = view;
 
   document.querySelectorAll('.view-toggle-btn').forEach((btn) => {
@@ -7388,6 +7402,39 @@ function renderConnections() {
         svg.appendChild(barb);
       }
     }
+
+    // Render connection label at midpoint
+    if (conn.label) {
+      const labelX = (fromX + toX) / 2;
+      const labelY = (fromY + toY) / 2;
+      // Offset label perpendicular to the line
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const len = Math.hypot(dx, dy) || 1;
+      const offsetX = -(dy / len) * 14;
+      const offsetY = (dx / len) * 14;
+      
+      // Background rect
+      const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      labelGroup.setAttribute('pointer-events', 'none');
+      const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      labelText.setAttribute('x', labelX + offsetX);
+      labelText.setAttribute('y', labelY + offsetY);
+      labelText.setAttribute('text-anchor', 'middle');
+      labelText.setAttribute('dominant-baseline', 'middle');
+      labelText.setAttribute('fill', color);
+      labelText.setAttribute('font-size', '11');
+      labelText.setAttribute('font-family', 'Inter, sans-serif');
+      labelText.setAttribute('font-weight', '500');
+      labelText.setAttribute('paint-order', 'stroke');
+      labelText.setAttribute('stroke', 'var(--bg-dark, #0a0a0a)');
+      labelText.setAttribute('stroke-width', '3');
+      labelText.setAttribute('stroke-linecap', 'round');
+      labelText.setAttribute('stroke-linejoin', 'round');
+      labelText.textContent = conn.label;
+      labelGroup.appendChild(labelText);
+      svg.appendChild(labelGroup);
+    }
   });
 }
 
@@ -7464,6 +7511,8 @@ function selectConnection(fromId, toId) {
     document.getElementById('connCurveSelect').value = selectedConnection.curve || 'up';
     const glowTgl = document.getElementById('connGlowToggle');
     if (glowTgl) glowTgl.checked = !!selectedConnection.glow;
+    const labelIn = document.getElementById('connLabelInput');
+    if (labelIn) labelIn.value = selectedConnection.label || '';
 
     renderConnections();
   }
@@ -7508,6 +7557,8 @@ function addConnectionToSelection(fromId, toId) {
   document.getElementById('connCurveSelect').value = selectedConnection.curve || 'up';
   const glowTgl2 = document.getElementById('connGlowToggle');
   if (glowTgl2) glowTgl2.checked = !!selectedConnection.glow;
+  const labelIn2 = document.getElementById('connLabelInput');
+  if (labelIn2) labelIn2.value = selectedConnection.label || '';
 
   renderConnections();
 }
@@ -7522,6 +7573,7 @@ function updateConnectionStyle() {
   const arrow = document.getElementById('connArrowSelect').value;
   const curve = document.getElementById('connCurveSelect').value;
   const glow = document.getElementById('connGlowToggle')?.checked || false;
+  const label = document.getElementById('connLabelInput')?.value || '';
 
   const targets = multiSelectedConnections.length > 0 ? multiSelectedConnections : (selectedConnection ? [selectedConnection] : []);
 
@@ -7536,6 +7588,7 @@ function updateConnectionStyle() {
       conn.arrow = arrow;
       conn.curve = curve;
       conn.glow = glow;
+      conn.label = label;
     }
   });
 
@@ -7591,6 +7644,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('connArrowSelect')?.addEventListener('change', updateConnectionStyle);
   document.getElementById('connCurveSelect')?.addEventListener('change', updateConnectionStyle);
   document.getElementById('connGlowToggle')?.addEventListener('change', updateConnectionStyle);
+  document.getElementById('connLabelInput')?.addEventListener('input', updateConnectionStyle);
 
   // Card controls
   document.getElementById('cardTopAccentPicker')?.addEventListener('input', (e) => {

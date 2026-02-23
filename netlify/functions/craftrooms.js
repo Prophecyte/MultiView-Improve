@@ -48,8 +48,10 @@ export const handler = async (event) => {
   try {
     await ensureMigration();
     const path = getPath(event);
-    const user = await getUserFromToken(event.headers.authorization || event.headers.Authorization);
     const body = event.body ? JSON.parse(event.body) : {};
+    // Support token from Authorization header OR from request body (sendBeacon fallback)
+    const user = await getUserFromToken(event.headers.authorization || event.headers.Authorization) 
+      || (body.token ? await getUserFromToken('Bearer ' + body.token) : null);
 
     // ─── POST / - Create craft room ───
     if (event.httpMethod === 'POST' && path === '') {

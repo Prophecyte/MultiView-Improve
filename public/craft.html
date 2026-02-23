@@ -2240,20 +2240,31 @@
               </div>
               <div class="toolbar-divider-v"></div>
               <div class="toolbar-control-group">
+                <label>Label</label>
+                <input type="text" id="connLabelInput" class="toolbar-select" placeholder="…" style="width:70px;padding:4px 6px;font-size:11px;" />
+              </div>
+              <div class="toolbar-divider-v"></div>
+              <div class="toolbar-control-group">
                 <label>Style</label>
                 <select id="connStyleSelect" class="toolbar-select">
-                  <option value="solid">Solid</option>
-                  <option value="dashed">Dashed</option>
-                  <option value="dotted">Dotted</option>
-                  <option value="dashdot">Dash-Dot</option>
-                  <option value="longdash">Long Dash</option>
-                  <option value="double">Double</option>
-                  <option value="railroad">Railroad</option>
-                  <option value="energy">Energy</option>
-                  <option value="morse">Morse</option>
-                  <option value="tapered">Tapered</option>
-                  <option value="chain">Chain</option>
-                  <option value="barbed">Barbed</option>
+                  <optgroup label="Basic">
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                    <option value="longdash">Long Dash</option>
+                  </optgroup>
+                  <optgroup label="Pattern">
+                    <option value="dashdot">Dash-Dot</option>
+                    <option value="morse">Morse</option>
+                    <option value="chain">Chain</option>
+                  </optgroup>
+                  <optgroup label="Decorative">
+                    <option value="double">Double</option>
+                    <option value="railroad">Railroad</option>
+                    <option value="barbed">Barbed</option>
+                    <option value="tapered">Tapered</option>
+                    <option value="energy">Energy ✨</option>
+                  </optgroup>
                 </select>
               </div>
               <div class="toolbar-control-group">
@@ -2269,20 +2280,28 @@
               <div class="toolbar-control-group">
                 <label>Path</label>
                 <select id="connCurveSelect" class="toolbar-select">
-                  <option value="up" selected>Arc Up</option>
-                  <option value="down">Arc Down</option>
-                  <option value="straight">Straight</option>
-                  <option value="swirl">Swirl</option>
-                  <option value="step">Step (L-shape)</option>
-                  <option value="zigzag">Zigzag</option>
-                  <option value="wave">Wave</option>
-                  <option value="spring">Spring</option>
-                  <option value="loop">Loop</option>
-                  <option value="sstep">S-Step</option>
-                  <option value="hstep">H-Step</option>
-                  <option value="arc3">Triple Arc</option>
-                  <option value="organic">Organic</option>
-                  <option value="elbow">Elbow</option>
+                  <optgroup label="Basic">
+                    <option value="straight">Straight</option>
+                    <option value="up" selected>Arc Up</option>
+                    <option value="down">Arc Down</option>
+                  </optgroup>
+                  <optgroup label="Stepped">
+                    <option value="step">Step (L-shape)</option>
+                    <option value="sstep">S-Step</option>
+                    <option value="hstep">H-Step</option>
+                    <option value="elbow">Elbow</option>
+                  </optgroup>
+                  <optgroup label="Curves">
+                    <option value="swirl">Swirl</option>
+                    <option value="wave">Wave</option>
+                    <option value="loop">Loop</option>
+                    <option value="arc3">Triple Arc</option>
+                    <option value="organic">Organic</option>
+                  </optgroup>
+                  <optgroup label="Angular">
+                    <option value="zigzag">Zigzag</option>
+                    <option value="spring">Spring</option>
+                  </optgroup>
                 </select>
               </div>
               <div class="toolbar-control-group">
