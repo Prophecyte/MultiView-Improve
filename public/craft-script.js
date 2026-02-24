@@ -440,11 +440,12 @@ function initEventListeners() {
     const sizeVal = e.target.value;
 
     if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Use span wrapping instead of execCommand to avoid font-family reset
+      // Wrap selected text in span with font-size + line-height to avoid gap expansion
       const range = selection.getRangeAt(0);
       const fragment = range.extractContents();
       const wrapper = document.createElement('span');
       wrapper.style.fontSize = sizeVal + 'px';
+      wrapper.style.lineHeight = '1.4';
       wrapper.appendChild(fragment);
       range.insertNode(wrapper);
       // Re-select
@@ -453,6 +454,20 @@ function initEventListeners() {
       newRange.selectNodeContents(wrapper);
       selection.addRange(newRange);
       saveCurrentChapter();
+    } else if (selection.rangeCount > 0 && selection.isCollapsed && editor.contains(selection.anchorNode)) {
+      // Cursor only (no selection) — insert styled zero-width space so next typed text inherits size
+      const range = selection.getRangeAt(0);
+      const wrapper = document.createElement('span');
+      wrapper.style.fontSize = sizeVal + 'px';
+      wrapper.style.lineHeight = '1.4';
+      wrapper.textContent = '\u200B'; // zero-width space
+      range.insertNode(wrapper);
+      // Place cursor inside the span after the zwsp
+      const newRange = document.createRange();
+      newRange.setStart(wrapper.firstChild, 1);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
     } else if (!editor.textContent.trim()) {
       editor.style.fontSize = sizeVal + 'px';
     }
@@ -13481,7 +13496,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addContactBtn')?.addEventListener('click', openContactCreateModal);
   document.getElementById('addOrgBtn')?.addEventListener('click', openOrgCreateModal);
 
-  // Quick Generators
+  // Quick Generators with Custom Tables
   const GEN_TABLES = {
     faction: ['The Iron Covenant', 'Crimson Veil', 'Order of the Ashen Crown', 'The Verdant Circle', 'Shadow Syndicate', 'Silver Talon Company', 'The Obsidian Hand', 'Dawn Wardens', 'The Pale Court', 'Blackthorn Pact', 'Seekers of the Lost Flame', 'The Gilded Serpent', 'Storm Brotherhood', 'Children of the Abyss', 'The Jade Accord', 'Hollow Crown Collective', 'Nightbloom Society', 'The Amber Legion', 'Frost Sentinels', 'Dusk Reapers'],
     npc: ['Aldric Thorn', 'Sera Nighthollow', 'Bjorn Ironfist', 'Lysara Dawnwhisper', 'Gavriel Ashford', 'Mira Stonewell', 'Dorian Blackwood', 'Elara Sunshadow', 'Kael Emberstrike', 'Yseult Ravenmoor', 'Rowan Deepcrest', 'Thessa Greyveil', 'Harken Coldforge', 'Nyx Silverbane', 'Orion Duskwalker', 'Faye Willowmere', 'Silas Grimshaw', 'Celeste Thornwick', 'Raven Ashmore', 'Lucian Dreadmoor'],
@@ -13494,29 +13509,102 @@ document.addEventListener('DOMContentLoaded', () => {
     secret: ['Is secretly a shapeshifter', 'Murdered their sibling', 'Works as a double agent', 'Owes a massive debt to a dragon', 'Is heir to a fallen kingdom', 'Stole a powerful artifact', 'Has a terminal illness', 'Is being blackmailed', 'Witnessed an atrocity and said nothing', 'Made a pact with a fiend', 'Is hiding a fugitive', 'Embezzles from their employer', 'Was once a different person entirely', 'Knows the location of a great treasure', 'Is plotting a coup']
   };
 
+  // Custom user-defined tables per connection tab (saved in room state)
+  window._facCustomTables = window._facCustomTables || { factions: [], contacts: [], orgs: [] };
+
   function rollGenerator(type) {
+    if (type.startsWith('custom_')) {
+      const key = type.replace('custom_', '');
+      const entries = window._facCustomTables[key] || [];
+      if (!entries.length) return 'No custom entries yet — add some above';
+      return entries[Math.floor(Math.random() * entries.length)];
+    }
     const table = GEN_TABLES[type];
     if (!table || !table.length) return 'No table found';
     return table[Math.floor(Math.random() * table.length)];
   }
 
-  function wireGenerator(btnId, selectId, resultId) {
-    document.getElementById(btnId)?.addEventListener('click', () => {
-      const type = document.getElementById(selectId)?.value || 'faction';
+  function updateCustomCount(tab) {
+    const el = document.getElementById(tab + 'CustomCount');
+    const entries = window._facCustomTables[tab === 'fac' ? 'factions' : tab === 'contact' ? 'contacts' : 'orgs'] || [];
+    if (el) el.textContent = entries.length ? entries.length + ' custom ' + (entries.length === 1 ? 'entry' : 'entries') : '';
+  }
+
+  function addGenResultToBoard(result) {
+    const board = getCurrentBoard();
+    if (!board || !result) return;
+    // Create a randomizer card with the result as an entry
+    const cardId = 'card_' + Date.now();
+    const cx = (board.viewX || 0) + 300;
+    const cy = (board.viewY || 0) + 200;
+    board.cards.push({
+      id: cardId, type: 'randomizer', title: 'Generated: ' + result.substring(0, 20),
+      x: cx, y: cy, w: 200, h: 160, color: '#e879a8',
+      tableEntries: [{ text: result, weight: 1 }], lastRoll: 0
+    });
+    renderCards();
+    showNotif('Added randomizer card to board');
+    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+  }
+
+  function wireGenerator(prefix, selectId, resultId, customSectionId, customInputId, customAddId, addToBoardId, tableKey) {
+    const select = document.getElementById(selectId);
+    const customSection = document.getElementById(customSectionId);
+    const rollBtn = document.getElementById(prefix + 'GenRollBtn');
+    const addBoardBtn = document.getElementById(addToBoardId);
+
+    // Show/hide custom section based on dropdown
+    select?.addEventListener('change', () => {
+      const isCustom = select.value.startsWith('custom_');
+      customSection?.classList.toggle('hidden', !isCustom);
+      if (isCustom) updateCustomCount(prefix);
+    });
+
+    // Add custom entry
+    document.getElementById(customAddId)?.addEventListener('click', () => {
+      const input = document.getElementById(customInputId);
+      const val = input?.value.trim();
+      if (!val) return;
+      if (!window._facCustomTables[tableKey]) window._facCustomTables[tableKey] = [];
+      window._facCustomTables[tableKey].push(val);
+      input.value = '';
+      updateCustomCount(prefix);
+      showNotif('Entry added');
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+    });
+    document.getElementById(customInputId)?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById(customAddId)?.click();
+    });
+
+    // Roll
+    rollBtn?.addEventListener('click', () => {
+      const type = select?.value || 'faction';
       const result = rollGenerator(type);
       const el = document.getElementById(resultId);
       if (el) {
         el.textContent = result;
         el.style.display = 'block';
         el.style.animation = 'none';
-        el.offsetHeight; // reflow
+        el.offsetHeight;
         el.style.animation = 'fadeIn 0.2s ease';
+        // Show add-to-board button
+        if (addBoardBtn && result && !result.startsWith('No ')) addBoardBtn.classList.remove('hidden');
+      }
+    });
+
+    // Add to board
+    addBoardBtn?.addEventListener('click', () => {
+      const el = document.getElementById(resultId);
+      if (el && el.textContent) {
+        addGenResultToBoard(el.textContent);
+        addBoardBtn.classList.add('hidden');
       }
     });
   }
-  wireGenerator('facGenRollBtn', 'facGenType', 'facGenResult');
-  wireGenerator('contactGenRollBtn', 'contactGenType', 'contactGenResult');
-  wireGenerator('orgGenRollBtn', 'orgGenType', 'orgGenResult');
+
+  wireGenerator('fac', 'facGenType', 'facGenResult', 'facCustomSection', 'facCustomInput', 'facCustomAdd', 'facAddToBoard', 'factions');
+  wireGenerator('contact', 'contactGenType', 'contactGenResult', 'contactCustomSection', 'contactCustomInput', 'contactCustomAdd', 'contactAddToBoard', 'contacts');
+  wireGenerator('org', 'orgGenType', 'orgGenResult', 'orgCustomSection', 'orgCustomInput', 'orgCustomAdd', 'orgAddToBoard', 'orgs');
 
   document.getElementById('facDetailAddClaim')?.addEventListener('click', () => { if (selectedFactionId) openClaimAdd(selectedFactionId); });
   document.getElementById('facDetailDelete')?.addEventListener('click', () => { if (selectedFactionId) deleteFaction(selectedFactionId); });
@@ -15475,6 +15563,7 @@ window.craftGetState = function() {
     factions: JSON.parse(JSON.stringify(factions)),
     contacts: JSON.parse(JSON.stringify(contacts)),
     organizations: JSON.parse(JSON.stringify(organizations)),
+    facCustomTables: JSON.parse(JSON.stringify(window._facCustomTables || { factions: [], contacts: [], orgs: [] })),
     // Mind Map
     mmNodes: JSON.parse(JSON.stringify(mmNodes)),
     mmEdges: JSON.parse(JSON.stringify(mmEdges)),
@@ -15525,6 +15614,7 @@ window.craftSetState = function(state, skipRender) {
   if (state.factions) factions = state.factions;
   if (state.contacts) contacts = state.contacts;
   if (state.organizations) organizations = state.organizations;
+  if (state.facCustomTables) window._facCustomTables = state.facCustomTables;
   
   // Mind Map
   if (state.mmNodes) mmNodes = state.mmNodes;
@@ -15665,6 +15755,80 @@ window.applyViewSettings = applyViewSettings;
     });
   });
   obs.observe(document.body, { childList: true, subtree: true });
+})();
+
+// ============================================
+// Permission Denial System
+// ============================================
+(function() {
+  let _permDenyTimer = null;
+  function showPermissionDenied(action) {
+    if (_permDenyTimer) clearTimeout(_permDenyTimer);
+    const msg = action === 'delete' ? 'You do not have permission to delete this item'
+      : action === 'toggle' ? 'You do not have permission to change this setting'
+      : 'You do not have permission to edit this room';
+    showNotif(msg);
+    _permDenyTimer = setTimeout(() => { _permDenyTimer = null; }, 1500);
+  }
+
+  // Intercept edit attempts from viewers via capture-phase listener on dashboard
+  const dash = document.querySelector('.dashboard');
+  if (dash) {
+    dash.addEventListener('mousedown', function(e) {
+      if (window.craftMyRole && window.craftMyRole !== 'viewer') return;
+      if (window.craftMyRole === undefined) return; // Not loaded yet
+
+      const t = e.target;
+      const tag = t.tagName;
+      const isInteractive = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        t.isContentEditable || t.closest('[contenteditable="true"]') ||
+        t.classList.contains('delete-item-btn') || t.classList.contains('btn') ||
+        t.closest('.context-menu-item') || t.closest('.tool-btn') ||
+        t.closest('.write-tool-btn') || t.closest('.add-btn-full') ||
+        (tag === 'BUTTON' && !t.closest('.mv-panel-header') && !t.closest('.zoom-controls') && !t.closest('.view-toggle-btn')));
+
+      // Allow navigation/view-switching elements
+      if (t.closest('.view-toggle-btn') || t.closest('.zoom-controls') ||
+          t.closest('.mv-panel-header') || t.closest('.mv-nav-item') ||
+          t.closest('.chapter-item') || t.closest('.board-item') ||
+          t.closest('.map-item') || t.closest('.fac-sub-tab') ||
+          t.closest('.sb-cat-btn') || t.closest('.sb-tile-play') ||
+          t.closest('.sb-tile-vol') || t.closest('#sbPersonalVol') ||
+          t.closest('.connected-header') || t.closest('.user-badge') ||
+          t.closest('.craft-connected-section')) return;
+
+      if (isInteractive) {
+        e.preventDefault();
+        e.stopPropagation();
+        const act = t.classList.contains('delete-item-btn') || t.closest('.danger') ? 'delete'
+          : (tag === 'INPUT' && t.type === 'checkbox') ? 'toggle' : 'edit';
+        showPermissionDenied(act);
+      }
+    }, true);
+
+    // Also block contenteditable input
+    dash.addEventListener('keydown', function(e) {
+      if (window.craftMyRole && window.craftMyRole !== 'viewer') return;
+      if (window.craftMyRole === undefined) return;
+
+      const t = e.target;
+      if (t.isContentEditable || t.closest('[contenteditable="true"]') ||
+          t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
+        // Allow navigation keys
+        if (['Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+        e.preventDefault();
+        showPermissionDenied('edit');
+      }
+    }, true);
+
+    // Block drag operations for viewers
+    dash.addEventListener('dragstart', function(e) {
+      if (window.craftMyRole && window.craftMyRole !== 'viewer') return;
+      if (window.craftMyRole === undefined) return;
+      e.preventDefault();
+      showPermissionDenied('edit');
+    }, true);
+  }
 })();
 
 window.craftReady = true;

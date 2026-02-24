@@ -1905,7 +1905,13 @@ function ConnectedUsers(props) {
               style: { backgroundColor: color },
               onClick: function() { selectColor(color); }
             });
-          })
+          }),
+          React.createElement('button', {
+            key: 'clear',
+            className: 'color-option color-clear' + (!colorModal.color ? ' selected' : ''),
+            onClick: function() { selectColor(null); },
+            title: 'Clear color'
+          }, '✕')
         )
       )
     )

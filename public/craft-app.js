@@ -207,7 +207,7 @@
         if (e.message !== 'kicked') {
           console.warn('Push failed:', e.message);
           setSyncStatus('error');
-          if (e.message.indexOf('View only') >= 0) myRole = 'viewer';
+          if (e.message.indexOf('View only') >= 0) { myRole = 'viewer'; window.craftMyRole = myRole; }
         }
       })
       .finally(function() { isPushing = false; });
@@ -253,6 +253,7 @@
         myRole = members[i].is_owner ? 'owner' : (members[i].role || 'viewer');
         isOwner = !!members[i].is_owner;
         window.craftIsOwner = isOwner;
+        window.craftMyRole = myRole;
         var canSeeHidden = isOwner || !!members[i].can_view_hidden;
         window.craftCanViewHidden = canSeeHidden;
         document.body.classList.toggle('craft-not-owner', !isOwner);
@@ -604,12 +605,13 @@
     var grid = BADGE_COLORS.map(function(c) {
       return '<button class="color-option' + (m.color === c ? ' selected' : '') + '" style="background-color:' + c + '" data-color="' + c + '"></button>';
     }).join('');
+    grid += '<button class="color-option color-clear' + (!m.color ? ' selected' : '') + '" data-color="" title="Clear color">✕</button>';
     overlay.innerHTML = '<div class="modal settings-modal" onclick="event.stopPropagation()"><button class="modal-close" id="colorClose">&times;</button><h2>Choose Color</h2><div class="color-picker-grid">' + grid + '</div></div>';
     overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
     document.getElementById('colorClose').addEventListener('click', function() { overlay.remove(); });
     overlay.querySelectorAll('.color-option').forEach(function(btn) {
-      btn.addEventListener('click', function() { updateMember(m, { color: btn.dataset.color }); overlay.remove(); });
+      btn.addEventListener('click', function() { updateMember(m, { color: btn.dataset.color || null }); overlay.remove(); });
     });
   }
 
@@ -743,7 +745,7 @@
           localStorage.setItem('craft_returning_guest_' + roomId, name);
         }
         apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: name, guestId: gid, returning: isReturning }) })
-          .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; document.body.classList.add('craft-not-owner'); document.body.classList.add('craft-no-hidden-access'); return apiRequest('/craftrooms/' + roomId); })
+          .then(function() { c.innerHTML = ''; if (dash) dash.style.display = ''; currentUser = { id: null, displayName: name, guestId: gid }; isOwner = false; myRole = 'viewer'; window.craftMyRole = myRole; document.body.classList.add('craft-not-owner'); document.body.classList.add('craft-no-hidden-access'); return apiRequest('/craftrooms/' + roomId); })
           .then(function(d) { roomInfo = d.room; setRoomTitle(roomInfo.name); renderShareBtn(); renderUserMenu(); startSync(); })
           .catch(function(err) { btn.textContent = isReturning ? 'Continue' : 'Join as Guest'; btn.disabled = false; alert('Failed: ' + err.message); });
       }
@@ -769,6 +771,7 @@
       document.body.classList.toggle('craft-not-owner', !isOwner);
       document.body.classList.toggle('craft-no-hidden-access', !isOwner);
       myRole = isOwner ? 'owner' : 'viewer';
+      window.craftMyRole = myRole;
       setRoomTitle(roomInfo.name);
       renderShareBtn();
       renderUserMenu();
@@ -782,11 +785,22 @@
     });
   }
 
+  function dismissLoadingScreen() {
+    var el = document.getElementById('craftLoadingScreen');
+    if (el) {
+      el.classList.add('fade-out');
+      setTimeout(function() { el.remove(); }, 500);
+    }
+  }
+
   function startSync() {
     function onReady() {
       pullState().then(function() {
         // Only set up change detection AFTER first pull (so myRole is correct)
         setupChangeDetection();
+        dismissLoadingScreen();
+      }).catch(function() {
+        dismissLoadingScreen();
       });
       syncTimer = setInterval(pollVersion, POLL_INTERVAL);
       sendHeartbeat();
@@ -804,7 +818,7 @@
       return;
     }
     roomId = u.roomId;
-    if (!getToken()) { showGuestJoinModal(); return; }
+    if (!getToken()) { dismissLoadingScreen(); showGuestJoinModal(); return; }
     startAuthenticated();
   }
 
