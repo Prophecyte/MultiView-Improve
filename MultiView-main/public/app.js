@@ -2176,7 +2176,7 @@ function DraggableVideoList(props) {
       
       return React.createElement('div', { 
         key: v.id, 
-        className: 'video-item' + (isPlaying ? ' playing' : '') + (isDragging ? ' dragging' : '') + (isDragOver ? ' drag-over' : '') + (sortMode ? ' sorted' : '') + (v.hidden ? ' hidden-video' : '') + (v.hidden && isOwner ? ' owner-hidden' : ''),
+        className: 'video-item' + (isPlaying ? ' playing' : '') + (isDragging ? ' dragging' : '') + (isDragOver ? ' drag-over' : '') + (sortMode ? ' sorted' : '') + (v.hidden ? ' hidden-video' : ''),
         draggable: !isEditing && !sortMode,
         onDragStart: function(e) { if (!sortMode) handleDragStart(e, i, v); },
         onDragOver: function(e) { if (!sortMode) handleDragOver(e, i); },
@@ -2205,11 +2205,9 @@ function DraggableVideoList(props) {
             : React.createElement('span', { className: 'video-title', onClick: function() { onPlay(v, i); } }, v.title || v.url)
         ),
         React.createElement('div', { className: 'video-actions' },
-          v.hidden && isOwner && React.createElement('span', { className: 'video-hidden-badge', title: 'Hidden from guests' }, React.createElement(Icon, { name: 'eyeOff', size: 'sm' })),
           React.createElement('button', { className: 'icon-btn sm primary', onClick: function(e) { e.stopPropagation(); onPlay(v, i); }, title: 'Play' }, React.createElement(Icon, { name: 'play', size: 'sm' })),
           React.createElement('button', { className: 'icon-btn sm', onClick: function(e) { e.stopPropagation(); startRename(v); }, title: 'Rename' }, React.createElement(Icon, { name: 'edit', size: 'sm' })),
           onCopy && React.createElement('button', { className: 'icon-btn sm', onClick: function(e) { e.stopPropagation(); onCopy(v); }, title: 'Copy to clipboard' }, React.createElement(Icon, { name: 'copy', size: 'sm' })),
-          isOwner && onHideVideo && React.createElement('button', { className: 'icon-btn sm' + (v.hidden ? ' active' : ''), onClick: function(e) { e.stopPropagation(); onHideVideo(v.id, !v.hidden); }, title: v.hidden ? 'Show to guests' : 'Hide from guests' }, React.createElement(Icon, { name: v.hidden ? 'eyeOff' : 'eye', size: 'sm' })),
           React.createElement('button', { className: 'icon-btn sm danger', onClick: function(e) { e.stopPropagation(); onRemove(v.id); }, title: 'Remove' }, React.createElement(Icon, { name: 'trash', size: 'sm' }))
         )
       );
@@ -3654,6 +3652,7 @@ function HomePage(props) {
     React.createElement('header', { className: 'home-header' },
       React.createElement('div', { className: 'logo-small' }, React.createElement('span', { className: 'dragon-icon' }, '🐉'), React.createElement('span', null, 'Multiview')),
       React.createElement('div', { className: 'home-header-right' },
+        React.createElement('a', { className: 'btn', href: '/desktop.html', title: 'Download the Multiview desktop app' }, React.createElement(Icon, { name: 'download', size: 'sm' }), ' Desktop App'),
         React.createElement(UserMenu, { user: user, onSettings: function() { setSettingsOpen(true); }, onLogout: props.onLogout })
       )
     ),
@@ -4925,12 +4924,9 @@ function Room(props) {
   function handleHideVideo(videoId, hidden) {
     if (!activePlaylist) return;
     api.playlists.setVideoHidden(activePlaylist.id, videoId, hidden).then(function() {
-      var updatedVideos = (activePlaylist.videos || []).map(function(v) { return v.id === videoId ? Object.assign({}, v, { hidden: hidden }) : v; });
-      var updatedPlaylist = Object.assign({}, activePlaylist, { videos: updatedVideos });
-      setActivePlaylist(updatedPlaylist);
       setPlaylists(playlists.map(function(p) {
         if (p.id !== activePlaylist.id) return p;
-        return updatedPlaylist;
+        return Object.assign({}, p, { videos: (p.videos || []).map(function(v) { return v.id === videoId ? Object.assign({}, v, { hidden: hidden }) : v; }) });
       }));
       showNotif(hidden ? 'Video hidden from guests' : 'Video visible to guests');
     }).catch(function(err) { showNotif(err.message, 'error'); });

@@ -487,9 +487,6 @@ body {
   box-shadow: var(--shadow-lg);
   min-width: 320px;
   max-width: 90vw;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
   animation: slideUp 0.2s ease;
 }
 
@@ -525,8 +522,6 @@ body {
 
 .popup-body {
   padding: 20px;
-  overflow-y: auto;
-  flex: 1;
 }
 
 .popup-label {
@@ -2672,17 +2667,23 @@ select optgroup {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+    inset 1px 0 0 rgba(255, 255, 255, 0.04),
+    inset -1px 0 0 rgba(255, 255, 255, 0.04);
 }
 .card.design-glass .card-content {
   background: transparent;
 }
 .card.design-glass .card-type-indicator {
-  background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+  background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.2), rgba(255,255,255,0.1));
+  backdrop-filter: blur(8px);
 }
 .card.design-glass:hover {
   border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 255, 255, 0.03);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 20px rgba(255, 255, 255, 0.03);
 }
 .card.design-glass.selected {
   border-color: rgba(255, 255, 255, 0.35);
@@ -4995,7 +4996,6 @@ select optgroup {
 .sync-pill.synced { color: #22c55e; background: rgba(34,197,94,0.08); }
 .sync-pill.syncing { color: var(--gold); background: rgba(212,168,36,0.08); }
 .sync-pill.error { color: #ef4444; background: rgba(239,68,68,0.08); }
-.sync-pill.offline { color: #f97316; background: rgba(249,115,22,0.08); }
 
 /* ============================================
        Utilities
@@ -6833,14 +6833,6 @@ select optgroup {
   transition: var(--transition-fast);
 }
 .fac-read-more:hover { text-decoration: underline; }
-
-.fac-conn-toggle {
-  background: none; border: none; color: var(--text-muted); cursor: pointer;
-  font-size: 10px; padding: 2px 0; font-weight: 500;
-  transition: var(--transition-fast); display: block; width: 100%; text-align: left;
-}
-.fac-conn-toggle:hover { color: var(--gold); }
-.fac-conn-overflow { margin-top: 0; }
 
 /* Contact type badge */
 .fac-type-badge {

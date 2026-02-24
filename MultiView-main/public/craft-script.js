@@ -418,35 +418,22 @@ function initEventListeners() {
     btn.addEventListener('click', () => execFormatCommand(btn.dataset.command));
   });
 
-  // Font selects — save editor selection robustly using toolbar capture
-  let _savedEditorRange = null;
-
-  const writeEditorEl = document.getElementById('writeEditor');
-  
-  // Capture-phase mousedown on the ENTIRE toolbar saves selection BEFORE focus changes
-  const writeToolbar = document.querySelector('.write-toolbar');
-  if (writeToolbar) {
-    writeToolbar.addEventListener('mousedown', function() {
-      const sel = window.getSelection();
-      if (sel.rangeCount > 0 && writeEditorEl.contains(sel.anchorNode)) {
-        _savedEditorRange = sel.getRangeAt(0).cloneRange();
-      }
-    }, true); // capture phase — fires before any child gets focus
-  }
-  
-  // Also track selection while editing
-  document.addEventListener('selectionchange', function() {
+  // Font selects — save editor selection before dropdowns steal focus
+  let _savedFontFamilyRange = null;
+  document.getElementById('fontFamily').addEventListener('mousedown', () => {
+    const editor = document.getElementById('writeEditor');
     const sel = window.getSelection();
-    if (sel.rangeCount > 0 && writeEditorEl.contains(sel.anchorNode)) {
-      _savedEditorRange = sel.getRangeAt(0).cloneRange();
+    if (sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+      _savedFontFamilyRange = sel.getRangeAt(0).cloneRange();
     }
   });
-
   document.getElementById('fontFamily').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
-    const range = _savedEditorRange;
+    const range = _savedFontFamilyRange;
+    _savedFontFamilyRange = null;
 
     if (range && !range.collapsed && editor.contains(range.startContainer)) {
+      // Restore selection and apply
       const sel = window.getSelection();
       sel.removeAllRanges();
       sel.addRange(range);
@@ -458,10 +445,21 @@ function initEventListeners() {
     editor.focus();
   });
 
+  // Font size: save editor selection before the dropdown steals focus
+  let _savedFontSizeRange = null;
+  document.getElementById('fontSize').addEventListener('mousedown', () => {
+    const editor = document.getElementById('writeEditor');
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+      _savedFontSizeRange = sel.getRangeAt(0).cloneRange();
+    }
+  });
+
   document.getElementById('fontSize').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
     const sizeVal = e.target.value;
-    const range = _savedEditorRange;
+    const range = _savedFontSizeRange;
+    _savedFontSizeRange = null;
 
     if (range && !range.collapsed && editor.contains(range.startContainer)) {
       // Restore selection into the editor
@@ -1307,18 +1305,6 @@ function openPinEditorModal(pinId) {
   document.getElementById('pinDescription').value = pin.description || '';
   document.getElementById('pinTags').value = (pin.tags || []).join(', ');
 
-  // Pin image
-  const pinImg = document.getElementById('pinEditorImage');
-  const pinNoImg = document.getElementById('pinEditorNoImage');
-  const pinRemBtn = document.getElementById('pinImageRemoveBtn');
-  if (pin.image) {
-    pinImg.src = pin.image; pinImg.classList.remove('hidden'); pinNoImg.classList.add('hidden');
-    pinRemBtn?.classList.remove('hidden');
-  } else {
-    pinImg.classList.add('hidden'); pinNoImg.classList.remove('hidden');
-    pinRemBtn?.classList.add('hidden');
-  }
-
   // Set shape
   document.querySelectorAll('.pin-shape-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.shape === (pin.shape || 'circle'));
@@ -2024,16 +2010,6 @@ function showPinDetails(pin) {
   document.getElementById('pinDetails').classList.remove('hidden');
 
   document.getElementById('pinDetailName').textContent = pin.name || 'Unnamed Pin';
-
-  // Show pin image
-  const pinImgSection = document.getElementById('pinImageSection');
-  const pinDetailImg = document.getElementById('pinDetailImage');
-  if (pin.image && pinImgSection && pinDetailImg) {
-    pinDetailImg.src = pin.image;
-    pinImgSection.classList.remove('hidden');
-  } else if (pinImgSection) {
-    pinImgSection.classList.add('hidden');
-  }
 
   // Parse wiki links in description
   const descEl = document.getElementById('pinDetailDescription');
@@ -6803,9 +6779,6 @@ function startDrag(e, card) {
     x = Math.max(0, snapped.x);
     y = Math.max(0, snapped.y);
 
-    // Render alignment guide lines
-    renderAlignmentGuides(snapped.guides);
-
     card.style.left = `${x}px`;
     card.style.top = `${y}px`;
 
@@ -6822,7 +6795,6 @@ function startDrag(e, card) {
   const onMouseUp = () => {
     isDragging = false;
     card.classList.remove('dragging');
-    clearAlignmentGuides();
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mouseup', onMouseUp);
   };
@@ -8039,57 +8011,35 @@ function snapPosition(x, y, cardId, shiftKey) {
     sy = Math.round(sy / SNAP_GRID) * SNAP_GRID;
   }
 
-  if (shiftKey || snapEnabled) {
+  if (shiftKey) {
     // Neighbor alignment snap
     const el = document.getElementById(cardId);
     const w = el ? el.offsetWidth : 200;
     const h = el ? el.offsetHeight : 100;
     let bestDx = SNAP_THRESHOLD + 1, bestDy = SNAP_THRESHOLD + 1;
-    let guideX = null, guideY = null;
     board.cards.forEach(c => {
       if (c.id === cardId) return;
       const cel = document.getElementById(c.id);
       const cw = cel ? cel.offsetWidth : (c.width || 200);
       const ch = cel ? cel.offsetHeight : 100;
       // Left edge alignment
-      const dl = Math.abs(x - c.x); if (dl < Math.abs(bestDx)) { bestDx = x - c.x; guideX = c.x; }
+      const dl = Math.abs(x - c.x); if (dl < Math.abs(bestDx)) { bestDx = x - c.x; }
       // Right edge alignment
-      const dr = Math.abs((x + w) - (c.x + cw)); if (dr < Math.abs(bestDx)) { bestDx = (x + w) - (c.x + cw); guideX = c.x + cw; }
+      const dr = Math.abs((x + w) - (c.x + cw)); if (dr < Math.abs(bestDx)) { bestDx = (x + w) - (c.x + cw); }
       // Top alignment
-      const dt = Math.abs(y - c.y); if (dt < Math.abs(bestDy)) { bestDy = y - c.y; guideY = c.y; }
+      const dt = Math.abs(y - c.y); if (dt < Math.abs(bestDy)) { bestDy = y - c.y; }
       // Bottom alignment
-      const db = Math.abs((y + h) - (c.y + ch)); if (db < Math.abs(bestDy)) { bestDy = (y + h) - (c.y + ch); guideY = c.y + ch; }
+      const db = Math.abs((y + h) - (c.y + ch)); if (db < Math.abs(bestDy)) { bestDy = (y + h) - (c.y + ch); }
       // Center X
-      const dcx = Math.abs((x + w/2) - (c.x + cw/2)); if (dcx < Math.abs(bestDx)) { bestDx = (x + w/2) - (c.x + cw/2); guideX = c.x + cw/2; }
+      const dcx = Math.abs((x + w/2) - (c.x + cw/2)); if (dcx < Math.abs(bestDx)) { bestDx = (x + w/2) - (c.x + cw/2); }
       // Center Y
-      const dcy = Math.abs((y + h/2) - (c.y + ch/2)); if (dcy < Math.abs(bestDy)) { bestDy = (y + h/2) - (c.y + ch/2); guideY = c.y + ch/2; }
+      const dcy = Math.abs((y + h/2) - (c.y + ch/2)); if (dcy < Math.abs(bestDy)) { bestDy = (y + h/2) - (c.y + ch/2); }
     });
-    if (Math.abs(bestDx) <= SNAP_THRESHOLD) { sx = x - bestDx; if (guideX !== null) guides.push({ axis: 'x', pos: guideX }); }
-    if (Math.abs(bestDy) <= SNAP_THRESHOLD) { sy = y - bestDy; if (guideY !== null) guides.push({ axis: 'y', pos: guideY }); }
+    if (Math.abs(bestDx) <= SNAP_THRESHOLD) { sx = x - bestDx; }
+    if (Math.abs(bestDy) <= SNAP_THRESHOLD) { sy = y - bestDy; }
   }
 
   return { x: sx, y: sy, guides };
-}
-
-function renderAlignmentGuides(guides) {
-  clearAlignmentGuides();
-  if (!guides || !guides.length) return;
-  const canvas = document.getElementById('canvas');
-  if (!canvas) return;
-  guides.forEach(g => {
-    const line = document.createElement('div');
-    line.className = 'alignment-guide-line';
-    if (g.axis === 'x') {
-      line.style.cssText = `position:absolute;left:${g.pos}px;top:0;width:1px;height:100%;background:rgba(78,205,196,0.5);pointer-events:none;z-index:9999;`;
-    } else {
-      line.style.cssText = `position:absolute;top:${g.pos}px;left:0;height:1px;width:100%;background:rgba(78,205,196,0.5);pointer-events:none;z-index:9999;`;
-    }
-    canvas.appendChild(line);
-  });
-}
-
-function clearAlignmentGuides() {
-  document.querySelectorAll('.alignment-guide-line').forEach(el => el.remove());
 }
 
 function zoomFit() {
@@ -11602,7 +11552,7 @@ function renderCombatants() {
         <div class="ct-combatant-name-row">
           <span class="ct-combatant-name">${c.name}</span>
           ${c.ac ? `<span class="ct-ac-badge">🛡 ${c.ac}</span>` : ''}
-          ${c.notes && window.craftMyRole === 'owner' ? '<span class="ct-has-notes" title="Has GM notes">📝</span>' : ''}
+          ${c.notes ? '<span class="ct-has-notes" title="Has GM notes">📝</span>' : ''}
         </div>
         ${c.maxHP > 0 ? `<div class="ct-hp-inline"><div class="ct-hp-track"><div class="ct-hp-fill" style="width:${hpPct}%;background:${hpColor};"></div></div><span class="ct-hp-text">${c.currentHP}/${c.maxHP}${c.tempHP>0?' +'+c.tempHP:''}</span></div>` : ''}
         ${condTags ? `<div class="ct-combatant-status">${condTags}</div>` : ''}
@@ -12126,18 +12076,6 @@ function toggleFacReadMore(id) {
   }
 }
 
-function toggleFacConnMore(facId) {
-  const el = document.getElementById('fac-conn-more-' + facId);
-  const btn = el?.nextElementSibling;
-  if (!el) return;
-  const isExpanded = !el.classList.contains('hidden');
-  el.classList.toggle('hidden', isExpanded);
-  if (btn && btn.classList.contains('fac-conn-toggle')) {
-    const count = el.querySelectorAll('.fac-contact-row').length;
-    btn.textContent = isExpanded ? `+${count} more ▾` : `Show less ▴`;
-  }
-}
-
 function toggleConReadMore(id) {
   const el = document.getElementById('con-desc-' + id);
   const btn = document.getElementById('con-rm-' + id);
@@ -12566,10 +12504,7 @@ function renderFactionGrid() {
     const connRows = facConnections.length > 0 ? facConnections.slice(0,3).map(c => {
       const typeIcon = c.type === 'cohort' ? '⚔ ' : '';
       return `<div class="fac-contact-row"><span class="fac-contact-name">${typeIcon}${c.name}</span>${c.type && c.type !== 'contact' ? '<span class="fac-type-badge">'+c.type+'</span>' : ''}<span class="fac-contact-role">${c.role || '—'}</span><span class="fac-contact-disp ${c.disposition?.toLowerCase()||'neutral'}">${c.disposition || 'Neutral'}</span></div>`;
-    }).join('') + (facConnections.length > 3 ? `<div class="fac-conn-overflow hidden" id="fac-conn-more-${f.id}">${facConnections.slice(3).map(c => {
-      const typeIcon = c.type === 'cohort' ? '⚔ ' : '';
-      return `<div class="fac-contact-row"><span class="fac-contact-name">${typeIcon}${c.name}</span>${c.type && c.type !== 'contact' ? '<span class="fac-type-badge">'+c.type+'</span>' : ''}<span class="fac-contact-role">${c.role || '—'}</span><span class="fac-contact-disp ${c.disposition?.toLowerCase()||'neutral'}">${c.disposition || 'Neutral'}</span></div>`;
-    }).join('')}</div><button class="fac-conn-toggle" onclick="event.stopPropagation();toggleFacConnMore('${f.id}')">+${facConnections.length-3} more ▾</button>` : '')
+    }).join('') + (facConnections.length > 3 ? `<div style="font-size:10px;color:var(--text-muted);">+${facConnections.length-3} more</div>` : '')
     : '<div style="font-size:11px;color:var(--text-muted);">None</div>';
 
     const imgHtml = f.image ? `<img src="${f.image}" class="fac-card-icon" alt="" />` : '';
@@ -12591,7 +12526,7 @@ function renderFactionGrid() {
       ${descHtml}
       ${tagPills || claimPills ? `<div class="fac-card-pills">${tagPills}${claimPills}</div>` : ''}
       <div class="fac-card-connections"><label class="fac-label">Connections <span style="opacity:0.5;">(${facConnections.length})</span></label>${connRows}</div>
-      ${f.notes && window.craftMyRole === 'owner' ? '<div class="fac-card-notes-indicator">📝 Has GM notes</div>' : ''}
+      ${f.notes ? '<div class="fac-card-notes-indicator">📝 Has GM notes</div>' : ''}
     </div>`;
   }).join('');
 }
@@ -12634,7 +12569,6 @@ function renderContactsGrid() {
       </div>
       ${c.type && c.type !== 'contact' ? `<div class="fac-contact-card-type">${c.type}</div>` : ''}
       ${descHtml}
-      ${c.notes && window.craftMyRole === 'owner' ? `<div class="fac-card-notes-indicator">📝 Has GM notes</div>` : ''}
       ${tagPills ? `<div class="fac-card-pills" style="margin-top:4px;">${tagPills}</div>` : ''}
     </div>`;
   }).join('');
@@ -12740,11 +12674,9 @@ function showOrgDetail() {
     get('orgDetailImage').src = o.image;
     get('orgDetailImage').classList.remove('hidden');
     get('orgDetailNoImage').classList.add('hidden');
-    get('orgDetailRemoveImg')?.classList.remove('hidden');
   } else {
     get('orgDetailImage').classList.add('hidden');
     get('orgDetailNoImage').classList.remove('hidden');
-    get('orgDetailRemoveImg')?.classList.add('hidden');
   }
 
   // Tags
@@ -13657,15 +13589,7 @@ document.addEventListener('DOMContentLoaded', () => {
     location: ['The Scarlet Citadel', 'Whisperwood Manor', 'Ironhold Keep', 'Shadowfen Trading Post', 'The Gilded Spire', 'Ravencrest Tower', 'Dusthaven Outpost', 'The Crystal Vault', 'Moonrise Sanctuary', 'Blackmire Stronghold', 'Stormwatch Bastion', 'The Hollow Library', 'Sunfire Cathedral', 'Driftwood Tavern', 'The Ember Forge'],
     trait: ['Compulsive liar', 'Overly generous', 'Paranoid about strangers', 'Speaks in riddles', 'Collects unusual objects', 'Never breaks a promise', 'Terrified of magic', 'Laughs at inappropriate times', 'Obsessed with cleanliness', 'Can\'t resist a gamble', 'Whispers when angry', 'Fiercely loyal', 'Chronic procrastinator', 'Always has a plan B', 'Trusts animals more than people'],
     occupation: ['Blacksmith', 'Herbalist', 'Spy', 'Merchant prince', 'Street performer', 'Grave digger', 'Cartographer', 'Ship captain', 'Bounty hunter', 'Apothecary', 'Scribe', 'Gladiator', 'Court advisor', 'Smuggler', 'Innkeeper', 'Assassin', 'Healer', 'Tax collector', 'Locksmith', 'Monster hunter'],
-    secret: ['Is secretly a shapeshifter', 'Murdered their sibling', 'Works as a double agent', 'Owes a massive debt to a dragon', 'Is heir to a fallen kingdom', 'Stole a powerful artifact', 'Has a terminal illness', 'Is being blackmailed', 'Witnessed an atrocity and said nothing', 'Made a pact with a fiend', 'Is hiding a fugitive', 'Embezzles from their employer', 'Was once a different person entirely', 'Knows the location of a great treasure', 'Is plotting a coup'],
-    orgGoal: ['Monopolize trade routes across the continent', 'Uncover and preserve ancient arcane knowledge', 'Overthrow the current ruling dynasty', 'Protect the realm from extraplanar threats', 'Establish a network of safe houses for the persecuted', 'Control the flow of information throughout the kingdom', 'Broker lasting peace between warring nations', 'Amass enough wealth to buy political sovereignty', 'Develop forbidden magical techniques', 'Unite the scattered clans under one banner', 'Eradicate a rival organization completely', 'Discover a cure for a spreading magical plague', 'Infiltrate every major court in the known world', 'Build a standing army loyal only to the organization', 'Reclaim ancestral lands lost in a previous war'],
-    orgResource: ['A vast underground vault of gold and gemstones', 'A network of loyal informants in every major city', 'An elite corps of trained soldiers and assassins', 'Access to rare spell components and enchanted artifacts', 'Political connections reaching into the royal court', 'A fleet of merchant vessels and trade caravans', 'Hidden safehouses and bolt-holes across the realm', 'Exclusive mining rights to a rich vein of rare ore', 'A legendary library of forbidden knowledge', 'Blackmail material on several powerful nobles', 'A fortified headquarters in a strategic location', 'Allied monsters or summoned creatures', 'A monopoly on a crucial trade commodity', 'Ancient relics of immense magical power', 'Trained beasts and war animals'],
-    orgDesc: ['Founded decades ago by a cabal of disgraced nobles seeking to reclaim their lost influence, the organization has grown into a sprawling network that operates in the shadows of legitimate society. Their agents are embedded in merchant guilds, taverns, and even temples, gathering intelligence and pulling strings. Despite their secretive nature, they maintain a strict code of honor among their members and are known to punish betrayal with swift and final justice.',
-    'What began as a small fellowship of scholars and researchers has evolved into one of the most formidable institutions in the realm. Their members travel far and wide, cataloging dangerous creatures, mapping uncharted territories, and recovering lost artifacts. They maintain a vast archive in their central headquarters and fund expeditions through a combination of patron donations and the sale of rare discoveries.',
-    'This tightly-knit organization traces its roots to a legendary figure who united several feuding factions under a common cause. Members undergo rigorous training and initiation rites, forging bonds of loyalty that endure for life. They operate openly in some regions while maintaining a covert presence in others, adapting their methods to local politics and customs. Their reputation precedes them — allies welcome their aid while enemies fear their reach.',
-    'Born from necessity during a time of great upheaval, this group started as a mutual aid society for displaced refugees and veterans. Over the years, it has transformed into a powerful coalition with economic and military influence. They control several strategic trade posts and maintain a private militia. Despite their growing power, they remain committed to their founding principles of protecting the vulnerable and opposing tyranny.',
-    'Operating under a veneer of respectability, this organization presents itself as a charitable brotherhood dedicated to community service and religious devotion. Behind closed doors, however, its inner circle pursues far more ambitious goals. They broker deals between rival powers, manipulate markets to their advantage, and maintain a secret hierarchy that few outsiders ever glimpse. Their public works projects and generous donations ensure they remain above suspicion.',
-    'A relatively young but rapidly growing organization, founded by a charismatic leader with a vision for transforming the established order. They recruit heavily from the ranks of the discontented — failed apprentices, disinherited heirs, and ambitious commoners seeking advancement. Their decentralized cell structure makes them difficult to infiltrate or dismantle, and their willingness to employ unconventional methods has earned them both admirers and enemies in equal measure.']
+    secret: ['Is secretly a shapeshifter', 'Murdered their sibling', 'Works as a double agent', 'Owes a massive debt to a dragon', 'Is heir to a fallen kingdom', 'Stole a powerful artifact', 'Has a terminal illness', 'Is being blackmailed', 'Witnessed an atrocity and said nothing', 'Made a pact with a fiend', 'Is hiding a fugitive', 'Embezzles from their employer', 'Was once a different person entirely', 'Knows the location of a great treasure', 'Is plotting a coup']
   };
 
   // Custom user-defined tables per connection tab (saved in room state)
@@ -13689,10 +13613,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.textContent = entries.length ? entries.length + ' custom ' + (entries.length === 1 ? 'entry' : 'entries') : '';
   }
 
-  function addGenResultToTab(tabKey, overrideName) {
+  function addGenResultToTab(tabKey, lastResult) {
     const ts = Date.now();
     if (tabKey === 'factions') {
-      const name = overrideName || rollGenerator('faction');
+      const name = rollGenerator('faction');
       const tier = ['I','II','III','IV','V'][Math.floor(Math.random()*5)];
       const statuses = ['Rising','Stable','Declining','At War','Hidden','Allied'];
       const status = statuses[Math.floor(Math.random()*statuses.length)];
@@ -13707,7 +13631,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderFactionGrid(); renderFactionsSidebar(); showFacDetail();
       showNotif('Generated faction: ' + name);
     } else if (tabKey === 'contacts') {
-      const name = overrideName || rollGenerator('npc');
+      const name = rollGenerator('npc');
       const disp = rollGenerator('disposition');
       const role = rollGenerator('occupation');
       const types = ['contact','ally','enemy','rival','patron','informant'];
@@ -13722,24 +13646,16 @@ document.addEventListener('DOMContentLoaded', () => {
       renderFactionGrid(); renderContactsSidebar(); renderContactsGrid(); renderFactionsSidebar(); showContactDetail();
       showNotif('Generated contact: ' + name);
     } else if (tabKey === 'orgs') {
-      const name = overrideName || rollGenerator('org');
+      const name = rollGenerator('org');
       const orgTypes = ['Guild','Order','Company','Alliance','Syndicate','Council','Brotherhood','Circle'];
       const orgType = orgTypes[Math.floor(Math.random()*orgTypes.length)];
       const color = FAC_COLORS[Math.floor(Math.random()*FAC_COLORS.length)];
-      const statuses = ['Active','Growing','Declining','Secretive','At War','Dormant','Thriving','Fractured'];
-      const status = statuses[Math.floor(Math.random()*statuses.length)];
-      const influences = ['Local','Regional','National','Continental','Global','Underground','Niche'];
-      const influence = influences[Math.floor(Math.random()*influences.length)];
       organizations.push({
         id: 'org_'+ts, name, type: orgType, color,
-        description: rollGenerator('orgDesc'),
-        goals: rollGenerator('orgGoal'),
-        influence: influence,
-        status: status,
-        resources: rollGenerator('orgResource'),
+        description: rollGenerator('motivation'),
         headquarters: rollGenerator('location'),
         leader: rollGenerator('npc'),
-        notes: rollGenerator('secret'), image: null, hidden: false, tags: [],
+        notes: '', image: null, hidden: false, tags: [],
         associations: []
       });
       selectedOrgId = organizations[organizations.length-1].id;
@@ -13754,10 +13670,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const customSection = document.getElementById(customSectionId);
     const rollBtn = document.getElementById(prefix + 'GenRollBtn');
     const addBtn = document.getElementById(addToBoardId);
-    const useNameBtn = document.getElementById(prefix + 'UseNameBtn');
-
-    // Name-type selectors that allow "Generate with this name"
-    const nameTypes = { factions: ['faction','npc','org'], contacts: ['npc'], orgs: ['org','faction'] };
 
     // Show/hide custom section based on dropdown
     select?.addEventListener('change', () => {
@@ -13783,11 +13695,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Roll
-    let _lastRolledResult = '';
     rollBtn?.addEventListener('click', () => {
       const type = select?.value || 'faction';
       const result = rollGenerator(type);
-      _lastRolledResult = result;
       const el = document.getElementById(resultId);
       if (el) {
         el.textContent = result;
@@ -13795,31 +13705,15 @@ document.addEventListener('DOMContentLoaded', () => {
         el.style.animation = 'none';
         el.offsetHeight;
         el.style.animation = 'fadeIn 0.2s ease';
-      }
-      // Show "Generate with this name" only if the rolled type is a name type
-      const isNameType = (nameTypes[tableKey] || []).includes(type);
-      if (useNameBtn && result && !result.startsWith('No ')) {
-        if (isNameType) {
-          useNameBtn.textContent = '✨ Generate Entry as "' + (result.length > 25 ? result.substring(0,25) + '…' : result) + '"';
-          useNameBtn.classList.remove('hidden');
-        } else {
-          useNameBtn.classList.add('hidden');
-        }
+        // Show add-to-tab button
+        if (addBtn && result && !result.startsWith('No ')) addBtn.classList.remove('hidden');
       }
     });
 
-    // "Generate with this name" button
-    useNameBtn?.addEventListener('click', () => {
-      if (_lastRolledResult && !_lastRolledResult.startsWith('No ')) {
-        addGenResultToTab(tableKey, _lastRolledResult);
-        useNameBtn.classList.add('hidden');
-        _lastRolledResult = '';
-      }
-    });
-
-    // Add to tab (creates a full entity with random name)
+    // Add to tab (creates a full entity in the connection tab)
     addBtn?.addEventListener('click', () => {
       addGenResultToTab(tableKey);
+      addBtn.classList.add('hidden');
     });
   }
 
@@ -13845,52 +13739,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const o = organizations.find(x => x.id === selectedOrgId); if (!o) return;
     uploadFileImage(file, (url) => { o.image = url; renderOrgsGrid(); showOrgDetail(); });
     e.target.value = '';
-  });
-  document.getElementById('orgDetailRemoveImg')?.addEventListener('click', () => {
-    const o = organizations.find(x => x.id === selectedOrgId); if (!o) return;
-    o.image = null; renderOrgsGrid(); showOrgDetail(); showNotif('Image removed');
-    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
-  });
-
-  // Sort buttons
-  document.getElementById('sortFactionsBtn')?.addEventListener('click', () => {
-    factions.sort((a,b) => a.name.localeCompare(b.name));
-    renderFactionGrid(); renderFactionsSidebar(); showNotif('Factions sorted A-Z');
-    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
-  });
-  document.getElementById('sortContactsBtn')?.addEventListener('click', () => {
-    contacts.sort((a,b) => a.name.localeCompare(b.name));
-    renderContactsGrid(); renderContactsSidebar(); renderFactionGrid(); showNotif('Contacts sorted A-Z');
-    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
-  });
-  document.getElementById('sortOrgsBtn')?.addEventListener('click', () => {
-    organizations.sort((a,b) => a.name.localeCompare(b.name));
-    renderOrgsGrid(); renderOrgsSidebar(); showNotif('Organizations sorted A-Z');
-    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
-  });
-
-  // Pin image upload
-  document.getElementById('pinImageUploadBtn')?.addEventListener('click', () => document.getElementById('pinImageInput').click());
-  document.getElementById('pinImageInput')?.addEventListener('change', (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    const currentMap = getCurrentMap(); if (!currentMap || !editingPinId) return;
-    const pin = currentMap.pins.find(p => p.id === editingPinId); if (!pin) return;
-    uploadFileImage(file, (url) => {
-      pin.image = url;
-      document.getElementById('pinEditorImage').src = url;
-      document.getElementById('pinEditorImage').classList.remove('hidden');
-      document.getElementById('pinEditorNoImage').classList.add('hidden');
-      document.getElementById('pinImageRemoveBtn').classList.remove('hidden');
-    });
-    e.target.value = '';
-  });
-  document.getElementById('pinImageRemoveBtn')?.addEventListener('click', () => {
-    const currentMap = getCurrentMap(); if (!currentMap || !editingPinId) return;
-    const pin = currentMap.pins.find(p => p.id === editingPinId); if (!pin) return;
-    pin.image = null;
-    document.getElementById('pinEditorImage').classList.add('hidden');
-    document.getElementById('pinEditorNoImage').classList.remove('hidden');
-    document.getElementById('pinImageRemoveBtn').classList.add('hidden');
   });
 
   // ---- FACTION TAGS (permanent listeners like timeline tags) ----

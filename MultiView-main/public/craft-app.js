@@ -11,25 +11,6 @@
   var HEARTBEAT_INTERVAL = 12000;
   var MEMBER_REFRESH = 6000;
 
-  // ═══ OFFLINE STORAGE ═══
-  function offlineKey(rid) { return 'craft_offline_' + rid; }
-  function saveOfflineState(rid) {
-    if (!window.craftGetState) return;
-    try {
-      var s = window.craftGetState();
-      localStorage.setItem(offlineKey(rid), JSON.stringify({ state: s, version: localVersion, ts: Date.now() }));
-    } catch(e) { console.warn('Offline save failed:', e); }
-  }
-  function loadOfflineState(rid) {
-    try {
-      var raw = localStorage.getItem(offlineKey(rid));
-      if (raw) return JSON.parse(raw);
-    } catch(e) {}
-    return null;
-  }
-  function clearOfflineState(rid) { try { localStorage.removeItem(offlineKey(rid)); } catch(e) {} }
-  var isOfflineMode = false;
-
   var THEMES = [
     { id: 'gold', name: 'Dragon Gold', color: '#d4a824' },
     { id: 'ember', name: 'Ember Red', color: '#ef4444' },
@@ -166,15 +147,7 @@
           window.craftSetState(syncState);
           lastPushedHash = getStateHash();
         }
-        // Cache state for offline use
-        saveOfflineState(roomId);
-        if (isOfflineMode) {
-          isOfflineMode = false;
-          setSyncStatus('synced');
-          showCraftNotif('Back online — data synced');
-        } else {
-          setSyncStatus('synced');
-        }
+        setSyncStatus('synced');
       })
       .catch(function(e) {
         if (e.message !== 'kicked') {
@@ -228,7 +201,6 @@
           .then(function(d) {
             localVersion = d.version || localVersion;
             setSyncStatus('synced');
-            saveOfflineState(roomId);
           });
       })
       .catch(function(e) {
@@ -243,8 +215,6 @@
 
   function schedulePush() {
     stateDirty = true;
-    // Always save to offline cache immediately
-    if (roomId) saveOfflineState(roomId);
     if (pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(pushState, PUSH_DEBOUNCE);
   }
@@ -308,7 +278,7 @@
     var el = document.getElementById('craftSyncPill');
     if (!el) return;
     el.className = 'sync-pill ' + s;
-    el.textContent = s === 'synced' ? 'Synced' : s === 'syncing' ? 'Syncing...' : s === 'offline' ? 'Offline' : 'Disconnected';
+    el.textContent = s === 'synced' ? 'Synced' : s === 'syncing' ? 'Syncing...' : 'Offline';
   }
 
   function setRoomTitle(name) {
@@ -811,23 +781,7 @@
       startSync();
     }).catch(function(err) {
       if (err.message === 'kicked' || err.message.indexOf('kicked') >= 0) return;
-      // Try offline fallback
-      var cached = loadOfflineState(roomId);
-      if (cached && cached.state) {
-        isOfflineMode = true;
-        myRole = 'owner';
-        window.craftMyRole = myRole;
-        isOwner = true;
-        window.craftIsOwner = true;
-        document.body.classList.remove('craft-not-owner');
-        document.body.classList.remove('craft-no-hidden-access');
-        setRoomTitle('Offline Mode');
-        renderUserMenu();
-        overrideCogwheel();
-        startOffline(cached);
-      } else {
-        document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#060606;color:#d4a824;font-family:Inter,sans-serif"><div style="font-size:48px">\u2694\uFE0F</div><p style="margin:16px 0;color:#aaa;font-size:14px">' + esc(err.message) + '</p><a href="/" style="color:#d4a824;text-decoration:underline">\u2190 Go to Home</a></div>';
-      }
+      document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#060606;color:#d4a824;font-family:Inter,sans-serif"><div style="font-size:48px">\u2694\uFE0F</div><p style="margin:16px 0;color:#aaa;font-size:14px">' + esc(err.message) + '</p><a href="/" style="color:#d4a824;text-decoration:underline">\u2190 Go to Home</a></div>';
     });
   }
 
@@ -846,14 +800,6 @@
         setupChangeDetection();
         dismissLoadingScreen();
       }).catch(function() {
-        // If pull fails, try offline
-        var cached = loadOfflineState(roomId);
-        if (cached && cached.state && window.craftSetState) {
-          isOfflineMode = true;
-          window.craftSetState(cached.state);
-          setSyncStatus('offline');
-          showCraftNotif('Working offline — changes will sync when reconnected');
-        }
         dismissLoadingScreen();
       });
       syncTimer = setInterval(pollVersion, POLL_INTERVAL);
@@ -863,72 +809,6 @@
       memberTimer = setInterval(refreshMembers, MEMBER_REFRESH);
     }
     if (window.craftReady) onReady(); else window.onCraftReady = onReady;
-  }
-
-  function startOffline(cached) {
-    function onReady() {
-      if (cached.state && window.craftSetState) {
-        window.craftSetState(cached.state);
-        localVersion = cached.version || 0;
-        lastPushedHash = getStateHash();
-      }
-      setSyncStatus('offline');
-      showCraftNotif('Working offline — changes will sync when reconnected');
-      setupChangeDetection();
-      dismissLoadingScreen();
-    }
-    if (window.craftReady) onReady(); else window.onCraftReady = onReady;
-  }
-
-  // Reconnect when coming back online
-  window.addEventListener('online', function() {
-    if (isOfflineMode && roomId) {
-      console.log('Network restored, attempting reconnect...');
-      // Try to re-authenticate and sync
-      apiRequest('/auth/me').then(function(d) {
-        currentUser = d.user;
-        return apiRequest('/craftrooms/' + roomId);
-      }).then(function(d) {
-        roomInfo = d.room;
-        isOwner = (roomInfo.owner_id === currentUser.id);
-        window.craftIsOwner = isOwner;
-        myRole = isOwner ? 'owner' : 'viewer';
-        window.craftMyRole = myRole;
-        document.body.classList.toggle('craft-not-owner', !isOwner);
-        document.body.classList.toggle('craft-no-hidden-access', !isOwner);
-        setRoomTitle(roomInfo.name);
-        return apiRequest('/craftrooms/' + roomId + '/join', { method: 'POST', body: JSON.stringify({ displayName: currentUser.displayName || currentUser.username || 'User' }) });
-      }).then(function() {
-        // Push local changes first, then pull
-        isOfflineMode = false;
-        stateDirty = true;
-        pushState();
-        // Resume polling
-        if (!syncTimer) syncTimer = setInterval(pollVersion, POLL_INTERVAL);
-        if (!heartbeatTimer) { sendHeartbeat(); heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL); }
-        if (!memberTimer) { refreshMembers(); memberTimer = setInterval(refreshMembers, MEMBER_REFRESH); }
-      }).catch(function(e) {
-        console.warn('Reconnect failed:', e.message);
-      });
-    }
-  });
-
-  window.addEventListener('offline', function() {
-    if (roomId) {
-      isOfflineMode = true;
-      setSyncStatus('offline');
-      showCraftNotif('You are offline — changes are saved locally');
-    }
-  });
-
-  function showCraftNotif(msg) {
-    if (typeof window.showNotif === 'function') { window.showNotif(msg); return; }
-    // Fallback notification
-    var el = document.createElement('div');
-    el.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(212,168,36,0.15);border:1px solid rgba(212,168,36,0.3);color:#d4a824;padding:10px 20px;border-radius:8px;font-size:13px;z-index:99999;animation:fadeIn 0.3s ease;';
-    el.textContent = msg;
-    document.body.appendChild(el);
-    setTimeout(function() { el.remove(); }, 4000);
   }
 
   function init() {
@@ -949,8 +829,6 @@
         if (typeof saveCurrentChapter === 'function') saveCurrentChapter();
       } catch(e) {}
     }
-    // Always save offline cache before leaving
-    if (roomId) saveOfflineState(roomId);
     if (roomId && window.craftGetState && myRole !== 'viewer') {
       var state = window.craftGetState();
       delete state.currentView;

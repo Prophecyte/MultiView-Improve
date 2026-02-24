@@ -794,17 +794,6 @@
               placeholder="Description... Use [[Card Name]] to link to cards"
             ></textarea>
 
-            <label class="popup-label">Image</label>
-            <div id="pinEditorImageWrap" style="margin-bottom:8px;">
-              <div id="pinEditorNoImage" style="font-size:11px;color:var(--text-muted);padding:6px 0;">No image</div>
-              <img id="pinEditorImage" src="" alt="" class="hidden" style="width:100%;max-height:120px;object-fit:cover;border-radius:var(--radius-sm);margin-bottom:4px;" />
-            </div>
-            <div style="display:flex;gap:6px;margin-bottom:12px;">
-              <button class="btn secondary sm" id="pinImageUploadBtn">Choose Image</button>
-              <button class="btn secondary sm hidden" id="pinImageRemoveBtn" style="color:#f43f5e;">Remove</button>
-            </div>
-            <input type="file" id="pinImageInput" accept="image/*" style="display:none" />
-
             <label class="popup-label">Shape</label>
             <div class="pin-shape-options" id="pinShapeOptions">
               <button
@@ -1865,13 +1854,11 @@
           <!-- Faction Sidebar Sections -->
           <div class="sidebar-section factions-list-section hidden" id="factionsListSection">
             <div class="section-header"><span>Factions</span></div>
-            <div style="padding:4px 12px 4px;display:flex;gap:4px;flex-wrap:wrap;">
-              <button class="btn primary sm" id="addFactionBtn" style="flex:1;">+ Add</button>
-              <button class="btn secondary sm" id="facAddToBoard" style="flex:1;font-size:10px;">⚡ Generate</button>
-              <button class="btn secondary sm" id="sortFactionsBtn" title="Sort A-Z" style="padding:4px 8px;font-size:11px;">A↓Z</button>
-            </div>
             <div id="factionsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No factions yet</div>
+            </div>
+            <div style="padding:4px 12px 8px;">
+              <button class="btn primary sm full-width" id="addFactionBtn">+ Add Faction</button>
             </div>
             <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
             <div style="padding:4px 12px 8px;" id="facQuickGen">
@@ -1893,18 +1880,16 @@
               </div>
               <button class="btn secondary sm full-width" id="facGenRollBtn" style="gap:6px;">🎲 Roll</button>
               <div id="facGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
-              <button class="btn secondary sm full-width hidden" id="facUseNameBtn" style="margin-top:4px;font-size:10px;opacity:0.85;">✨ Generate Entry with this Name</button>
+              <button class="btn secondary sm full-width hidden" id="facAddToBoard" style="margin-top:4px;font-size:10px;opacity:0.7;">+ Generate Full Entry</button>
             </div>
           </div>
           <div class="sidebar-section contacts-list-section hidden" id="contactsListSection">
             <div class="section-header"><span>Contacts</span></div>
-            <div style="padding:4px 12px 4px;display:flex;gap:4px;flex-wrap:wrap;">
-              <button class="btn primary sm" id="addContactBtn" style="flex:1;">+ Add</button>
-              <button class="btn secondary sm" id="contactAddToBoard" style="flex:1;font-size:10px;">⚡ Generate</button>
-              <button class="btn secondary sm" id="sortContactsBtn" title="Sort A-Z" style="padding:4px 8px;font-size:11px;">A↓Z</button>
-            </div>
             <div id="contactsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No contacts yet</div>
+            </div>
+            <div style="padding:4px 12px 8px;">
+              <button class="btn primary sm full-width" id="addContactBtn">+ Add Contact</button>
             </div>
             <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
             <div style="padding:4px 12px 8px;" id="contactQuickGen">
@@ -1925,18 +1910,16 @@
               </div>
               <button class="btn secondary sm full-width" id="contactGenRollBtn" style="gap:6px;">🎲 Roll</button>
               <div id="contactGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
-              <button class="btn secondary sm full-width hidden" id="contactUseNameBtn" style="margin-top:4px;font-size:10px;opacity:0.85;">✨ Generate Entry with this Name</button>
+              <button class="btn secondary sm full-width hidden" id="contactAddToBoard" style="margin-top:4px;font-size:10px;opacity:0.7;">+ Generate Full Entry</button>
             </div>
           </div>
           <div class="sidebar-section orgs-list-section hidden" id="orgsListSection">
             <div class="section-header"><span>Organizations</span></div>
-            <div style="padding:4px 12px 4px;display:flex;gap:4px;flex-wrap:wrap;">
-              <button class="btn primary sm" id="addOrgBtn" style="flex:1;">+ Add</button>
-              <button class="btn secondary sm" id="orgAddToBoard" style="flex:1;font-size:10px;">⚡ Generate</button>
-              <button class="btn secondary sm" id="sortOrgsBtn" title="Sort A-Z" style="padding:4px 8px;font-size:11px;">A↓Z</button>
-            </div>
             <div id="orgsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No organizations yet</div>
+            </div>
+            <div style="padding:4px 12px 8px;">
+              <button class="btn primary sm full-width" id="addOrgBtn">+ Add Organization</button>
             </div>
             <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
             <div style="padding:4px 12px 8px;" id="orgQuickGen">
@@ -1956,7 +1939,7 @@
               </div>
               <button class="btn secondary sm full-width" id="orgGenRollBtn" style="gap:6px;">🎲 Roll</button>
               <div id="orgGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
-              <button class="btn secondary sm full-width hidden" id="orgUseNameBtn" style="margin-top:4px;font-size:10px;opacity:0.85;">✨ Generate Entry with this Name</button>
+              <button class="btn secondary sm full-width hidden" id="orgAddToBoard" style="margin-top:4px;font-size:10px;opacity:0.7;">+ Generate Full Entry</button>
             </div>
           </div>
         </aside>
@@ -3334,7 +3317,7 @@
                       <button class="ct-btn sm" onclick="addBuff()">+</button>
                     </div>
                   </div>
-                  <div class="ct-notes-section owner-only">
+                  <div class="ct-notes-section">
                     <label class="ct-detail-label">Hidden GM Notes</label>
                     <textarea class="ct-notes-area" id="ctNotesArea" placeholder="Private notes about this combatant..."></textarea>
                   </div>
@@ -3983,9 +3966,6 @@
                 <label class="detail-label">Pin Name</label>
                 <div class="pin-detail-name" id="pinDetailName">-</div>
               </div>
-              <div class="detail-section hidden" id="pinImageSection">
-                <img id="pinDetailImage" src="" alt="" style="width:100%;max-height:160px;object-fit:cover;border-radius:var(--radius-sm);" />
-              </div>
               <div class="detail-section">
                 <label class="detail-label">Description</label>
                 <div class="pin-detail-description" id="pinDetailDescription">
@@ -4282,7 +4262,7 @@
                 <label class="detail-label">Connections</label>
                 <div id="facDetailConnections"></div>
               </div>
-              <div class="detail-section owner-only">
+              <div class="detail-section">
                 <label class="detail-label">GM Notes</label>
                 <textarea class="detail-input" id="facDetailNotes" rows="4" style="resize:vertical;" placeholder="Private notes..."></textarea>
               </div>
@@ -4348,9 +4328,9 @@
                 </div>
                 <div class="associations-list" id="conDetailAssocList"></div>
               </div>
-              <div class="detail-section owner-only">
-                <label class="detail-label">GM Notes</label>
-                <textarea class="detail-input" id="conDetailNotes" rows="4" style="resize:vertical;" placeholder="Private notes..."></textarea>
+              <div class="detail-section">
+                <label class="detail-label">Notes</label>
+                <textarea class="detail-input" id="conDetailNotes" rows="4" style="resize:vertical;" placeholder="Notes..."></textarea>
               </div>
               <div class="detail-section" style="padding-top:8px;border-top:1px solid var(--border-color);">
                 <button class="btn secondary sm" id="conDetailDelete" style="color:#f43f5e;">Delete Contact</button>
@@ -4365,11 +4345,8 @@
                   <div class="fac-detail-no-image" id="orgDetailNoImage">No image</div>
                   <img id="orgDetailImage" src="" alt="" class="fac-detail-img hidden" />
                 </div>
-                <div style="display:flex;gap:6px;margin-top:4px;">
-                  <button class="btn secondary sm" id="orgImageBtn">Choose Image</button>
-                  <button class="btn secondary sm hidden" id="orgDetailRemoveImg" style="color:#f43f5e;">Remove</button>
-                </div>
                 <input type="file" id="orgImageUpload" accept="image/*" style="display:none" />
+                <button class="btn secondary sm" id="orgImageBtn" style="margin-top:4px;">Upload Image</button>
               </div>
               <div class="detail-section">
                 <label class="detail-label">Name</label>
@@ -4420,7 +4397,7 @@
                 <label class="detail-label">Resources & Assets</label>
                 <textarea class="detail-textarea" id="orgDetailResources" rows="2" placeholder="Wealth, soldiers, political power..."></textarea>
               </div>
-              <div class="detail-section owner-only">
+              <div class="detail-section">
                 <label class="detail-label">GM Notes</label>
                 <textarea class="detail-textarea" id="orgDetailNotes" rows="2" placeholder="Private notes..."></textarea>
               </div>

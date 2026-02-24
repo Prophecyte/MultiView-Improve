@@ -1,0 +1,11 @@
+{
+  "name": "multiview-improve",
+  "version": "2.0.0",
+  "description": "Multiview - Watch Together + Craft Rooms",
+  "private": true,
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.0",
+    "bcryptjs": "^2.4.3",
+    "google-auth-library": "^9.0.0"
+  }
+}
