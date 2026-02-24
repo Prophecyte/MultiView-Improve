@@ -169,6 +169,7 @@ api.playlists = {
   reorderVideos: function(playlistId, videoIds) { return api.request('/playlists/' + playlistId + '/reorder', { method: 'PUT', body: JSON.stringify({ videoIds: videoIds }) }); },
   reorder: function(roomId, playlistIds) { return api.request('/playlists/reorder', { method: 'PUT', body: JSON.stringify({ roomId: roomId, playlistIds: playlistIds }) }); },
   setHidden: function(playlistId, hidden) { return api.request('/playlists/' + playlistId + '/hide', { method: 'PUT', body: JSON.stringify({ hidden: hidden }) }); },
+  setVideoHidden: function(playlistId, videoId, hidden) { return api.request('/playlists/' + playlistId + '/videos/' + videoId, { method: 'PUT', body: JSON.stringify({ hidden: hidden }) }); },
   importPlaylist: function(targetRoomId, playlist) { return api.request('/playlists/import', { method: 'POST', body: JSON.stringify({ targetRoomId: targetRoomId, playlist: playlist }) }); },
   importFromPlaylist: function(sourcePlaylistId, targetRoomId) { return api.request('/playlists/import-from-playlist', { method: 'POST', body: JSON.stringify({ sourcePlaylistId: sourcePlaylistId, targetRoomId: targetRoomId }) }); },
   copyVideo: function(playlistId, video) { return api.request('/playlists/' + playlistId + '/copy-video', { method: 'POST', body: JSON.stringify({ video: video }) }); }
@@ -2067,6 +2068,8 @@ function DraggableVideoList(props) {
   var onRename = props.onRename;
   var onReorder = props.onReorder;
   var onCopy = props.onCopy;
+  var onHideVideo = props.onHideVideo;
+  var isOwner = props.isOwner;
   var sortMode = props.sortMode; // If set, dragging is disabled
   
   var _dragItem = useState(null);
@@ -2145,8 +2148,18 @@ function DraggableVideoList(props) {
 
   function handleContextMenu(e, video) {
     e.preventDefault();
+    e.stopPropagation();
+    // Close any other open context menus globally
+    document.dispatchEvent(new CustomEvent('close-all-context-menus'));
     setContextMenu({ x: e.clientX, y: e.clientY, video: video });
   }
+
+  // Listen for global close
+  useEffect(function() {
+    function onGlobalClose() { setContextMenu(null); }
+    document.addEventListener('close-all-context-menus', onGlobalClose);
+    return function() { document.removeEventListener('close-all-context-menus', onGlobalClose); };
+  }, []);
 
   if (videos.length === 0) {
     return React.createElement('div', { className: 'empty-queue' }, React.createElement('p', null, 'No videos in playlist'));
@@ -2163,7 +2176,7 @@ function DraggableVideoList(props) {
       
       return React.createElement('div', { 
         key: v.id, 
-        className: 'video-item' + (isPlaying ? ' playing' : '') + (isDragging ? ' dragging' : '') + (isDragOver ? ' drag-over' : '') + (sortMode ? ' sorted' : ''),
+        className: 'video-item' + (isPlaying ? ' playing' : '') + (isDragging ? ' dragging' : '') + (isDragOver ? ' drag-over' : '') + (sortMode ? ' sorted' : '') + (v.hidden ? ' hidden-video' : ''),
         draggable: !isEditing && !sortMode,
         onDragStart: function(e) { if (!sortMode) handleDragStart(e, i, v); },
         onDragOver: function(e) { if (!sortMode) handleDragOver(e, i); },
@@ -2203,15 +2216,23 @@ function DraggableVideoList(props) {
     // Context menu
     contextMenu && React.createElement('div', {
       className: 'context-menu',
-      style: { position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 10000 },
+      style: { position: 'fixed', top: contextMenu.y, left: Math.min(contextMenu.x, window.innerWidth - 180), zIndex: 10001 },
       onClick: function(e) { e.stopPropagation(); }
     },
       React.createElement('button', { className: 'context-menu-item', onClick: function() { onPlay(contextMenu.video, videos.indexOf(contextMenu.video)); setContextMenu(null); } },
         React.createElement(Icon, { name: 'play', size: 'sm' }), ' Play'
       ),
+      React.createElement('button', { className: 'context-menu-item', onClick: function() { startRename(contextMenu.video); setContextMenu(null); } },
+        React.createElement(Icon, { name: 'edit', size: 'sm' }), ' Rename'
+      ),
       onCopy && React.createElement('button', { className: 'context-menu-item', onClick: function() { onCopy(contextMenu.video); setContextMenu(null); } },
         React.createElement(Icon, { name: 'copy', size: 'sm' }), ' Copy to clipboard'
       ),
+      isOwner && onHideVideo && React.createElement('button', { className: 'context-menu-item', onClick: function() { onHideVideo(contextMenu.video.id, !contextMenu.video.hidden); setContextMenu(null); } },
+        React.createElement(Icon, { name: contextMenu.video.hidden ? 'eye' : 'eyeOff', size: 'sm' }), 
+        contextMenu.video.hidden ? ' Show to guests' : ' Hide from guests'
+      ),
+      React.createElement('div', { className: 'context-menu-divider' }),
       React.createElement('button', { className: 'context-menu-item danger', onClick: function() { onRemove(contextMenu.video.id); setContextMenu(null); } },
         React.createElement(Icon, { name: 'trash', size: 'sm' }), ' Remove'
       )
@@ -2372,8 +2393,17 @@ function PlaylistPanel(props) {
   
   function handleContextMenu(e, playlist) {
     e.preventDefault();
+    e.stopPropagation();
+    document.dispatchEvent(new CustomEvent('close-all-context-menus'));
     setContextMenu({ x: e.clientX, y: e.clientY, playlist: playlist });
   }
+
+  // Listen for global close
+  useEffect(function() {
+    function onGlobalClose() { setContextMenu(null); }
+    document.addEventListener('close-all-context-menus', onGlobalClose);
+    return function() { document.removeEventListener('close-all-context-menus', onGlobalClose); };
+  }, []);
   
   function handleExport(playlist) {
     var exportData = {
@@ -3622,7 +3652,7 @@ function HomePage(props) {
     React.createElement('header', { className: 'home-header' },
       React.createElement('div', { className: 'logo-small' }, React.createElement('span', { className: 'dragon-icon' }, '🐉'), React.createElement('span', null, 'Multiview')),
       React.createElement('div', { className: 'home-header-right' },
-        React.createElement('a', { className: 'btn', href: '/desktop.html', target: '_blank', rel: 'noopener noreferrer', title: 'Download the Multiview desktop app' }, React.createElement(Icon, { name: 'download', size: 'sm' }), ' Desktop App'),
+        React.createElement('a', { className: 'btn', href: '/desktop.html', title: 'Download the Multiview desktop app' }, React.createElement(Icon, { name: 'download', size: 'sm' }), ' Desktop App'),
         React.createElement(UserMenu, { user: user, onSettings: function() { setSettingsOpen(true); }, onLogout: props.onLogout })
       )
     ),
@@ -4013,11 +4043,12 @@ function Room(props) {
     };
   }, []);
   
-  // Close queue context menu on click
+  // Close queue context menu on click or global close
   useEffect(function() {
     function closeQueueMenu() { setQueueContextMenu(null); }
     document.addEventListener('click', closeQueueMenu);
-    return function() { document.removeEventListener('click', closeQueueMenu); };
+    document.addEventListener('close-all-context-menus', closeQueueMenu);
+    return function() { document.removeEventListener('click', closeQueueMenu); document.removeEventListener('close-all-context-menus', closeQueueMenu); };
   }, []);
   
   var _connectedUsers = useState([]);
@@ -4890,6 +4921,17 @@ function Room(props) {
     }).catch(function(err) { showNotif(err.message, 'error'); });
   }
 
+  function handleHideVideo(videoId, hidden) {
+    if (!activePlaylist) return;
+    api.playlists.setVideoHidden(activePlaylist.id, videoId, hidden).then(function() {
+      setPlaylists(playlists.map(function(p) {
+        if (p.id !== activePlaylist.id) return p;
+        return Object.assign({}, p, { videos: (p.videos || []).map(function(v) { return v.id === videoId ? Object.assign({}, v, { hidden: hidden }) : v; }) });
+      }));
+      showNotif(hidden ? 'Video hidden from guests' : 'Video visible to guests');
+    }).catch(function(err) { showNotif(err.message, 'error'); });
+  }
+
   function handleImportPlaylist(playlistData) {
     api.playlists.importPlaylist(room.id, playlistData).then(function() {
       showNotif('Playlist imported!');
@@ -4920,7 +4962,10 @@ function Room(props) {
 
   function handleQueueContextMenu(e) {
     if (!activePlaylist) return;
+    // Don't fire if a child (video item) already handled this
+    if (e.defaultPrevented) return;
     e.preventDefault();
+    document.dispatchEvent(new CustomEvent('close-all-context-menus'));
     setQueueContextMenu({ x: e.clientX, y: e.clientY });
   }
 
@@ -5248,7 +5293,7 @@ function Room(props) {
             )
           ),
           activePlaylist 
-            ? React.createElement(DraggableVideoList, { videos: getSortedVideos(activePlaylist.videos || []), currentVideo: currentVideo, onPlay: playVideo, onRemove: removeVideo, onRename: renameVideo, onReorder: reorderVideos, onCopy: handleCopyVideo, sortMode: queueSortMode })
+            ? React.createElement(DraggableVideoList, { videos: getSortedVideos(activePlaylist.videos || []), currentVideo: currentVideo, onPlay: playVideo, onRemove: removeVideo, onRename: renameVideo, onReorder: reorderVideos, onCopy: handleCopyVideo, onHideVideo: handleHideVideo, isOwner: isOwner, sortMode: queueSortMode })
             : React.createElement('div', { className: 'empty-queue' }, React.createElement('p', null, 'Select a playlist')),
           
           // Queue panel context menu

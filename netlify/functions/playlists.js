@@ -37,6 +37,7 @@ const getUserFromToken = async (authHeader) => {
 const ensureHiddenColumn = async () => {
   try {
     await sql`ALTER TABLE playlists ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT false`;
+    await sql`ALTER TABLE videos ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT false`;
   } catch (e) {
     // Column might already exist
   }
@@ -82,7 +83,8 @@ export const handler = async (event) => {
                        'title', v.title,
                        'url', v.url,
                        'videoType', v.video_type,
-                       'position', v.position
+                       'position', v.position,
+                       'hidden', COALESCE(v.hidden, false)
                      ) ORDER BY v.position
                    ) FILTER (WHERE v.id IS NOT NULL),
                    '[]'
@@ -94,7 +96,7 @@ export const handler = async (event) => {
           ORDER BY p.position, p.created_at
         `;
       } else {
-        // Non-owners only see non-hidden playlists
+        // Non-owners only see non-hidden playlists and non-hidden videos
         playlists = await sql`
           SELECT p.id, p.name, p.position, p.created_at, COALESCE(p.hidden, false) as hidden,
                  COALESCE(
@@ -104,9 +106,10 @@ export const handler = async (event) => {
                        'title', v.title,
                        'url', v.url,
                        'videoType', v.video_type,
-                       'position', v.position
+                       'position', v.position,
+                       'hidden', COALESCE(v.hidden, false)
                      ) ORDER BY v.position
-                   ) FILTER (WHERE v.id IS NOT NULL),
+                   ) FILTER (WHERE v.id IS NOT NULL AND (v.hidden IS NULL OR v.hidden = false)),
                    '[]'
                  ) as videos
           FROM playlists p
@@ -344,10 +347,10 @@ export const handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
-    // PUT /playlists/:id/videos/:videoId - Update video (rename, update notes, or toggle notes visibility)
+    // PUT /playlists/:id/videos/:videoId - Update video (rename, update notes, toggle notes/video visibility)
     if (event.httpMethod === 'PUT' && videoMatch) {
       const videoId = videoMatch[1];
-      const { title, notes, notesUpdatedBy, notesHidden } = body;
+      const { title, notes, notesUpdatedBy, notesHidden, hidden } = body;
       
       if (title !== undefined) {
         await sql`UPDATE videos SET title = ${title} WHERE id = ${videoId}::uuid AND playlist_id = ${playlistId}::uuid`;
@@ -363,6 +366,10 @@ export const handler = async (event) => {
       
       if (notesHidden !== undefined) {
         await sql`UPDATE videos SET notes_hidden = ${notesHidden} WHERE id = ${videoId}::uuid AND playlist_id = ${playlistId}::uuid`;
+      }
+
+      if (hidden !== undefined) {
+        await sql`UPDATE videos SET hidden = ${hidden} WHERE id = ${videoId}::uuid AND playlist_id = ${playlistId}::uuid`;
       }
       
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };

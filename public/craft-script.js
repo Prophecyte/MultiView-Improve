@@ -418,56 +418,100 @@ function initEventListeners() {
     btn.addEventListener('click', () => execFormatCommand(btn.dataset.command));
   });
 
-  // Font selects (apply to selection if text is selected, or if editor is empty — never change whole chapter with existing content)
+  // Font selects — save editor selection before dropdowns steal focus
+  let _savedFontFamilyRange = null;
+  document.getElementById('fontFamily').addEventListener('mousedown', () => {
+    const editor = document.getElementById('writeEditor');
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+      _savedFontFamilyRange = sel.getRangeAt(0).cloneRange();
+    }
+  });
   document.getElementById('fontFamily').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
-    const selection = window.getSelection();
+    const range = _savedFontFamilyRange;
+    _savedFontFamilyRange = null;
 
-    if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Use execCommand for robust cross-element selection handling (like Google Docs)
+    if (range && !range.collapsed && editor.contains(range.startContainer)) {
+      // Restore selection and apply
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
       document.execCommand('fontName', false, e.target.value);
       saveCurrentChapter();
     } else if (!editor.textContent.trim()) {
-      // Editor is empty - set default for new content
       editor.style.fontFamily = e.target.value;
     }
     editor.focus();
   });
 
+  // Font size: save editor selection before the dropdown steals focus
+  let _savedFontSizeRange = null;
+  document.getElementById('fontSize').addEventListener('mousedown', () => {
+    const editor = document.getElementById('writeEditor');
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+      _savedFontSizeRange = sel.getRangeAt(0).cloneRange();
+    }
+  });
+
   document.getElementById('fontSize').addEventListener('change', (e) => {
     const editor = document.getElementById('writeEditor');
-    const selection = window.getSelection();
     const sizeVal = e.target.value;
+    const range = _savedFontSizeRange;
+    _savedFontSizeRange = null;
 
-    if (selection.rangeCount > 0 && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Wrap selected text in span with font-size + line-height to avoid gap expansion
-      const range = selection.getRangeAt(0);
-      const fragment = range.extractContents();
-      const wrapper = document.createElement('span');
-      wrapper.style.fontSize = sizeVal + 'px';
-      wrapper.style.lineHeight = '1.4';
-      wrapper.appendChild(fragment);
-      range.insertNode(wrapper);
-      // Re-select
-      selection.removeAllRanges();
-      const newRange = document.createRange();
-      newRange.selectNodeContents(wrapper);
-      selection.addRange(newRange);
+    if (range && !range.collapsed && editor.contains(range.startContainer)) {
+      // Restore selection into the editor
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      // Check if entire selection is already inside a single font-size span
+      const parent = range.commonAncestorContainer;
+      const existingSpan = parent.nodeType === 1 && parent.style && parent.style.fontSize 
+        ? parent : (parent.parentElement && parent.parentElement.style && parent.parentElement.style.fontSize ? parent.parentElement : null);
+      
+      if (existingSpan && existingSpan !== editor && range.toString() === existingSpan.textContent) {
+        existingSpan.style.fontSize = sizeVal + 'px';
+      } else {
+        const fragment = range.extractContents();
+        const wrapper = document.createElement('span');
+        wrapper.style.fontSize = sizeVal + 'px';
+        
+        // Flatten nested font-size spans
+        fragment.querySelectorAll('span[style*="font-size"]').forEach(s => {
+          s.style.fontSize = '';
+          if (!s.style.cssText.trim()) {
+            while (s.firstChild) s.parentNode.insertBefore(s.firstChild, s);
+            s.remove();
+          }
+        });
+        fragment.querySelectorAll('font[size]').forEach(f => {
+          const replacement = document.createDocumentFragment();
+          while (f.firstChild) replacement.appendChild(f.firstChild);
+          f.parentNode.replaceChild(replacement, f);
+        });
+        
+        wrapper.appendChild(fragment);
+        range.insertNode(wrapper);
+        
+        sel.removeAllRanges();
+        const newRange = document.createRange();
+        newRange.selectNodeContents(wrapper);
+        sel.addRange(newRange);
+      }
       saveCurrentChapter();
-    } else if (selection.rangeCount > 0 && selection.isCollapsed && editor.contains(selection.anchorNode)) {
-      // Cursor only (no selection) — insert styled zero-width space so next typed text inherits size
-      const range = selection.getRangeAt(0);
-      const wrapper = document.createElement('span');
-      wrapper.style.fontSize = sizeVal + 'px';
-      wrapper.style.lineHeight = '1.4';
-      wrapper.textContent = '\u200B'; // zero-width space
-      range.insertNode(wrapper);
-      // Place cursor inside the span after the zwsp
-      const newRange = document.createRange();
-      newRange.setStart(wrapper.firstChild, 1);
-      newRange.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(newRange);
+    } else if (range && range.collapsed && editor.contains(range.startContainer)) {
+      // Cursor-only: use execCommand which handles this case well
+      document.execCommand('fontSize', false, '7');
+      // Replace the <font size="7"> with a proper span
+      editor.querySelectorAll('font[size="7"]').forEach(f => {
+        const span = document.createElement('span');
+        span.style.fontSize = sizeVal + 'px';
+        while (f.firstChild) span.appendChild(f.firstChild);
+        f.parentNode.replaceChild(span, f);
+      });
     } else if (!editor.textContent.trim()) {
       editor.style.fontSize = sizeVal + 'px';
     }
@@ -1758,12 +1802,20 @@ function renderDestinations() {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       selectedDestinationId = dest.id;
+      if (window.craftMyRole === 'viewer') {
+        showNotif('You do not have permission to edit this room');
+        return;
+      }
       openDestEditorModal(dest.id);
     });
 
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (window.craftMyRole === 'viewer') {
+        showNotif('You do not have permission to delete this item');
+        return;
+      }
       destinationMarkers = destinationMarkers.filter(d => d.id !== dest.id);
       if (selectedDestinationId === dest.id) selectedDestinationId = null;
       renderDestinations();
@@ -1873,6 +1925,10 @@ function createPinElement(pin) {
 
   el.addEventListener('dblclick', (e) => {
     e.stopPropagation();
+    if (window.craftMyRole === 'viewer') {
+      showNotif('You do not have permission to edit this room');
+      return;
+    }
     openPinEditorModal(pin.id);
   });
 
@@ -1887,6 +1943,12 @@ function createPinElement(pin) {
 }
 
 function startPinDrag(e, pin) {
+  // Block drag for viewers
+  if (window.craftMyRole === 'viewer') {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
   isDraggingPin = true;
   const mapCanvas = document.getElementById('mapCanvas');
   const wrapper = document.getElementById('mapImageWrapper');
@@ -2717,7 +2779,10 @@ function selectRegion(id) {
   deselectPin();
   selectedRegionId = id;
   renderRegions();
-  renderRegionEditHandles();
+  // Only show edit handles for non-viewers
+  if (window.craftMyRole !== 'viewer') {
+    renderRegionEditHandles();
+  }
   showRegionDetail();
 }
 
@@ -3827,6 +3892,17 @@ function handleMapMouseDown(e) {
   }
 
   const currentMap = getCurrentMap();
+
+  // Viewers can only pan, not use any map tools
+  if (window.craftMyRole === 'viewer') {
+    if (mapTool === 'map-pan' || e.button === 1) {
+      isMapPanning = true;
+      panStart = { x: e.clientX - mapPanOffset.x, y: e.clientY - mapPanOffset.y };
+      document.getElementById('mapView').classList.add('panning');
+      e.preventDefault();
+    }
+    return;
+  }
 
   if (mapTool === 'map-pan' || e.button === 1) {
     isMapPanning = true;
@@ -6681,6 +6757,7 @@ function removeCardImage() {
 // ============================================
 function startDrag(e, card) {
   if (currentTool !== 'select' || e.target.tagName === 'INPUT') return;
+  if (window.craftMyRole === 'viewer') return;
 
   isDragging = true;
   card.classList.add('dragging');
@@ -6728,6 +6805,7 @@ function startDrag(e, card) {
 
 function startResize(e, card) {
   e.stopPropagation();
+  if (window.craftMyRole === 'viewer') return;
   isResizing = true;
 
   const startWidth = card.offsetWidth;
@@ -7869,6 +7947,11 @@ function setTool(tool) {
 }
 
 function setMapTool(tool) {
+  // Viewers can only use select and pan
+  if (window.craftMyRole === 'viewer' && tool !== 'map-select' && tool !== 'map-pan') {
+    showNotif('You do not have permission to edit this room');
+    return;
+  }
   if (mapTool === 'map-region' && tool !== 'map-region' && regionDrawing) {
     cancelRegionDrawing();
   }
@@ -13530,20 +13613,55 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.textContent = entries.length ? entries.length + ' custom ' + (entries.length === 1 ? 'entry' : 'entries') : '';
   }
 
-  function addGenResultToBoard(result) {
-    const board = getCurrentBoard();
-    if (!board || !result) return;
-    // Create a randomizer card with the result as an entry
-    const cardId = 'card_' + Date.now();
-    const cx = (board.viewX || 0) + 300;
-    const cy = (board.viewY || 0) + 200;
-    board.cards.push({
-      id: cardId, type: 'randomizer', title: 'Generated: ' + result.substring(0, 20),
-      x: cx, y: cy, w: 200, h: 160, color: '#e879a8',
-      tableEntries: [{ text: result, weight: 1 }], lastRoll: 0
-    });
-    renderCards();
-    showNotif('Added randomizer card to board');
+  function addGenResultToTab(tabKey, lastResult) {
+    const ts = Date.now();
+    if (tabKey === 'factions') {
+      const name = rollGenerator('faction');
+      const tier = ['I','II','III','IV','V'][Math.floor(Math.random()*5)];
+      const statuses = ['Rising','Stable','Declining','At War','Hidden','Allied'];
+      const status = statuses[Math.floor(Math.random()*statuses.length)];
+      const color = FAC_COLORS[Math.floor(Math.random()*FAC_COLORS.length)];
+      const desc = rollGenerator('motivation');
+      const rep = Math.floor(Math.random()*11) - 5; // -5 to 5
+      factions.push({
+        id: 'fac_'+ts, name, color, reputation: rep, tier, status,
+        description: desc, notes: rollGenerator('secret'), claims: [], tags: [], image: null
+      });
+      selectedFactionId = factions[factions.length-1].id;
+      renderFactionGrid(); renderFactionsSidebar(); showFacDetail();
+      showNotif('Generated faction: ' + name);
+    } else if (tabKey === 'contacts') {
+      const name = rollGenerator('npc');
+      const disp = rollGenerator('disposition');
+      const role = rollGenerator('occupation');
+      const types = ['contact','ally','enemy','rival','patron','informant'];
+      const type = types[Math.floor(Math.random()*types.length)];
+      const facId = factions.length > 0 && Math.random() > 0.4 ? factions[Math.floor(Math.random()*factions.length)].id : '';
+      contacts.push({
+        id: 'con_'+ts, name, factionId: facId, role, disposition: disp, type,
+        description: rollGenerator('trait'), notes: rollGenerator('secret'),
+        tags: [], image: null
+      });
+      selectedContactId = contacts[contacts.length-1].id;
+      renderFactionGrid(); renderContactsSidebar(); renderContactsGrid(); renderFactionsSidebar(); showContactDetail();
+      showNotif('Generated contact: ' + name);
+    } else if (tabKey === 'orgs') {
+      const name = rollGenerator('org');
+      const orgTypes = ['Guild','Order','Company','Alliance','Syndicate','Council','Brotherhood','Circle'];
+      const orgType = orgTypes[Math.floor(Math.random()*orgTypes.length)];
+      const color = FAC_COLORS[Math.floor(Math.random()*FAC_COLORS.length)];
+      organizations.push({
+        id: 'org_'+ts, name, type: orgType, color,
+        description: rollGenerator('motivation'),
+        headquarters: rollGenerator('location'),
+        leader: rollGenerator('npc'),
+        notes: '', image: null, hidden: false, tags: [],
+        associations: []
+      });
+      selectedOrgId = organizations[organizations.length-1].id;
+      renderOrgsGrid(); renderOrgsSidebar(); showOrgDetail();
+      showNotif('Generated org: ' + name);
+    }
     if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
   }
 
@@ -13551,7 +13669,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const select = document.getElementById(selectId);
     const customSection = document.getElementById(customSectionId);
     const rollBtn = document.getElementById(prefix + 'GenRollBtn');
-    const addBoardBtn = document.getElementById(addToBoardId);
+    const addBtn = document.getElementById(addToBoardId);
 
     // Show/hide custom section based on dropdown
     select?.addEventListener('change', () => {
@@ -13587,18 +13705,15 @@ document.addEventListener('DOMContentLoaded', () => {
         el.style.animation = 'none';
         el.offsetHeight;
         el.style.animation = 'fadeIn 0.2s ease';
-        // Show add-to-board button
-        if (addBoardBtn && result && !result.startsWith('No ')) addBoardBtn.classList.remove('hidden');
+        // Show add-to-tab button
+        if (addBtn && result && !result.startsWith('No ')) addBtn.classList.remove('hidden');
       }
     });
 
-    // Add to board
-    addBoardBtn?.addEventListener('click', () => {
-      const el = document.getElementById(resultId);
-      if (el && el.textContent) {
-        addGenResultToBoard(el.textContent);
-        addBoardBtn.classList.add('hidden');
-      }
+    // Add to tab (creates a full entity in the connection tab)
+    addBtn?.addEventListener('click', () => {
+      addGenResultToTab(tableKey);
+      addBtn.classList.add('hidden');
     });
   }
 
@@ -15780,14 +15895,8 @@ window.applyViewSettings = applyViewSettings;
 
       const t = e.target;
       const tag = t.tagName;
-      const isInteractive = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
-        t.isContentEditable || t.closest('[contenteditable="true"]') ||
-        t.classList.contains('delete-item-btn') || t.classList.contains('btn') ||
-        t.closest('.context-menu-item') || t.closest('.tool-btn') ||
-        t.closest('.write-tool-btn') || t.closest('.add-btn-full') ||
-        (tag === 'BUTTON' && !t.closest('.mv-panel-header') && !t.closest('.zoom-controls') && !t.closest('.view-toggle-btn')));
 
-      // Allow navigation/view-switching elements
+      // ALWAYS allow: navigation, view switching, soundscape playback, connected bar, scrolling
       if (t.closest('.view-toggle-btn') || t.closest('.zoom-controls') ||
           t.closest('.mv-panel-header') || t.closest('.mv-nav-item') ||
           t.closest('.chapter-item') || t.closest('.board-item') ||
@@ -15795,18 +15904,31 @@ window.applyViewSettings = applyViewSettings;
           t.closest('.sb-cat-btn') || t.closest('.sb-tile-play') ||
           t.closest('.sb-tile-vol') || t.closest('#sbPersonalVol') ||
           t.closest('.connected-header') || t.closest('.user-badge') ||
-          t.closest('.craft-connected-section')) return;
+          t.closest('.craft-connected-section') || t.closest('.fac-card') ||
+          t.closest('.contact-card') || t.closest('.org-card') ||
+          t.closest('.tl-event') || t.closest('.map-pin') ||
+          t.closest('.destination-marker') || t.closest('.mm-node')) return;
+
+      const isInteractive = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        t.isContentEditable || t.closest('[contenteditable="true"]') ||
+        t.classList.contains('delete-item-btn') ||
+        t.closest('.context-menu-item') || t.closest('.tool-btn') ||
+        t.closest('.canvas-tools') ||
+        t.closest('.write-tool-btn') || t.closest('.add-btn-full') ||
+        t.closest('.toolbar-select') || t.closest('.detail-input') ||
+        t.closest('.map-tool-btn') ||
+        (tag === 'BUTTON' && !t.closest('.mv-panel-header') && !t.closest('.zoom-controls') && !t.closest('.view-toggle-btn') && !t.closest('.sb-tile')));
 
       if (isInteractive) {
         e.preventDefault();
         e.stopPropagation();
         const act = t.classList.contains('delete-item-btn') || t.closest('.danger') ? 'delete'
-          : (tag === 'INPUT' && t.type === 'checkbox') ? 'toggle' : 'edit';
+          : (tag === 'INPUT' && t.type === 'checkbox') || tag === 'SELECT' ? 'toggle' : 'edit';
         showPermissionDenied(act);
       }
     }, true);
 
-    // Also block contenteditable input
+    // Also block contenteditable input and form typing
     dash.addEventListener('keydown', function(e) {
       if (window.craftMyRole && window.craftMyRole !== 'viewer') return;
       if (window.craftMyRole === undefined) return;
@@ -15827,6 +15949,20 @@ window.applyViewSettings = applyViewSettings;
       if (window.craftMyRole === undefined) return;
       e.preventDefault();
       showPermissionDenied('edit');
+    }, true);
+
+    // Block change events on selects/checkboxes for viewers
+    dash.addEventListener('change', function(e) {
+      if (window.craftMyRole && window.craftMyRole !== 'viewer') return;
+      if (window.craftMyRole === undefined) return;
+      const t = e.target;
+      if (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && (t.type === 'checkbox' || t.type === 'radio' || t.type === 'range' || t.type === 'color'))) {
+        // Allow soundboard personal volume
+        if (t.closest('.sb-tile') || t.id === 'sbPersonalVol') return;
+        e.preventDefault();
+        e.stopPropagation();
+        showPermissionDenied('toggle');
+      }
     }, true);
   }
 })();

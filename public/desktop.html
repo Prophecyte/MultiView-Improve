@@ -3,54 +3,112 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multiview Desktop App</title>
+  <title>Download MultiView Desktop</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
   <meta name="theme-color" content="#d4a824" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #060606; color: #f5ede0;
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100vh; overflow-x: hidden;
+    }
+    .glow { position: fixed; top: -250px; left: 50%; transform: translateX(-50%); width: 800px; height: 500px; background: radial-gradient(ellipse, rgba(212,168,36,0.03) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+    .glow-b { position: fixed; bottom: -300px; left: 50%; transform: translateX(-50%); width: 1000px; height: 500px; background: radial-gradient(ellipse, rgba(196,116,32,0.02) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; border-bottom: 1px solid rgba(168,152,128,0.08); position: relative; z-index: 1; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #d4a824; font-family: 'Cinzel', serif; font-size: 18px; font-weight: 600; }
+    .logo .dragon { font-size: 22px; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(168,152,128,0.15); background: transparent; color: #a89880; text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.2s ease; }
+    .back-btn:hover { border-color: rgba(212,168,36,0.4); color: #d4a824; }
+    .hero { text-align: center; padding: 72px 24px 56px; position: relative; z-index: 1; }
+    .hero h1 { font-family: 'Cinzel', serif; font-size: 36px; font-weight: 600; color: #f5ede0; margin-bottom: 16px; letter-spacing: 0.02em; }
+    .hero h1 span { color: #d4a824; }
+    .hero p { font-size: 15px; color: #a89880; max-width: 480px; margin: 0 auto; line-height: 1.7; }
+    .cards { display: flex; gap: 24px; justify-content: center; padding: 16px 24px 56px; flex-wrap: wrap; position: relative; z-index: 1; }
+    .card { background: linear-gradient(160deg, rgba(18,16,12,0.95), rgba(10,10,8,0.6)); border: 1px solid rgba(168,152,128,0.08); border-radius: 16px; padding: 40px 32px; width: 260px; text-align: center; transition: all 0.3s ease; position: relative; overflow: hidden; }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(168,152,128,0.1), transparent); transition: all 0.3s ease; }
+    .card:hover { border-color: rgba(212,168,36,0.2); transform: translateY(-6px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+    .card:hover::before { background: linear-gradient(90deg, transparent, rgba(212,168,36,0.35), transparent); }
+    .card-icon { font-size: 36px; margin-bottom: 20px; display: block; }
+    .card h3 { font-family: 'Cinzel', serif; font-size: 16px; color: #f5ede0; margin-bottom: 6px; font-weight: 600; }
+    .card .specs { font-size: 11px; color: #605545; margin-bottom: 20px; line-height: 1.6; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
+    .badge.soon { background: rgba(212,168,36,0.08); color: #d4a824; border: 1px solid rgba(212,168,36,0.12); }
+    .badge.ready { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.15); }
+    .dl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 28px; border-radius: 8px; border: none; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; text-decoration: none; width: 100%; }
+    .dl-btn.gold { background: linear-gradient(135deg, #d4a824, #b8922a); color: #0a0a08; }
+    .dl-btn.gold:hover { background: linear-gradient(135deg, #e0b830, #c49e2e); box-shadow: 0 4px 20px rgba(212,168,36,0.2); }
+    .dl-btn.disabled { background: rgba(168,152,128,0.06); color: #3a352c; cursor: not-allowed; border: 1px solid rgba(168,152,128,0.06); }
+    .divider { width: 160px; height: 1px; margin: 0 auto; background: linear-gradient(90deg, transparent, rgba(212,168,36,0.15), transparent); }
+    .features { max-width: 680px; margin: 0 auto; padding: 48px 24px 64px; position: relative; z-index: 1; }
+    .features h2 { font-family: 'Cinzel', serif; font-size: 14px; color: #d4a824; text-align: center; margin-bottom: 32px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+    .feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .feat { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-radius: 10px; background: rgba(12,12,10,0.5); border: 1px solid rgba(168,152,128,0.04); transition: border-color 0.2s ease; }
+    .feat:hover { border-color: rgba(168,152,128,0.1); }
+    .feat-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .feat h4 { font-size: 12px; color: #f5ede0; margin-bottom: 3px; font-weight: 600; }
+    .feat p { font-size: 11px; color: #605545; line-height: 1.5; }
+    .footer { text-align: center; padding: 24px; border-top: 1px solid rgba(168,152,128,0.04); font-size: 11px; color: #3a352c; position: relative; z-index: 1; }
+    @media (max-width: 720px) { .cards { flex-direction: column; align-items: center; } .feat-grid { grid-template-columns: 1fr; } .hero h1 { font-size: 26px; } .header { padding: 12px 16px; } }
+  </style>
 </head>
 <body>
-  <div class="home-page">
-    <div class="dragon-fire"></div>
-    <header class="home-header">
-      <a class="logo-small" href="/"><span class="dragon-icon">🐉</span><span>Multiview</span></a>
-      <div class="home-header-right">
-        <a class="btn primary" href="/" title="Back to rooms">Back to app</a>
-      </div>
-    </header>
+  <div class="glow"></div>
+  <div class="glow-b"></div>
 
-    <main class="home-content" style="max-width: 860px;">
-      <div class="panel" style="padding: 24px;">
-        <h2 style="margin-top:0;">Desktop App</h2>
-        <p style="margin: 10px 0 16px; line-height:1.6;">
-          We’re building a desktop version of Multiview (Electron) so you can keep the same rooms, syncing, and Craft tools —
-          with a more “app-like” experience.
-        </p>
+  <header class="header">
+    <a class="logo" href="/"><span class="dragon">🐉</span> MultiView</a>
+    <a class="back-btn" href="/">← Back to app</a>
+  </header>
 
-        <div class="card-grid" style="grid-template-columns: 1fr; gap: 12px;">
-          <div class="card" style="padding: 16px;">
-            <h3 style="margin:0 0 8px;">Downloads</h3>
-            <p style="margin:0; opacity:.9;">
-              Coming soon. When builds are available, you’ll see Windows / macOS / Linux download links here.
-            </p>
-          </div>
+  <section class="hero">
+    <h1>Download <span>MultiView</span></h1>
+    <p>The full MultiView experience as a native desktop app. Same rooms, same sync — plus offline editing when you need it.</p>
+  </section>
 
-          <div class="card" style="padding: 16px;">
-            <h3 style="margin:0 0 8px;">What it includes</h3>
-            <ul style="margin:0; padding-left: 18px; line-height:1.7;">
-              <li>Same login & rooms as the web app</li>
-              <li>Watch rooms + Craft rooms (boards, writing, maps, timelines)</li>
-              <li>Optional desktop-only upgrades later: offline cache, file import/export, auto-updates</li>
-            </ul>
-          </div>
-        </div>
+  <section class="cards">
+    <div class="card">
+      <span class="card-icon">🪟</span>
+      <span class="badge soon">Coming Soon</span>
+      <h3>Windows</h3>
+      <p class="specs">Windows 10 or later · 64-bit</p>
+      <a class="dl-btn disabled">Download .exe</a>
+    </div>
+    <div class="card">
+      <span class="card-icon">🍎</span>
+      <span class="badge soon">Coming Soon</span>
+      <h3>macOS</h3>
+      <p class="specs">macOS 11+ · Intel &amp; Apple Silicon</p>
+      <a class="dl-btn disabled">Download .dmg</a>
+    </div>
+    <div class="card">
+      <span class="card-icon">🐧</span>
+      <span class="badge soon">Coming Soon</span>
+      <h3>Linux</h3>
+      <p class="specs">Ubuntu 20.04+ · AppImage</p>
+      <a class="dl-btn disabled">Download .AppImage</a>
+    </div>
+  </section>
 
-        <p style="margin: 16px 0 0; opacity:.85;">
-          Tip: you can keep using the web app normally — the desktop app will connect to the same backend.
-        </p>
-      </div>
-    </main>
-  </div>
+  <div class="divider"></div>
+
+  <section class="features">
+    <h2>What's Included</h2>
+    <div class="feat-grid">
+      <div class="feat"><span class="feat-icon">🔄</span><div><h4>Real-time Sync</h4><p>Same login, same rooms. Everything stays in sync between desktop and browser.</p></div></div>
+      <div class="feat"><span class="feat-icon">📡</span><div><h4>Offline Editing</h4><p>Edit craft rooms without internet. Changes queue locally and sync when you reconnect.</p></div></div>
+      <div class="feat"><span class="feat-icon">⚔️</span><div><h4>Full Craft Room</h4><p>Boards, writing, maps, timelines, connections, soundscapes — everything included.</p></div></div>
+      <div class="feat"><span class="feat-icon">📺</span><div><h4>Watch Rooms</h4><p>Synchronized video playback, playlists, and the full connected experience.</p></div></div>
+      <div class="feat"><span class="feat-icon">⌨️</span><div><h4>Native Feel</h4><p>Keyboard shortcuts, fullscreen, system tray, and auto-updates.</p></div></div>
+      <div class="feat"><span class="feat-icon">🔒</span><div><h4>Same Security</h4><p>Persistent login with the same authentication. Your data stays encrypted.</p></div></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>The desktop app connects to the same backend as the web app. Use both interchangeably.</p>
+  </footer>
 </body>
 </html>

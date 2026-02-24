@@ -11,6 +11,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fadeIn 0.2s ease;
   transition: opacity 0.4s ease;
 }
 .craft-loading-overlay.fade-out {
@@ -21,15 +22,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-}
-.craft-loading-icon {
-  font-size: 48px;
-  animation: craftLoadPulse 2s ease-in-out infinite;
-}
-@keyframes craftLoadPulse {
-  0%, 100% { transform: scale(1); opacity: 0.8; }
-  50% { transform: scale(1.1); opacity: 1; }
+  gap: 24px;
 }
 .craft-loading-overlay .loading-flames {
   display: flex;
@@ -39,7 +32,7 @@
 }
 .craft-loading-overlay .loading-flame {
   width: 12px;
-  background: linear-gradient(to top, #c47420, #d4a824, #fff8dc);
+  background: linear-gradient(to top, var(--ember, #c47420), var(--gold, #d4a824), #fff8dc);
   border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
   animation: craftFlameLoad 0.8s ease-in-out infinite;
 }
@@ -53,11 +46,9 @@
   50% { transform: scaleY(1.3) scaleX(0.9); opacity: 1; }
 }
 .craft-loading-text {
-  font-family: 'Cinzel', serif;
+  color: var(--text-secondary, #a89880);
   font-size: 14px;
-  color: var(--gold, #d4a824);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 * {
@@ -3941,9 +3932,6 @@ select optgroup {
   font-size: 16px;
   line-height: 1.6;
   outline: none;
-}
-.write-editor span[style*="font-size"] {
-  line-height: 1.4;
 }
 
 .write-editor:empty:before {

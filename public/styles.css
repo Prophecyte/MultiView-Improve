@@ -1065,6 +1065,14 @@ body {
   font-style: italic;
 }
 
+.video-item.hidden-video {
+  opacity: 0.5;
+  border-left: 2px solid var(--text-muted);
+}
+.video-item.hidden-video .video-title {
+  font-style: italic;
+}
+
 .hidden-indicator {
   color: var(--text-muted);
   margin-right: 4px;
@@ -2601,6 +2609,12 @@ body {
 
 .context-menu-item.danger:hover {
   background: rgba(220, 53, 69, 0.1);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-color, rgba(168,152,128,0.15));
+  margin: 4px 0;
 }
 
 /* ============================================
