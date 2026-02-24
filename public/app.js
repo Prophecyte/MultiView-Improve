@@ -2176,7 +2176,7 @@ function DraggableVideoList(props) {
       
       return React.createElement('div', { 
         key: v.id, 
-        className: 'video-item' + (isPlaying ? ' playing' : '') + (isDragging ? ' dragging' : '') + (isDragOver ? ' drag-over' : '') + (sortMode ? ' sorted' : '') + (v.hidden ? ' hidden-video' : ''),
+        className: 'video-item' + (isPlaying ? ' playing' : '') + (isDragging ? ' dragging' : '') + (isDragOver ? ' drag-over' : '') + (sortMode ? ' sorted' : '') + (v.hidden ? ' hidden-video' : '') + (v.hidden && isOwner ? ' owner-hidden' : ''),
         draggable: !isEditing && !sortMode,
         onDragStart: function(e) { if (!sortMode) handleDragStart(e, i, v); },
         onDragOver: function(e) { if (!sortMode) handleDragOver(e, i); },
@@ -2205,9 +2205,11 @@ function DraggableVideoList(props) {
             : React.createElement('span', { className: 'video-title', onClick: function() { onPlay(v, i); } }, v.title || v.url)
         ),
         React.createElement('div', { className: 'video-actions' },
+          v.hidden && isOwner && React.createElement('span', { className: 'video-hidden-badge', title: 'Hidden from guests' }, React.createElement(Icon, { name: 'eyeOff', size: 'sm' })),
           React.createElement('button', { className: 'icon-btn sm primary', onClick: function(e) { e.stopPropagation(); onPlay(v, i); }, title: 'Play' }, React.createElement(Icon, { name: 'play', size: 'sm' })),
           React.createElement('button', { className: 'icon-btn sm', onClick: function(e) { e.stopPropagation(); startRename(v); }, title: 'Rename' }, React.createElement(Icon, { name: 'edit', size: 'sm' })),
           onCopy && React.createElement('button', { className: 'icon-btn sm', onClick: function(e) { e.stopPropagation(); onCopy(v); }, title: 'Copy to clipboard' }, React.createElement(Icon, { name: 'copy', size: 'sm' })),
+          isOwner && onHideVideo && React.createElement('button', { className: 'icon-btn sm' + (v.hidden ? ' active' : ''), onClick: function(e) { e.stopPropagation(); onHideVideo(v.id, !v.hidden); }, title: v.hidden ? 'Show to guests' : 'Hide from guests' }, React.createElement(Icon, { name: v.hidden ? 'eyeOff' : 'eye', size: 'sm' })),
           React.createElement('button', { className: 'icon-btn sm danger', onClick: function(e) { e.stopPropagation(); onRemove(v.id); }, title: 'Remove' }, React.createElement(Icon, { name: 'trash', size: 'sm' }))
         )
       );

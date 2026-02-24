@@ -75,21 +75,39 @@
       <span class="badge soon">Coming Soon</span>
       <h3>Windows</h3>
       <p class="specs">Windows 10 or later · 64-bit</p>
-      <a class="dl-btn disabled">Download .exe</a>
+      <a class="dl-btn disabled" id="dlWindows">Download .exe</a>
     </div>
     <div class="card">
       <span class="card-icon">🍎</span>
       <span class="badge soon">Coming Soon</span>
       <h3>macOS</h3>
       <p class="specs">macOS 11+ · Intel &amp; Apple Silicon</p>
-      <a class="dl-btn disabled">Download .dmg</a>
+      <a class="dl-btn disabled" id="dlMac">Download .dmg</a>
     </div>
     <div class="card">
       <span class="card-icon">🐧</span>
       <span class="badge soon">Coming Soon</span>
       <h3>Linux</h3>
       <p class="specs">Ubuntu 20.04+ · AppImage</p>
-      <a class="dl-btn disabled">Download .AppImage</a>
+      <a class="dl-btn disabled" id="dlLinux">Download .AppImage</a>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="dev-guide" style="max-width:620px;margin:0 auto;padding:40px 24px 24px;position:relative;z-index:1;">
+    <h2 style="font-family:'Cinzel',serif;font-size:14px;color:#d4a824;text-align:center;margin-bottom:20px;text-transform:uppercase;letter-spacing:0.12em;font-weight:600;">How to Build the Desktop App</h2>
+    <div style="background:rgba(12,12,10,0.6);border:1px solid rgba(168,152,128,0.08);border-radius:12px;padding:24px;font-size:13px;line-height:1.8;color:#a89880;">
+      <p style="margin-bottom:12px;">MultiView uses <strong style="color:#f5ede0;">Electron</strong> to wrap the web app into a native desktop experience. To activate the download buttons, you need to:</p>
+      <ol style="padding-left:20px;margin-bottom:16px;">
+        <li style="margin-bottom:8px;">Install Node.js (v18+) and npm</li>
+        <li style="margin-bottom:8px;">Create an <code style="background:rgba(212,168,36,0.08);padding:2px 6px;border-radius:4px;color:#d4a824;font-size:12px;">electron/</code> folder in the project root</li>
+        <li style="margin-bottom:8px;">Run <code style="background:rgba(212,168,36,0.08);padding:2px 6px;border-radius:4px;color:#d4a824;font-size:12px;">npm init</code> and install <code style="background:rgba(212,168,36,0.08);padding:2px 6px;border-radius:4px;color:#d4a824;font-size:12px;">electron</code> + <code style="background:rgba(212,168,36,0.08);padding:2px 6px;border-radius:4px;color:#d4a824;font-size:12px;">electron-builder</code></li>
+        <li style="margin-bottom:8px;">Create a <code style="background:rgba(212,168,36,0.08);padding:2px 6px;border-radius:4px;color:#d4a824;font-size:12px;">main.js</code> that loads MultiView's URL in a BrowserWindow</li>
+        <li style="margin-bottom:8px;">Run <code style="background:rgba(212,168,36,0.08);padding:2px 6px;border-radius:4px;color:#d4a824;font-size:12px;">npx electron-builder --win --mac --linux</code> to generate installers</li>
+        <li style="margin-bottom:8px;">Host the builds (GitHub Releases, S3, etc.) and update the download links</li>
+      </ol>
+      <p style="font-size:11px;color:#605545;">Once builds are hosted, update this page's button hrefs to point to the download URLs. The buttons will automatically activate when links are provided.</p>
     </div>
   </section>
 
@@ -110,5 +128,28 @@
   <footer class="footer">
     <p>The desktop app connects to the same backend as the web app. Use both interchangeably.</p>
   </footer>
+
+  <script>
+    // Configure download URLs here when builds are available
+    var DOWNLOAD_URLS = {
+      windows: '', // e.g. 'https://github.com/yourrepo/releases/download/v1.0/MultiView-Setup.exe'
+      mac: '',     // e.g. 'https://github.com/yourrepo/releases/download/v1.0/MultiView.dmg'
+      linux: ''    // e.g. 'https://github.com/yourrepo/releases/download/v1.0/MultiView.AppImage'
+    };
+    function activateBtn(id, url, platform) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      if (url) {
+        btn.href = url;
+        btn.classList.remove('disabled');
+        btn.classList.add('gold');
+        var badge = btn.parentElement.querySelector('.badge');
+        if (badge) { badge.classList.remove('soon'); badge.classList.add('ready'); badge.textContent = 'Ready'; }
+      }
+    }
+    activateBtn('dlWindows', DOWNLOAD_URLS.windows, 'Windows');
+    activateBtn('dlMac', DOWNLOAD_URLS.mac, 'macOS');
+    activateBtn('dlLinux', DOWNLOAD_URLS.linux, 'Linux');
+  </script>
 </body>
 </html>

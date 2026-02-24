@@ -1069,8 +1069,21 @@ body {
   opacity: 0.5;
   border-left: 2px solid var(--text-muted);
 }
+.video-item.hidden-video.owner-hidden {
+  opacity: 0.65;
+  border-left: 2px solid rgba(234,179,8,0.4);
+  background: rgba(234,179,8,0.03);
+}
 .video-item.hidden-video .video-title {
   font-style: italic;
+}
+.video-hidden-badge {
+  display: flex;
+  align-items: center;
+  color: #eab308;
+  font-size: 11px;
+  opacity: 0.8;
+  margin-right: 2px;
 }
 
 .hidden-indicator {

@@ -2667,23 +2667,17 @@ select optgroup {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
-    inset 1px 0 0 rgba(255, 255, 255, 0.04),
-    inset -1px 0 0 rgba(255, 255, 255, 0.04);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 .card.design-glass .card-content {
   background: transparent;
 }
 .card.design-glass .card-type-indicator {
-  background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.2), rgba(255,255,255,0.1));
-  backdrop-filter: blur(8px);
+  background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.12), rgba(255,255,255,0.05));
 }
 .card.design-glass:hover {
   border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 20px rgba(255, 255, 255, 0.03);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 255, 255, 0.03);
 }
 .card.design-glass.selected {
   border-color: rgba(255, 255, 255, 0.35);
@@ -6833,6 +6827,14 @@ select optgroup {
   transition: var(--transition-fast);
 }
 .fac-read-more:hover { text-decoration: underline; }
+
+.fac-conn-toggle {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 10px; padding: 2px 0; font-weight: 500;
+  transition: var(--transition-fast); display: block; width: 100%; text-align: left;
+}
+.fac-conn-toggle:hover { color: var(--gold); }
+.fac-conn-overflow { margin-top: 0; }
 
 /* Contact type badge */
 .fac-type-badge {
