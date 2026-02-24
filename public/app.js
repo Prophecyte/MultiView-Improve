@@ -2849,6 +2849,7 @@ function SettingsContent(props) {
   function handleSetTheme(themeId) {
     setThemeState(themeId);
     localStorage.setItem(userThemeKey, themeId);
+    localStorage.setItem('mv_last_theme', themeId);
     document.documentElement.setAttribute('data-theme', themeId);
     setMessage({ text: 'Theme updated!', type: 'success' });
   }
@@ -3062,6 +3063,7 @@ function SettingsModal(props) {
   function handleSetTheme(themeId) {
     setThemeState(themeId);
     localStorage.setItem(userThemeKey, themeId);
+    localStorage.setItem('mv_last_theme', themeId);
     document.documentElement.setAttribute('data-theme', themeId);
   }
 

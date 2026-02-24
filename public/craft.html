@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Multiview - Craft Room</title>
+    <script>
+      // Apply theme immediately to prevent flash of default colors
+      (function() {
+        try {
+          // Try mv_last_theme first (fastest), then scan for theme_* keys
+          var t = localStorage.getItem('mv_last_theme');
+          if (!t) {
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              if (k && k.indexOf('theme_') === 0) { t = localStorage.getItem(k); break; }
+            }
+          }
+          if (t) document.documentElement.setAttribute('data-theme', t);
+        } catch(e) {}
+      })();
+    </script>
     <!-- OpenGraph / Discord Embed -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Multiview" />
@@ -1865,10 +1881,12 @@
           <!-- Faction Sidebar Sections -->
           <div class="sidebar-section factions-list-section hidden" id="factionsListSection">
             <div class="section-header"><span>Factions</span></div>
-            <div style="padding:4px 12px 4px;display:flex;gap:4px;flex-wrap:wrap;">
-              <button class="btn primary sm" id="addFactionBtn" style="flex:1;">+ Add</button>
-              <button class="btn secondary sm" id="facAddToBoard" style="flex:1;font-size:10px;">⚡ Generate</button>
+            <div style="padding:4px 12px 0;display:flex;gap:4px;">
+              <button class="btn primary sm" id="addFactionBtn" style="flex:1;">+ Add Faction</button>
               <button class="btn secondary sm" id="sortFactionsBtn" title="Sort A-Z" style="padding:4px 8px;font-size:11px;">A↓Z</button>
+            </div>
+            <div style="padding:2px 12px 4px;">
+              <button class="btn secondary sm full-width" id="facAddToBoard" style="font-size:10px;opacity:0.8;">⚡ Generate Full Entry</button>
             </div>
             <div id="factionsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No factions yet</div>
@@ -1898,10 +1916,12 @@
           </div>
           <div class="sidebar-section contacts-list-section hidden" id="contactsListSection">
             <div class="section-header"><span>Contacts</span></div>
-            <div style="padding:4px 12px 4px;display:flex;gap:4px;flex-wrap:wrap;">
-              <button class="btn primary sm" id="addContactBtn" style="flex:1;">+ Add</button>
-              <button class="btn secondary sm" id="contactAddToBoard" style="flex:1;font-size:10px;">⚡ Generate</button>
+            <div style="padding:4px 12px 0;display:flex;gap:4px;">
+              <button class="btn primary sm" id="addContactBtn" style="flex:1;">+ Add Contact</button>
               <button class="btn secondary sm" id="sortContactsBtn" title="Sort A-Z" style="padding:4px 8px;font-size:11px;">A↓Z</button>
+            </div>
+            <div style="padding:2px 12px 4px;">
+              <button class="btn secondary sm full-width" id="contactAddToBoard" style="font-size:10px;opacity:0.8;">⚡ Generate Full Entry</button>
             </div>
             <div id="contactsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No contacts yet</div>
@@ -1930,10 +1950,12 @@
           </div>
           <div class="sidebar-section orgs-list-section hidden" id="orgsListSection">
             <div class="section-header"><span>Organizations</span></div>
-            <div style="padding:4px 12px 4px;display:flex;gap:4px;flex-wrap:wrap;">
-              <button class="btn primary sm" id="addOrgBtn" style="flex:1;">+ Add</button>
-              <button class="btn secondary sm" id="orgAddToBoard" style="flex:1;font-size:10px;">⚡ Generate</button>
+            <div style="padding:4px 12px 0;display:flex;gap:4px;">
+              <button class="btn primary sm" id="addOrgBtn" style="flex:1;">+ Add Organization</button>
               <button class="btn secondary sm" id="sortOrgsBtn" title="Sort A-Z" style="padding:4px 8px;font-size:11px;">A↓Z</button>
+            </div>
+            <div style="padding:2px 12px 4px;">
+              <button class="btn secondary sm full-width" id="orgAddToBoard" style="font-size:10px;opacity:0.8;">⚡ Generate Full Entry</button>
             </div>
             <div id="orgsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No organizations yet</div>

@@ -468,6 +468,7 @@
         opt.addEventListener('click', function() {
           var id = opt.dataset.tid;
           localStorage.setItem(themeKey, id);
+          localStorage.setItem('mv_last_theme', id);
           document.documentElement.setAttribute('data-theme', id);
           body.querySelectorAll('.theme-option').forEach(function(o) { o.classList.remove('active'); });
           opt.classList.add('active');
@@ -793,6 +794,7 @@
       currentUser = d.user;
       var theme = localStorage.getItem('theme_' + currentUser.id) || 'gold';
       document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('mv_last_theme', theme);
       return apiRequest('/craftrooms/' + roomId);
     }).then(function(d) {
       roomInfo = d.room;

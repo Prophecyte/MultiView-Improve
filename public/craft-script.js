@@ -469,40 +469,33 @@ function initEventListeners() {
       sel.removeAllRanges();
       sel.addRange(range);
 
-      // Check if entire selection is already inside a single font-size span
-      const parent = range.commonAncestorContainer;
-      const existingSpan = parent.nodeType === 1 && parent.style && parent.style.fontSize 
-        ? parent : (parent.parentElement && parent.parentElement.style && parent.parentElement.style.fontSize ? parent.parentElement : null);
+      const fragment = range.extractContents();
+      const wrapper = document.createElement('span');
+      wrapper.style.fontSize = sizeVal + 'px';
       
-      if (existingSpan && existingSpan !== editor && range.toString() === existingSpan.textContent) {
-        existingSpan.style.fontSize = sizeVal + 'px';
-      } else {
-        const fragment = range.extractContents();
-        const wrapper = document.createElement('span');
-        wrapper.style.fontSize = sizeVal + 'px';
-        
-        // Flatten nested font-size spans
-        fragment.querySelectorAll('span[style*="font-size"]').forEach(s => {
-          s.style.fontSize = '';
-          if (!s.style.cssText.trim()) {
-            while (s.firstChild) s.parentNode.insertBefore(s.firstChild, s);
-            s.remove();
-          }
-        });
-        fragment.querySelectorAll('font[size]').forEach(f => {
-          const replacement = document.createDocumentFragment();
-          while (f.firstChild) replacement.appendChild(f.firstChild);
-          f.parentNode.replaceChild(replacement, f);
-        });
-        
-        wrapper.appendChild(fragment);
-        range.insertNode(wrapper);
-        
-        sel.removeAllRanges();
-        const newRange = document.createRange();
-        newRange.selectNodeContents(wrapper);
-        sel.addRange(newRange);
-      }
+      // Strip ALL font-size and line-height from nested elements (handles Google Docs paste)
+      fragment.querySelectorAll('[style]').forEach(el => {
+        if (el.style.fontSize) el.style.fontSize = '';
+        if (el.style.lineHeight) el.style.lineHeight = '';
+        // Clean up empty style attributes
+        if (!el.style.cssText.trim() && el.tagName === 'SPAN') {
+          while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+          el.remove();
+        }
+      });
+      fragment.querySelectorAll('font[size]').forEach(f => {
+        const replacement = document.createDocumentFragment();
+        while (f.firstChild) replacement.appendChild(f.firstChild);
+        f.parentNode.replaceChild(replacement, f);
+      });
+      
+      wrapper.appendChild(fragment);
+      range.insertNode(wrapper);
+      
+      sel.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(wrapper);
+      sel.addRange(newRange);
       saveCurrentChapter();
     } else if (range && range.collapsed && editor.contains(range.startContainer)) {
       // Cursor-only: use execCommand which handles this case well
@@ -12529,7 +12522,7 @@ function renderContactsSidebar() {
     return `<div class="sidebar-item${active}${c.hidden ? ' item-hidden' : ''}" onclick="selectContact('${c.id}')" oncontextmenu="showFacContactContextMenu(event,'contact','${c.id}')" style="border-left:3px solid ${fac ? fac.color : '#666'};position:relative;">
       ${c.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
       <span class="sidebar-item-name">${c.name}</span>
-      <span class="sidebar-item-sub">${typeLabel}${c.role || 'Unknown role'}${fac ? ' · '+fac.name : ' · Independent'}</span>
+      <span class="sidebar-item-sub">${typeLabel}${c.role || 'Unknown role'}${fac ? ' · '+fac.name : ' · Independent'}${c.disposition && c.disposition !== 'Neutral' ? ' · '+c.disposition : ''}</span>
       <button class="sidebar-del-btn" onclick="event.stopPropagation();deleteContact('${c.id}')" title="Delete">×</button>
     </div>`;
   }).join('');
@@ -13737,7 +13730,7 @@ document.addEventListener('DOMContentLoaded', () => {
         influence: influence,
         status: status,
         resources: rollGenerator('orgResource'),
-        headquarters: rollGenerator('location'),
+        location: rollGenerator('location'),
         leader: rollGenerator('npc'),
         notes: rollGenerator('secret'), image: null, hidden: false, tags: [],
         associations: []

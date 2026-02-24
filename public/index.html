@@ -4,6 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Multiview - Watch Together & Craft</title>
+  <script>
+    // Apply theme immediately to prevent flash of default colors
+    (function() {
+      try {
+        var t = localStorage.getItem('mv_last_theme');
+        if (!t) {
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf('theme_') === 0) { t = localStorage.getItem(k); break; }
+          }
+        }
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      } catch(e) {}
+    })();
+  </script>
   <!-- OpenGraph / Discord Embed -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Multiview" />
