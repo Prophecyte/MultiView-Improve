@@ -1891,28 +1891,6 @@
             <div id="factionsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No factions yet</div>
             </div>
-            <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
-            <div style="padding:4px 12px 8px;" id="facQuickGen">
-              <select class="detail-input" id="facGenType" style="margin-bottom:6px;font-size:11px;">
-                <option value="faction">Faction Name</option>
-                <option value="npc">NPC Name</option>
-                <option value="disposition">Disposition</option>
-                <option value="motivation">Motivation</option>
-                <option value="org">Organization</option>
-                <option value="location">Location</option>
-                <option value="custom_factions">── Custom Table ──</option>
-              </select>
-              <div id="facCustomSection" class="hidden" style="margin-bottom:6px;">
-                <div style="display:flex;gap:4px;margin-bottom:4px;">
-                  <input type="text" class="detail-input sm" id="facCustomInput" placeholder="Add entry..." style="flex:1;font-size:11px;" />
-                  <button class="btn secondary sm" id="facCustomAdd" style="padding:2px 8px;font-size:11px;">+</button>
-                </div>
-                <div id="facCustomCount" style="font-size:9px;color:var(--text-muted);"></div>
-              </div>
-              <button class="btn secondary sm full-width" id="facGenRollBtn" style="gap:6px;">🎲 Roll</button>
-              <div id="facGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
-              <button class="btn secondary sm full-width hidden" id="facUseNameBtn" style="margin-top:4px;font-size:10px;opacity:0.85;">✨ Generate Entry with this Name</button>
-            </div>
           </div>
           <div class="sidebar-section contacts-list-section hidden" id="contactsListSection">
             <div class="section-header"><span>Contacts</span></div>
@@ -1926,27 +1904,6 @@
             <div id="contactsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No contacts yet</div>
             </div>
-            <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
-            <div style="padding:4px 12px 8px;" id="contactQuickGen">
-              <select class="detail-input" id="contactGenType" style="margin-bottom:6px;font-size:11px;">
-                <option value="npc">NPC Name</option>
-                <option value="disposition">Disposition</option>
-                <option value="trait">Personality Trait</option>
-                <option value="occupation">Occupation</option>
-                <option value="secret">Secret</option>
-                <option value="custom_contacts">── Custom Table ──</option>
-              </select>
-              <div id="contactCustomSection" class="hidden" style="margin-bottom:6px;">
-                <div style="display:flex;gap:4px;margin-bottom:4px;">
-                  <input type="text" class="detail-input sm" id="contactCustomInput" placeholder="Add entry..." style="flex:1;font-size:11px;" />
-                  <button class="btn secondary sm" id="contactCustomAdd" style="padding:2px 8px;font-size:11px;">+</button>
-                </div>
-                <div id="contactCustomCount" style="font-size:9px;color:var(--text-muted);"></div>
-              </div>
-              <button class="btn secondary sm full-width" id="contactGenRollBtn" style="gap:6px;">🎲 Roll</button>
-              <div id="contactGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
-              <button class="btn secondary sm full-width hidden" id="contactUseNameBtn" style="margin-top:4px;font-size:10px;opacity:0.85;">✨ Generate Entry with this Name</button>
-            </div>
           </div>
           <div class="sidebar-section orgs-list-section hidden" id="orgsListSection">
             <div class="section-header"><span>Organizations</span></div>
@@ -1959,26 +1916,6 @@
             </div>
             <div id="orgsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No organizations yet</div>
-            </div>
-            <div class="section-header" style="margin-top:4px;"><span>Quick Generator</span></div>
-            <div style="padding:4px 12px 8px;" id="orgQuickGen">
-              <select class="detail-input" id="orgGenType" style="margin-bottom:6px;font-size:11px;">
-                <option value="org">Organization Name</option>
-                <option value="faction">Guild / Faction</option>
-                <option value="motivation">Motivation</option>
-                <option value="location">Headquarters</option>
-                <option value="custom_orgs">── Custom Table ──</option>
-              </select>
-              <div id="orgCustomSection" class="hidden" style="margin-bottom:6px;">
-                <div style="display:flex;gap:4px;margin-bottom:4px;">
-                  <input type="text" class="detail-input sm" id="orgCustomInput" placeholder="Add entry..." style="flex:1;font-size:11px;" />
-                  <button class="btn secondary sm" id="orgCustomAdd" style="padding:2px 8px;font-size:11px;">+</button>
-                </div>
-                <div id="orgCustomCount" style="font-size:9px;color:var(--text-muted);"></div>
-              </div>
-              <button class="btn secondary sm full-width" id="orgGenRollBtn" style="gap:6px;">🎲 Roll</button>
-              <div id="orgGenResult" style="margin-top:6px;min-height:24px;padding:6px 8px;background:var(--bg-dark);border-radius:var(--radius-sm);font-size:12px;color:var(--gold);text-align:center;display:none;"></div>
-              <button class="btn secondary sm full-width hidden" id="orgUseNameBtn" style="margin-top:4px;font-size:10px;opacity:0.85;">✨ Generate Entry with this Name</button>
             </div>
           </div>
         </aside>

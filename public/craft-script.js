@@ -12519,7 +12519,7 @@ function renderContactsSidebar() {
     const fac = factions.find(f => f.id === c.factionId);
     const active = c.id === selectedContactId ? ' active' : '';
     const typeLabel = c.type && c.type !== 'contact' ? c.type + ' · ' : '';
-    return `<div class="sidebar-item${active}${c.hidden ? ' item-hidden' : ''}" onclick="selectContact('${c.id}')" oncontextmenu="showFacContactContextMenu(event,'contact','${c.id}')" style="border-left:3px solid ${fac ? fac.color : '#666'};position:relative;">
+    return `<div class="sidebar-item${active}${c.hidden ? ' item-hidden' : ''}" onclick="selectContact('${c.id}')" oncontextmenu="showFacContactContextMenu(event,'contact','${c.id}')" style="border-left:3px solid ${fac ? fac.color : (c.color || '#666')};position:relative;">
       ${c.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
       <span class="sidebar-item-name">${c.name}</span>
       <span class="sidebar-item-sub">${typeLabel}${c.role || 'Unknown role'}${fac ? ' · '+fac.name : ' · Independent'}${c.disposition && c.disposition !== 'Neutral' ? ' · '+c.disposition : ''}</span>
@@ -12612,7 +12612,7 @@ function renderContactsGrid() {
       if (needsRM) descHtml += `<button class="fac-read-more" id="con-rm-${c.id}" onclick="event.stopPropagation();toggleConReadMore('${c.id}')">Read more</button>`;
     }
 
-    return `<div class="fac-contact-card${isSel ? ' selected' : ''}${c.hidden ? ' item-hidden' : ''}" onclick="selectContact('${c.id}')" oncontextmenu="showFacContactContextMenu(event,'contact','${c.id}')" style="--fac-color:${fac ? fac.color : '#666'};">
+    return `<div class="fac-contact-card${isSel ? ' selected' : ''}${c.hidden ? ' item-hidden' : ''}" onclick="selectContact('${c.id}')" oncontextmenu="showFacContactContextMenu(event,'contact','${c.id}')" style="--fac-color:${fac ? fac.color : (c.color || '#666')};">
       ${c.hidden ? '<span class="hidden-badge-card" title="Hidden from players">👁</span>' : ''}
       <div class="fac-contact-card-header">
         ${imgHtml}
@@ -13706,8 +13706,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const types = ['contact','ally','enemy','rival','patron','informant'];
       const type = types[Math.floor(Math.random()*types.length)];
       const facId = factions.length > 0 && Math.random() > 0.4 ? factions[Math.floor(Math.random()*factions.length)].id : '';
+      const color = FAC_COLORS[Math.floor(Math.random()*FAC_COLORS.length)];
       contacts.push({
-        id: 'con_'+ts, name, factionId: facId, role, disposition: disp, type,
+        id: 'con_'+ts, name, factionId: facId, role, disposition: disp, type, color,
         description: rollGenerator('trait'), notes: rollGenerator('secret'),
         tags: [], image: null
       });

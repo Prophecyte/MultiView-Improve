@@ -414,7 +414,8 @@ export const handler = async (event) => {
                        'notes', v.notes,
                        'notesUpdatedBy', v.notes_updated_by,
                        'notesUpdatedAt', v.notes_updated_at,
-                       'notesHidden', COALESCE(v.notes_hidden, false)
+                       'notesHidden', COALESCE(v.notes_hidden, false),
+                       'hidden', COALESCE(v.hidden, false)
                      ) ORDER BY v.position
                    ) FILTER (WHERE v.id IS NOT NULL),
                    '[]'
@@ -439,9 +440,10 @@ export const handler = async (event) => {
                        'notes', v.notes,
                        'notesUpdatedBy', v.notes_updated_by,
                        'notesUpdatedAt', v.notes_updated_at,
-                       'notesHidden', COALESCE(v.notes_hidden, false)
+                       'notesHidden', COALESCE(v.notes_hidden, false),
+                       'hidden', COALESCE(v.hidden, false)
                      ) ORDER BY v.position
-                   ) FILTER (WHERE v.id IS NOT NULL),
+                   ) FILTER (WHERE v.id IS NOT NULL AND (v.hidden IS NULL OR v.hidden = false)),
                    '[]'
                  ) as videos
           FROM playlists p
