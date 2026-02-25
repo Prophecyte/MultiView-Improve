@@ -871,6 +871,9 @@ function switchView(view) {
   document.getElementById('mindmapDetails')?.classList.add('hidden');
   document.getElementById('mindmapSettings')?.classList.add('hidden');
   document.getElementById('regionDetails')?.classList.add('hidden');
+  document.getElementById('mapPathDetails')?.classList.add('hidden');
+  document.getElementById('npcDetails')?.classList.add('hidden');
+  selectedMapPath = null;
 
   if (view === 'board') {
     boardView?.classList.remove('hidden');
@@ -2012,8 +2015,7 @@ function deselectPin() {
 }
 
 function showPinDetails(pin) {
-  document.getElementById('emptyState').classList.add('hidden');
-  document.getElementById('cardDetails').classList.add('hidden');
+  hideAllDetailPanels();
   document.getElementById('pinDetails').classList.remove('hidden');
 
   document.getElementById('pinDetailName').textContent = pin.name || 'Unnamed Pin';
@@ -2559,26 +2561,37 @@ function renderMapPathPreview() {
   preview.innerHTML = '';
   if (!mapPathDrawing || mapPathDrawing.points.length < 1) return;
   const pts = mapPathDrawing.points;
-  // Draw dots
-  pts.forEach(p => {
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('cx', p.x);
-    circle.setAttribute('cy', p.y);
-    circle.setAttribute('r', '0.6');
-    circle.setAttribute('fill', '#d4a824');
-    circle.setAttribute('stroke', '#000');
-    circle.setAttribute('stroke-width', '0.15');
-    preview.appendChild(circle);
-  });
-  // Draw curve
+  // Draw curve preview as dashed line
   if (pts.length >= 2) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', buildSmoothPath(pts));
     path.setAttribute('stroke', '#d4a824');
-    path.setAttribute('stroke-width', '0.3');
+    path.setAttribute('stroke-width', '0.4');
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke-dasharray', '1 0.5');
+    path.setAttribute('stroke-dasharray', '1.5 0.8');
+    path.setAttribute('stroke-linecap', 'round');
     preview.appendChild(path);
+  }
+  // Small start/end markers only
+  if (pts.length >= 1) {
+    const startDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    startDot.setAttribute('cx', pts[0].x);
+    startDot.setAttribute('cy', pts[0].y);
+    startDot.setAttribute('r', '0.4');
+    startDot.setAttribute('fill', '#d4a824');
+    startDot.setAttribute('stroke', '#000');
+    startDot.setAttribute('stroke-width', '0.1');
+    preview.appendChild(startDot);
+  }
+  if (pts.length >= 2) {
+    const endDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    endDot.setAttribute('cx', pts[pts.length - 1].x);
+    endDot.setAttribute('cy', pts[pts.length - 1].y);
+    endDot.setAttribute('r', '0.4');
+    endDot.setAttribute('fill', '#d4a824');
+    endDot.setAttribute('stroke', '#000');
+    endDot.setAttribute('stroke-width', '0.1');
+    preview.appendChild(endDot);
   }
 }
 
@@ -2669,10 +2682,27 @@ function renderMapPaths() {
   pathLayer.innerHTML = '';
   map.paths.forEach(p => {
     if (p.points.length < 2) return;
+    const d = buildSmoothPath(p.points, p.curveType, p.tension);
+    const color = p.color || '#d4a824';
+    const w = p.width || 2;
+
+    // Invisible wider hit area for easier clicking
+    const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hitPath.setAttribute('d', d);
+    hitPath.setAttribute('stroke', 'transparent');
+    hitPath.setAttribute('stroke-width', Math.max(w + 14, 18));
+    hitPath.setAttribute('fill', 'none');
+    hitPath.setAttribute('stroke-linecap', 'round');
+    hitPath.style.pointerEvents = 'stroke';
+    hitPath.style.cursor = 'pointer';
+    hitPath.addEventListener('click', (e) => { e.stopPropagation(); selectMapPath(p.id); });
+    pathLayer.appendChild(hitPath);
+
+    // Visible path
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', buildSmoothPath(p.points, p.curveType, p.tension));
-    path.setAttribute('stroke', p.color || '#d4a824');
-    path.setAttribute('stroke-width', p.width || 2);
+    path.setAttribute('d', d);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', w);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
@@ -2680,35 +2710,16 @@ function renderMapPaths() {
     if (p.style === 'dashed') path.setAttribute('stroke-dasharray', '8 4');
     else if (p.style === 'dotted') path.setAttribute('stroke-dasharray', '2 4');
     else if (p.style === 'dashdot') path.setAttribute('stroke-dasharray', '8 3 2 3');
-    path.style.pointerEvents = 'stroke';
-    path.style.cursor = 'pointer';
+    path.style.pointerEvents = 'none';
     if (p.id === selectedMapPath) {
       path.setAttribute('filter', 'drop-shadow(0 0 4px rgba(212,168,36,0.6))');
-      path.setAttribute('stroke-width', (p.width || 2) + 1.5);
+      path.setAttribute('stroke-width', w + 1.5);
     }
-    path.addEventListener('click', (e) => {
-      e.stopPropagation();
-      selectMapPath(p.id);
-    });
     pathLayer.appendChild(path);
-    // Path endpoints - arrows/dots based on setting
+
+    // Only draw arrows (no endpoint dots)
     const arrow = p.arrow || 'none';
     const pts = p.points;
-    const color = p.color || '#d4a824';
-    const w = p.width || 2;
-    if (arrow === 'dots' || arrow === 'none') {
-      [pts[0], pts[pts.length - 1]].forEach(pt => {
-        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot.setAttribute('cx', pt.x);
-        dot.setAttribute('cy', pt.y);
-        dot.setAttribute('r', '0.5');
-        dot.setAttribute('fill', color);
-        dot.setAttribute('stroke', 'rgba(0,0,0,0.5)');
-        dot.setAttribute('stroke-width', '1');
-        dot.setAttribute('vector-effect', 'non-scaling-stroke');
-        pathLayer.appendChild(dot);
-      });
-    }
     if (arrow === 'end' || arrow === 'both') {
       drawPathArrow(pathLayer, pts[pts.length - 2], pts[pts.length - 1], color, w);
     }
@@ -2746,11 +2757,7 @@ function selectMapPath(id) {
   const p = map.paths.find(pp => pp.id === id);
   if (!p) return;
   // Show path detail panel
-  document.getElementById('emptyState')?.classList.add('hidden');
-  document.getElementById('cardDetails')?.classList.add('hidden');
-  document.getElementById('pinDetails')?.classList.add('hidden');
-  document.getElementById('regionDetails')?.classList.add('hidden');
-  document.getElementById('chapterDetails')?.classList.add('hidden');
+  hideAllDetailPanels();
   const panel = document.getElementById('mapPathDetails');
   if (panel) {
     panel.classList.remove('hidden');
@@ -2938,10 +2945,7 @@ function showRegionDetail() {
   // Show region panel, hide others
   const dp = get('detailsPanel');
   dp?.classList.remove('collapsed');
-  ['emptyState','cardDetails','pinDetails','chapterDetails','mindmapDetails','mindmapSettings',
-   'factionDetails','contactDetails','orgDetails','tlDetails','tlCalendarPanel'].forEach(id => {
-    get(id)?.classList.add('hidden');
-  });
+  hideAllDetailPanels();
   get('regionDetails')?.classList.remove('hidden');
 
   // Populate fields
@@ -5642,9 +5646,8 @@ function selectCard(cardEl) {
   const cardData = board.cards.find((c) => c.id === cardEl.id);
   if (!cardData) return;
 
-  document.getElementById('emptyState').classList.add('hidden');
+  hideAllDetailPanels();
   document.getElementById('cardDetails').classList.remove('hidden');
-  document.getElementById('pinDetails').classList.add('hidden');
   document.getElementById('detailName').value = cardData.title;
   document.getElementById('detailDescription').value = cardData.description || '';
   document.getElementById('detailTags').value = (cardData.tags || []).join(', ');
@@ -5854,6 +5857,9 @@ function deselectAll() {
   document.getElementById('cardDetails').classList.add('hidden');
   document.getElementById('pinDetails').classList.add('hidden');
   document.getElementById('chapterDetails')?.classList.add('hidden');
+  document.getElementById('mapPathDetails')?.classList.add('hidden');
+  document.getElementById('regionDetails')?.classList.add('hidden');
+  document.getElementById('npcDetails')?.classList.add('hidden');
 
   // Deselect any selected connection and clear toolbar
   selectedConnection = null;
@@ -10467,13 +10473,9 @@ function duplicateTimeline(id) {
 function showTlDetailsPanel() {
   const tl = getCurrentTimeline(); if (!tl) return;
   document.getElementById('detailsPanel')?.classList.remove('collapsed');
-  document.getElementById('emptyState')?.classList.add('hidden');
-  document.getElementById('cardDetails')?.classList.add('hidden');
-  document.getElementById('pinDetails')?.classList.add('hidden');
-  document.getElementById('chapterDetails')?.classList.add('hidden');
+  hideAllDetailPanels();
   document.getElementById('tlDetails')?.classList.remove('hidden');
   document.getElementById('tlCalendarPanel')?.classList.remove('hidden');
-  document.getElementById('tlEventDetail')?.classList.add('hidden');
   document.getElementById('tlDetailName').value = tl.name;
   document.getElementById('tlDetailCalBadge').textContent = getCalendar(tl).name;
   document.querySelectorAll('#tlDetailColorOptions .pin-color-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.color === tl.color));
@@ -12012,9 +12014,15 @@ function handleFacContactContextAction(action) {
 let factions = [];
 let contacts = [];
 let organizations = [];
+let npcs = [];
 let selectedFactionId = null;
 let selectedContactId = null;
 let selectedOrgId = null;
+let selectedNpcId = null;
+let factionFolders = [];
+let contactFolders = [];
+let orgFolders = [];
+let npcFolders = [];
 let currentFacTab = 'factions';
 
 const FACTION_STATUSES = ['Allied','Friendly','Neutral','Suspicious','Hostile','At War'];
@@ -12150,39 +12158,43 @@ function switchFacTab(tab) {
   document.getElementById('facTabFactions')?.classList.toggle('active', tab === 'factions');
   document.getElementById('facTabContacts')?.classList.toggle('active', tab === 'contacts');
   document.getElementById('facTabOrgs')?.classList.toggle('active', tab === 'orgs');
+  document.getElementById('facTabNpcs')?.classList.toggle('active', tab === 'npcs');
   document.getElementById('facBody')?.classList.toggle('hidden', tab !== 'factions');
   document.getElementById('facContactsBody')?.classList.toggle('hidden', tab !== 'contacts');
   document.getElementById('facOrgsBody')?.classList.toggle('hidden', tab !== 'orgs');
+  document.getElementById('facNpcsBody')?.classList.toggle('hidden', tab !== 'npcs');
   document.getElementById('factionsListSection')?.classList.toggle('hidden', tab !== 'factions');
   document.getElementById('contactsListSection')?.classList.toggle('hidden', tab !== 'contacts');
   document.getElementById('orgsListSection')?.classList.toggle('hidden', tab !== 'orgs');
+  document.getElementById('npcsListSection')?.classList.toggle('hidden', tab !== 'npcs');
 
   if (tab === 'factions') {
-    selectedContactId = null; selectedOrgId = null;
+    selectedContactId = null; selectedOrgId = null; selectedNpcId = null;
     renderFactionGrid(); renderFactionsSidebar();
     if (selectedFactionId) showFacDetail(); else showFacEmpty();
   } else if (tab === 'contacts') {
-    selectedFactionId = null; selectedOrgId = null;
+    selectedFactionId = null; selectedOrgId = null; selectedNpcId = null;
     renderContactsGrid(); renderContactsSidebar();
     if (selectedContactId) showContactDetail(); else showFacEmpty();
   } else if (tab === 'orgs') {
-    selectedFactionId = null; selectedContactId = null;
+    selectedFactionId = null; selectedContactId = null; selectedNpcId = null;
     renderOrgsGrid(); renderOrgsSidebar();
     if (selectedOrgId) showOrgDetail(); else showFacEmpty();
+  } else if (tab === 'npcs') {
+    selectedFactionId = null; selectedContactId = null; selectedOrgId = null;
+    renderNpcsGrid(); renderNpcsSidebar();
+    if (selectedNpcId) showNpcDetail(); else showFacEmpty();
   }
 }
 
+function hideAllDetailPanels() {
+  const ids = ['emptyState','cardDetails','pinDetails','regionDetails','mapPathDetails','chapterDetails','tlDetails','tlCalendarPanel','tlEventDetail','factionDetails','contactDetails','orgDetails','npcDetails'];
+  ids.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+}
+
 function showFacEmpty() {
-  const get = id => document.getElementById(id);
-  get('factionDetails')?.classList.add('hidden');
-  get('contactDetails')?.classList.add('hidden');
-  get('orgDetails')?.classList.add('hidden');
-  get('cardDetails')?.classList.add('hidden');
-  get('pinDetails')?.classList.add('hidden');
-  get('chapterDetails')?.classList.add('hidden');
-  get('tlDetails')?.classList.add('hidden');
-  get('tlCalendarPanel')?.classList.add('hidden');
-  get('emptyState')?.classList.remove('hidden');
+  hideAllDetailPanels();
+  document.getElementById('emptyState')?.classList.remove('hidden');
 }
 
 // ---- Faction Create Popup ----
@@ -12334,14 +12346,8 @@ function showFacDetail() {
   const f = factions.find(fc => fc.id === selectedFactionId);
   if (!f) { showFacEmpty(); return; }
 
+  hideAllDetailPanels();
   const get = id => document.getElementById(id);
-  get('emptyState')?.classList.add('hidden');
-  get('cardDetails')?.classList.add('hidden');
-  get('pinDetails')?.classList.add('hidden');
-  get('chapterDetails')?.classList.add('hidden');
-  get('tlDetails')?.classList.add('hidden');
-  get('tlCalendarPanel')?.classList.add('hidden');
-  get('contactDetails')?.classList.add('hidden');
   get('factionDetails')?.classList.remove('hidden');
   get('detailsPanel')?.classList.remove('collapsed');
 
@@ -12437,14 +12443,8 @@ function showContactDetail() {
   const c = contacts.find(co => co.id === selectedContactId);
   if (!c) { showFacEmpty(); return; }
 
+  hideAllDetailPanels();
   const get = id => document.getElementById(id);
-  get('emptyState')?.classList.add('hidden');
-  get('cardDetails')?.classList.add('hidden');
-  get('pinDetails')?.classList.add('hidden');
-  get('chapterDetails')?.classList.add('hidden');
-  get('tlDetails')?.classList.add('hidden');
-  get('tlCalendarPanel')?.classList.add('hidden');
-  get('factionDetails')?.classList.add('hidden');
   get('contactDetails')?.classList.remove('hidden');
   get('detailsPanel')?.classList.remove('collapsed');
 
@@ -12497,37 +12497,6 @@ function showContactDetail() {
 }
 
 // ---- Sidebar Renders ----
-function renderFactionsSidebar() {
-  const el = document.getElementById('factionsList'); if (!el) return;
-  if (factions.length === 0) { el.innerHTML = '<div class="empty-pins-message">No factions yet</div>'; return; }
-  el.innerHTML = factions.map(f => {
-    const rep = getRepLevel(f.reputation);
-    const active = f.id === selectedFactionId ? ' active' : '';
-    return `<div class="sidebar-item${active}${f.hidden ? ' item-hidden' : ''}" onclick="selectFaction('${f.id}')" oncontextmenu="showFacContactContextMenu(event,'faction','${f.id}')" style="border-left:3px solid ${f.color};position:relative;">
-      ${f.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
-      <span class="sidebar-item-name">${f.name}</span>
-      <span class="sidebar-item-sub"><span style="color:${rep.color};">●</span> ${rep.label}${f.tier ? ' · '+f.tier : ''}</span>
-      <button class="sidebar-del-btn" onclick="event.stopPropagation();deleteFaction('${f.id}')" title="Delete">×</button>
-    </div>`;
-  }).join('');
-}
-
-function renderContactsSidebar() {
-  const el = document.getElementById('contactsList'); if (!el) return;
-  if (contacts.length === 0) { el.innerHTML = '<div class="empty-pins-message">No contacts yet</div>'; return; }
-  el.innerHTML = contacts.map(c => {
-    const fac = factions.find(f => f.id === c.factionId);
-    const active = c.id === selectedContactId ? ' active' : '';
-    const typeLabel = c.type && c.type !== 'contact' ? c.type + ' · ' : '';
-    return `<div class="sidebar-item${active}${c.hidden ? ' item-hidden' : ''}" onclick="selectContact('${c.id}')" oncontextmenu="showFacContactContextMenu(event,'contact','${c.id}')" style="border-left:3px solid ${fac ? fac.color : (c.color || '#666')};position:relative;">
-      ${c.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
-      <span class="sidebar-item-name">${c.name}</span>
-      <span class="sidebar-item-sub">${typeLabel}${c.role || 'Unknown role'}${fac ? ' · '+fac.name : ' · Independent'}${c.disposition && c.disposition !== 'Neutral' ? ' · '+c.disposition : ''}</span>
-      <button class="sidebar-del-btn" onclick="event.stopPropagation();deleteContact('${c.id}')" title="Delete">×</button>
-    </div>`;
-  }).join('');
-}
-
 // ---- Faction Grid ----
 function renderFactionGrid() {
   const grid = document.getElementById('facGrid'); if (!grid) return;
@@ -12695,15 +12664,7 @@ function showOrgDetail() {
   const o = organizations.find(x => x.id === selectedOrgId);
   if (!o) return;
   const get = id => document.getElementById(id);
-  // Hide others, show org
-  get('factionDetails')?.classList.add('hidden');
-  get('contactDetails')?.classList.add('hidden');
-  get('cardDetails')?.classList.add('hidden');
-  get('pinDetails')?.classList.add('hidden');
-  get('chapterDetails')?.classList.add('hidden');
-  get('tlDetails')?.classList.add('hidden');
-  get('tlCalendarPanel')?.classList.add('hidden');
-  get('emptyState')?.classList.add('hidden');
+  hideAllDetailPanels();
   get('orgDetails')?.classList.remove('hidden');
 
   get('orgDetailName').value = o.name;
@@ -12829,20 +12790,6 @@ function renderOrgAssociations(o) {
     return `<div class="association-item"><span class="association-swatch type-${a.type}" style="background:${color}"></span><span class="association-name">${name}</span><button class="association-remove" onclick="removeOrgAssociation('${o.id}','${a.type}','${a.id}')">×</button></div>`;
   }).join('');
 }
-function renderOrgsSidebar() {
-  const list = document.getElementById('orgsList'); if (!list) return;
-  if (organizations.length === 0) { list.innerHTML = '<div class="empty-pins-message">No organizations yet</div>'; return; }
-  list.innerHTML = organizations.map(o => {
-    const sel = o.id === selectedOrgId ? ' active' : '';
-    const h = o.hidden ? ' item-hidden' : '';
-    return `<div class="sidebar-item${sel}${h}" onclick="selectOrg('${o.id}')" oncontextmenu="showFacContactContextMenu(event,'org','${o.id}')" style="border-left:3px solid ${o.color};position:relative;">
-      ${o.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
-      <button class="sidebar-del-btn" onclick="event.stopPropagation();deleteOrg('${o.id}')" title="Delete">×</button>
-      <span class="sidebar-item-name">${o.name}</span>
-      <span class="sidebar-item-sub">${o.type || 'Organization'}${o.status ? ' · ' + o.status : ''}</span>
-    </div>`;
-  }).join('');
-}
 function renderOrgsGrid() {
   const grid = document.getElementById('facOrgsGrid'); if (!grid) return;
   if (organizations.length === 0) {
@@ -12907,6 +12854,361 @@ function toggleOrgReadMore(orgId, field) {
     btn.textContent = el.classList.contains('expanded') ? 'Show less' : 'Read more';
   }
 }
+
+// ============================================
+// NPC System
+// ============================================
+
+function addNpc(overrideData) {
+  const id = 'npc_' + Date.now();
+  const npc = Object.assign({
+    id, name: 'New NPC', race: '', npcClass: '', level: '', hp: '', ac: '',
+    alignment: '', background: '', traits: '', ideals: '', bonds: '', flaws: '',
+    appearance: '', backstory: '', image: null, tags: [], notes: '',
+    color: FAC_COLORS[Math.floor(Math.random() * FAC_COLORS.length)], folderId: null, hidden: false
+  }, overrideData || {});
+  npcs.push(npc);
+  selectedNpcId = npc.id;
+  renderNpcsGrid(); renderNpcsSidebar(); showNpcDetail();
+  return npc;
+}
+
+function deleteNpc(id) {
+  npcs = npcs.filter(n => n.id !== id);
+  if (selectedNpcId === id) { selectedNpcId = null; showFacEmpty(); }
+  renderNpcsGrid(); renderNpcsSidebar();
+}
+
+function selectNpc(id) {
+  selectedNpcId = id;
+  renderNpcsSidebar();
+  showNpcDetail();
+}
+
+function showNpcDetail() {
+  const n = npcs.find(x => x.id === selectedNpcId);
+  if (!n) { showFacEmpty(); return; }
+  hideAllDetailPanels();
+  const get = id => document.getElementById(id);
+  get('npcDetails')?.classList.remove('hidden');
+  get('detailsPanel')?.classList.remove('collapsed');
+
+  // Image
+  if (n.image) { get('npcDetailImage').src = n.image; get('npcDetailImage').classList.remove('hidden'); get('npcDetailNoImage').classList.add('hidden'); get('npcDetailRemoveImg')?.classList.remove('hidden'); }
+  else { get('npcDetailImage').classList.add('hidden'); get('npcDetailNoImage').classList.remove('hidden'); get('npcDetailRemoveImg')?.classList.add('hidden'); }
+
+  const bind = (elId, field, cb) => { const el = get(elId); if (!el) return; el.value = n[field] || ''; el.oninput = () => { n[field] = el.value; if (cb) cb(); }; };
+  bind('npcDetailName', 'name', () => { renderNpcsGrid(); renderNpcsSidebar(); });
+  bind('npcDetailRace', 'race', () => renderNpcsGrid());
+  bind('npcDetailClass', 'npcClass', () => renderNpcsGrid());
+  bind('npcDetailLevel', 'level');
+  bind('npcDetailHP', 'hp');
+  bind('npcDetailAC', 'ac');
+  bind('npcDetailBackground', 'background');
+  bind('npcDetailTraits', 'traits');
+  bind('npcDetailIdeals', 'ideals');
+  bind('npcDetailBonds', 'bonds');
+  bind('npcDetailFlaws', 'flaws');
+  bind('npcDetailAppearance', 'appearance');
+  bind('npcDetailBackstory', 'backstory');
+  bind('npcDetailNotes', 'notes');
+
+  get('npcDetailAlignment').value = n.alignment || '';
+  get('npcDetailAlignment').onchange = () => { n.alignment = get('npcDetailAlignment').value; renderNpcsGrid(); };
+
+  // Tags
+  renderNpcDetailTags();
+  get('npcDetailTagsInput').value = '';
+}
+
+function renderNpcDetailTags() {
+  const n = npcs.find(x => x.id === selectedNpcId);
+  const d = document.getElementById('npcDetailTagsDisplay');
+  if (!d || !n) { if (d) d.innerHTML = ''; return; }
+  if (!n.tags) n.tags = [];
+  d.innerHTML = n.tags.map(t => `<span class="chapter-tag-pill">${t} <span class="chapter-tag-remove" onclick="removeNpcTag('${t.replace(/'/g, "\\\\'")}')">×</span></span>`).join('');
+}
+
+function removeNpcTag(tag) {
+  const n = npcs.find(x => x.id === selectedNpcId);
+  if (!n) return;
+  n.tags = n.tags.filter(t => t !== tag);
+  renderNpcDetailTags(); renderNpcsGrid();
+}
+
+function renderNpcsGrid() {
+  const grid = document.getElementById('facNpcsGrid'); if (!grid) return;
+  if (npcs.length === 0) {
+    grid.innerHTML = '<div class="fac-empty"><p>No NPCs yet</p><p style="opacity:0.5;font-size:12px;">Add NPCs from the sidebar to track characters in your world</p></div>';
+    return;
+  }
+  grid.innerHTML = npcs.map(n => {
+    const isSel = n.id === selectedNpcId;
+    const tagsHtml = (n.tags || []).slice(0, 4).map(t => `<span class="card-tag">${t}</span>`).join('');
+    const statLine = [n.race, n.npcClass, n.level ? 'Lv' + n.level : ''].filter(Boolean).join(' · ');
+    const combatLine = [n.hp ? 'HP ' + n.hp : '', n.ac ? 'AC ' + n.ac : ''].filter(Boolean).join(' · ');
+    return `<div class="fac-contact-card${isSel ? ' selected' : ''}${n.hidden ? ' item-hidden' : ''}" onclick="selectNpc('${n.id}')" style="--fac-color:${n.color || '#6366f1'};">
+      ${n.hidden ? '<span class="hidden-badge-card" title="Hidden">👁</span>' : ''}
+      ${n.image ? `<img src="${n.image}" class="fac-contact-image" />` : ''}
+      <div class="fac-contact-name">${n.name}</div>
+      ${statLine ? `<div class="fac-contact-role">${statLine}</div>` : ''}
+      ${combatLine ? `<div style="font-size:10px;color:var(--text-muted);margin-top:1px;">${combatLine}</div>` : ''}
+      ${n.alignment ? `<span class="fac-contact-disp">${n.alignment}</span>` : ''}
+      ${n.traits ? `<div style="font-size:10px;color:var(--text-secondary);margin-top:3px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">"${n.traits.substring(0, 60)}${n.traits.length > 60 ? '…' : ''}"</div>` : ''}
+      ${tagsHtml ? `<div class="card-tags" style="margin-top:3px;">${tagsHtml}</div>` : ''}
+      ${n.notes && window.craftMyRole === 'owner' ? '<div class="fac-card-notes-indicator">📝 Has GM notes</div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+// ============================================
+// Connection Sidebar Folders + Drag/Drop
+// ============================================
+
+// Generic folder rendering system used by all 4 tabs
+function renderConnectionSidebar(config) {
+  const { listEl, items, folders, selectedId, selectFn, deleteFn, contextMenuFn, renderItemHtml, itemIdPrefix, folderArrayName } = config;
+  if (!listEl) return;
+  if (items.length === 0 && folders.length === 0) {
+    listEl.innerHTML = `<div class="empty-pins-message">No entries yet</div>`;
+    return;
+  }
+  listEl.innerHTML = '';
+
+  function createItemEl(item) {
+    const div = document.createElement('div');
+    div.className = `sidebar-item${item.id === selectedId ? ' active' : ''}${item.hidden ? ' item-hidden' : ''}`;
+    div.dataset.itemId = item.id;
+    div.draggable = true;
+    div.innerHTML = `<span class="drag-handle">⋮⋮</span>${renderItemHtml(item)}<button class="sidebar-del-btn" title="Delete">×</button>`;
+    div.addEventListener('click', (e) => { if (!e.target.classList.contains('sidebar-del-btn')) selectFn(item.id); });
+    div.querySelector('.sidebar-del-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteFn(item.id); });
+    if (contextMenuFn) div.addEventListener('contextmenu', (e) => { e.preventDefault(); contextMenuFn(e, item.id); });
+    div.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/con-item-id', item.id); e.dataTransfer.effectAllowed = 'move'; div.classList.add('dragging'); });
+    div.addEventListener('dragend', () => div.classList.remove('dragging'));
+    div.addEventListener('dragover', (e) => { e.preventDefault(); div.classList.add('drag-over'); });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+    div.addEventListener('drop', (e) => {
+      e.preventDefault(); div.classList.remove('drag-over');
+      const draggedId = e.dataTransfer.getData('text/con-item-id');
+      if (draggedId && draggedId !== item.id) {
+        const fromIdx = items.findIndex(i => i.id === draggedId);
+        const toIdx = items.findIndex(i => i.id === item.id);
+        if (fromIdx >= 0 && toIdx >= 0) {
+          // Move into same folder as target
+          items[fromIdx].folderId = item.folderId || null;
+          const [moved] = items.splice(fromIdx, 1);
+          const newToIdx = items.findIndex(i => i.id === item.id);
+          items.splice(newToIdx, 0, moved);
+          config.rerender();
+        }
+      }
+    });
+    return div;
+  }
+
+  // Render folders
+  folders.forEach(folder => {
+    const folderEl = document.createElement('div');
+    folderEl.className = 'chapter-folder' + (folder.hidden ? ' item-hidden' : '');
+    folderEl.dataset.folderId = folder.id;
+    folderEl.draggable = true;
+    const folderItems = items.filter(i => i.folderId === folder.id);
+    folderEl.innerHTML = `<div class="folder-header" data-folder-id="${folder.id}">
+      <span class="drag-handle">⋮⋮</span>
+      <span class="folder-toggle">${folder.collapsed ? '▸' : '▾'}</span>
+      <svg class="folder-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      <input type="text" class="folder-name-input" value="${folder.name}" />
+      <span class="folder-meta">${folderItems.length}</span>
+    </div>`;
+    const headerEl = folderEl.querySelector('.folder-header');
+    headerEl.addEventListener('click', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.classList.contains('drag-handle')) return;
+      folder.collapsed = !folder.collapsed;
+      config.rerender();
+    });
+    headerEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      closeAllContextMenus();
+      showConFolderContextMenu(e, folder.id, folderArrayName);
+    });
+    folderEl.querySelector('.folder-name-input').addEventListener('change', (e) => { folder.name = e.target.value; if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush(); });
+    folderEl.querySelector('.folder-name-input').addEventListener('click', (e) => e.stopPropagation());
+
+    // Folder drag/drop
+    folderEl.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/con-folder-id', folder.id); e.dataTransfer.effectAllowed = 'move'; folderEl.classList.add('dragging'); });
+    folderEl.addEventListener('dragend', () => folderEl.classList.remove('dragging'));
+    folderEl.addEventListener('dragover', (e) => { e.preventDefault(); folderEl.classList.add('drag-over'); });
+    folderEl.addEventListener('dragleave', () => folderEl.classList.remove('drag-over'));
+    folderEl.addEventListener('drop', (e) => {
+      e.preventDefault(); folderEl.classList.remove('drag-over');
+      const droppedFolderId = e.dataTransfer.getData('text/con-folder-id');
+      const itemId = e.dataTransfer.getData('text/con-item-id');
+      if (droppedFolderId && droppedFolderId !== folder.id) {
+        const fromIdx = folders.findIndex(f => f.id === droppedFolderId);
+        const toIdx = folders.findIndex(f => f.id === folder.id);
+        if (fromIdx >= 0 && toIdx >= 0) {
+          const [moved] = folders.splice(fromIdx, 1);
+          folders.splice(toIdx, 0, moved);
+          config.rerender();
+        }
+      } else if (itemId) {
+        const item = items.find(i => i.id === itemId);
+        if (item) { item.folderId = folder.id; config.rerender(); }
+      }
+    });
+
+    listEl.appendChild(folderEl);
+
+    if (!folder.collapsed) {
+      const folderBody = document.createElement('div');
+      folderBody.className = 'folder-body';
+      folderItems.forEach(item => {
+        const el = createItemEl(item);
+        el.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/con-item-id', item.id); }, true);
+        folderBody.appendChild(el);
+      });
+      listEl.appendChild(folderBody);
+    }
+  });
+
+  // Unfiled items
+  items.filter(i => !i.folderId).forEach(item => {
+    const el = createItemEl(item);
+    el.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/con-item-id', item.id); }, true);
+    listEl.appendChild(el);
+  });
+
+  // Drop zone to remove from folder
+  const unfileZone = document.createElement('div');
+  unfileZone.className = 'chapter-unfile-zone';
+  unfileZone.textContent = '';
+  unfileZone.addEventListener('dragover', (e) => { e.preventDefault(); unfileZone.classList.add('drag-over'); unfileZone.textContent = 'Drop to remove from folder'; });
+  unfileZone.addEventListener('dragleave', () => { unfileZone.classList.remove('drag-over'); unfileZone.textContent = ''; });
+  unfileZone.addEventListener('drop', (e) => {
+    e.preventDefault(); unfileZone.classList.remove('drag-over'); unfileZone.textContent = '';
+    const itemId = e.dataTransfer.getData('text/con-item-id');
+    if (itemId) {
+      const item = items.find(i => i.id === itemId);
+      if (item && item.folderId) { item.folderId = null; config.rerender(); showNotif('Removed from folder'); }
+    }
+  });
+  listEl.appendChild(unfileZone);
+}
+
+let conFolderCtxId = null;
+let conFolderCtxArray = null;
+
+function showConFolderContextMenu(e, folderId, arrayName) {
+  conFolderCtxId = folderId;
+  conFolderCtxArray = arrayName;
+  const menu = document.getElementById('conFolderContextMenu');
+  if (!menu) return;
+  menu.classList.remove('hidden');
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 140) + 'px';
+}
+
+function getConFolderArray(name) {
+  if (name === 'factionFolders') return factionFolders;
+  if (name === 'contactFolders') return contactFolders;
+  if (name === 'orgFolders') return orgFolders;
+  if (name === 'npcFolders') return npcFolders;
+  return [];
+}
+
+function getConItemArray(name) {
+  if (name === 'factionFolders') return factions;
+  if (name === 'contactFolders') return contacts;
+  if (name === 'orgFolders') return organizations;
+  if (name === 'npcFolders') return npcs;
+  return [];
+}
+
+function rerenderCurrentConTab() {
+  if (currentFacTab === 'factions') { renderFactionsSidebar(); renderFactionGrid(); }
+  else if (currentFacTab === 'contacts') { renderContactsSidebar(); renderContactsGrid(); }
+  else if (currentFacTab === 'orgs') { renderOrgsSidebar(); renderOrgsGrid(); }
+  else if (currentFacTab === 'npcs') { renderNpcsSidebar(); renderNpcsGrid(); }
+}
+
+// Override sidebar renders to use folder system
+function renderFactionsSidebar() {
+  const el = document.getElementById('factionsList');
+  renderConnectionSidebar({
+    listEl: el, items: factions, folders: factionFolders, selectedId: selectedFactionId,
+    selectFn: selectFaction, deleteFn: deleteFaction,
+    contextMenuFn: (e, id) => showFacContactContextMenu(e, 'faction', id),
+    folderArrayName: 'factionFolders',
+    renderItemHtml: (f) => {
+      const rep = getRepLevel(f.reputation);
+      return `<div style="border-left:3px solid ${f.color};padding-left:6px;flex:1;min-width:0;">
+        ${f.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
+        <span class="sidebar-item-name">${f.name}</span>
+        <span class="sidebar-item-sub"><span style="color:${rep.color};">●</span> ${rep.label}${f.tier ? ' · ' + f.tier : ''}</span>
+      </div>`;
+    },
+    rerender: () => { renderFactionsSidebar(); renderFactionGrid(); }
+  });
+}
+
+function renderContactsSidebar() {
+  const el = document.getElementById('contactsList');
+  renderConnectionSidebar({
+    listEl: el, items: contacts, folders: contactFolders, selectedId: selectedContactId,
+    selectFn: selectContact, deleteFn: deleteContact,
+    contextMenuFn: (e, id) => showFacContactContextMenu(e, 'contact', id),
+    folderArrayName: 'contactFolders',
+    renderItemHtml: (c) => {
+      const fac = factions.find(f => f.id === c.factionId);
+      const typeLabel = c.type && c.type !== 'contact' ? c.type + ' · ' : '';
+      return `<div style="border-left:3px solid ${fac ? fac.color : (c.color || '#666')};padding-left:6px;flex:1;min-width:0;">
+        ${c.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
+        <span class="sidebar-item-name">${c.name}</span>
+        <span class="sidebar-item-sub">${typeLabel}${c.role || 'Unknown role'}${fac ? ' · ' + fac.name : ' · Independent'}${c.disposition && c.disposition !== 'Neutral' ? ' · ' + c.disposition : ''}</span>
+      </div>`;
+    },
+    rerender: () => { renderContactsSidebar(); renderContactsGrid(); }
+  });
+}
+
+function renderOrgsSidebar() {
+  const list = document.getElementById('orgsList');
+  renderConnectionSidebar({
+    listEl: list, items: organizations, folders: orgFolders, selectedId: selectedOrgId,
+    selectFn: selectOrg, deleteFn: deleteOrg,
+    contextMenuFn: (e, id) => showFacContactContextMenu(e, 'org', id),
+    folderArrayName: 'orgFolders',
+    renderItemHtml: (o) => {
+      return `<div style="border-left:3px solid ${o.color};padding-left:6px;flex:1;min-width:0;">
+        ${o.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
+        <span class="sidebar-item-name">${o.name}</span>
+        <span class="sidebar-item-sub">${o.type || 'Organization'}${o.status ? ' · ' + o.status : ''}</span>
+      </div>`;
+    },
+    rerender: () => { renderOrgsSidebar(); renderOrgsGrid(); }
+  });
+}
+
+function renderNpcsSidebar() {
+  const el = document.getElementById('npcsList');
+  renderConnectionSidebar({
+    listEl: el, items: npcs, folders: npcFolders, selectedId: selectedNpcId,
+    selectFn: selectNpc, deleteFn: deleteNpc,
+    contextMenuFn: null,
+    folderArrayName: 'npcFolders',
+    renderItemHtml: (n) => {
+      const statLine = [n.race, n.npcClass].filter(Boolean).join(' ');
+      return `<div style="border-left:3px solid ${n.color || '#6366f1'};padding-left:6px;flex:1;min-width:0;">
+        ${n.hidden ? '<span class="hidden-badge-sm" title="Hidden">👁</span>' : ''}
+        <span class="sidebar-item-name">${n.name}</span>
+        <span class="sidebar-item-sub">${statLine || 'NPC'}${n.alignment ? ' · ' + n.alignment : ''}</span>
+      </div>`;
+    },
+    rerender: () => { renderNpcsSidebar(); renderNpcsGrid(); }
+  });
+}
+
 // ============================================
 // Mind Map System
 // ============================================
@@ -13639,6 +13941,93 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addFactionBtn')?.addEventListener('click', openFactionCreateModal);
   document.getElementById('addContactBtn')?.addEventListener('click', openContactCreateModal);
   document.getElementById('addOrgBtn')?.addEventListener('click', openOrgCreateModal);
+  document.getElementById('addNpcBtn')?.addEventListener('click', () => { addNpc(); showNotif('NPC created'); });
+  document.getElementById('npcAddToBoard')?.addEventListener('click', () => { addGenResultToTab('npcs'); });
+
+  // Folder buttons for connection tabs
+  document.getElementById('addFacFolderBtn')?.addEventListener('click', () => {
+    factionFolders.push({ id: 'folder-' + Date.now(), name: 'New Folder', collapsed: false, hidden: false });
+    renderFactionsSidebar(); showNotif('Folder added');
+    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+  });
+  document.getElementById('addContactFolderBtn')?.addEventListener('click', () => {
+    contactFolders.push({ id: 'folder-' + Date.now(), name: 'New Folder', collapsed: false, hidden: false });
+    renderContactsSidebar(); showNotif('Folder added');
+    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+  });
+  document.getElementById('addOrgFolderBtn')?.addEventListener('click', () => {
+    orgFolders.push({ id: 'folder-' + Date.now(), name: 'New Folder', collapsed: false, hidden: false });
+    renderOrgsSidebar(); showNotif('Folder added');
+    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+  });
+  document.getElementById('addNpcFolderBtn')?.addEventListener('click', () => {
+    npcFolders.push({ id: 'folder-' + Date.now(), name: 'New Folder', collapsed: false, hidden: false });
+    renderNpcsSidebar(); showNotif('Folder added');
+    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+  });
+
+  // NPC detail wiring
+  document.getElementById('npcDetailUploadBtn')?.addEventListener('click', () => document.getElementById('npcImageInput')?.click());
+  document.getElementById('npcImageInput')?.addEventListener('change', (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const n = npcs.find(x => x.id === selectedNpcId); if (!n) return;
+    uploadFileImage(file, (url) => {
+      n.image = url;
+      document.getElementById('npcDetailImage').src = url;
+      document.getElementById('npcDetailImage').classList.remove('hidden');
+      document.getElementById('npcDetailNoImage').classList.add('hidden');
+      document.getElementById('npcDetailRemoveImg')?.classList.remove('hidden');
+      renderNpcsGrid();
+      showNotif('Image uploaded');
+    });
+    e.target.value = '';
+  });
+  document.getElementById('npcDetailRemoveImg')?.addEventListener('click', () => {
+    const n = npcs.find(x => x.id === selectedNpcId); if (!n) return;
+    n.image = null; showNpcDetail(); renderNpcsGrid(); showNotif('Image removed');
+  });
+  document.getElementById('npcDetailDelete')?.addEventListener('click', () => { if (selectedNpcId) deleteNpc(selectedNpcId); });
+  document.getElementById('npcDetailTagsInput')?.addEventListener('keydown', (e) => {
+    if (e.key === ',' || e.key === 'Enter') {
+      e.preventDefault();
+      const n = npcs.find(x => x.id === selectedNpcId); if (!n) return;
+      if (!n.tags) n.tags = [];
+      const tags = e.target.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t && !n.tags.includes(t));
+      n.tags.push(...tags); e.target.value = '';
+      renderNpcDetailTags(); renderNpcsGrid();
+    }
+  });
+
+  // Connection folder context menu actions
+  document.getElementById('conFolderRenameBtn')?.addEventListener('click', () => {
+    closeAllContextMenus();
+    if (!conFolderCtxId || !conFolderCtxArray) return;
+    const folders = getConFolderArray(conFolderCtxArray);
+    const f = folders.find(x => x.id === conFolderCtxId);
+    if (f) {
+      const name = prompt('Rename folder:', f.name);
+      if (name !== null) { f.name = name; rerenderCurrentConTab(); }
+    }
+  });
+  document.getElementById('conFolderToggleBtn')?.addEventListener('click', () => {
+    closeAllContextMenus();
+    if (!conFolderCtxId || !conFolderCtxArray) return;
+    const folders = getConFolderArray(conFolderCtxArray);
+    const f = folders.find(x => x.id === conFolderCtxId);
+    if (f) { f.collapsed = !f.collapsed; rerenderCurrentConTab(); }
+  });
+  document.getElementById('conFolderDeleteBtn')?.addEventListener('click', () => {
+    closeAllContextMenus();
+    if (!conFolderCtxId || !conFolderCtxArray) return;
+    const folders = getConFolderArray(conFolderCtxArray);
+    const items = getConItemArray(conFolderCtxArray);
+    // Unfolder all items in this folder
+    items.forEach(i => { if (i.folderId === conFolderCtxId) i.folderId = null; });
+    const idx = folders.findIndex(x => x.id === conFolderCtxId);
+    if (idx >= 0) folders.splice(idx, 1);
+    rerenderCurrentConTab();
+    showNotif('Folder deleted');
+  });
 
   // Quick Generators with Custom Tables
   const GEN_TABLES = {
@@ -13739,6 +14128,27 @@ document.addEventListener('DOMContentLoaded', () => {
       selectedOrgId = organizations[organizations.length-1].id;
       renderOrgsGrid(); renderOrgsSidebar(); showOrgDetail();
       showNotif('Generated org: ' + name);
+    } else if (tabKey === 'npcs') {
+      const name = overrideName || rollGenerator('npc');
+      const races = ['Human','Elf','Dwarf','Halfling','Half-Elf','Half-Orc','Tiefling','Gnome','Dragonborn','Aasimar'];
+      const classes = ['Fighter','Wizard','Rogue','Cleric','Ranger','Paladin','Barbarian','Bard','Druid','Warlock','Sorcerer','Monk'];
+      const alignments = ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral','True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil'];
+      const backgrounds = ['Acolyte','Criminal','Folk Hero','Noble','Sage','Soldier','Entertainer','Hermit','Outlander','Urchin','Guild Artisan','Sailor'];
+      const race = races[Math.floor(Math.random()*races.length)];
+      const npcClass = classes[Math.floor(Math.random()*classes.length)];
+      const alignment = alignments[Math.floor(Math.random()*alignments.length)];
+      const background = backgrounds[Math.floor(Math.random()*backgrounds.length)];
+      const level = Math.floor(Math.random()*10)+1;
+      const hp = Math.floor(Math.random()*40)+10 + level*5;
+      const ac = Math.floor(Math.random()*6)+10;
+      const color = FAC_COLORS[Math.floor(Math.random()*FAC_COLORS.length)];
+      addNpc({
+        name, race, npcClass, alignment, background, level: String(level), hp: String(hp), ac: String(ac), color,
+        traits: rollGenerator('trait'), ideals: rollGenerator('motivation'),
+        bonds: rollGenerator('npc'), flaws: rollGenerator('secret'),
+        appearance: '', backstory: '', notes: ''
+      });
+      showNotif('Generated NPC: ' + name);
     }
     if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
   }
@@ -13847,19 +14257,52 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Sort buttons
+  // Sort within folders: folders alphabetically, items within each folder alphabetically, unfiled items alphabetically
+  function sortWithinFolders(items, folders) {
+    folders.sort((a,b) => a.name.localeCompare(b.name));
+    folders.forEach(folder => {
+      const folderItems = items.filter(i => i.folderId === folder.id);
+      folderItems.sort((a,b) => a.name.localeCompare(b.name));
+      // Remove and re-add in order
+      const otherItems = items.filter(i => i.folderId !== folder.id);
+      const unfiled = otherItems.filter(i => !i.folderId);
+      const inOtherFolders = otherItems.filter(i => i.folderId);
+      // Rebuild: keep position but sort within folder
+    });
+    // Simpler approach: sort all items, folders stay as grouping
+    folders.sort((a,b) => a.name.localeCompare(b.name));
+    // Sort items within each folder group and unfiled
+    const sorted = [];
+    folders.forEach(f => {
+      const group = items.filter(i => i.folderId === f.id);
+      group.sort((a,b) => a.name.localeCompare(b.name));
+      sorted.push(...group);
+    });
+    const unfiled = items.filter(i => !i.folderId);
+    unfiled.sort((a,b) => a.name.localeCompare(b.name));
+    sorted.push(...unfiled);
+    items.length = 0;
+    items.push(...sorted);
+  }
+
   document.getElementById('sortFactionsBtn')?.addEventListener('click', () => {
-    factions.sort((a,b) => a.name.localeCompare(b.name));
+    sortWithinFolders(factions, factionFolders);
     renderFactionGrid(); renderFactionsSidebar(); showNotif('Factions sorted A-Z');
     if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
   });
   document.getElementById('sortContactsBtn')?.addEventListener('click', () => {
-    contacts.sort((a,b) => a.name.localeCompare(b.name));
+    sortWithinFolders(contacts, contactFolders);
     renderContactsGrid(); renderContactsSidebar(); renderFactionGrid(); showNotif('Contacts sorted A-Z');
     if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
   });
   document.getElementById('sortOrgsBtn')?.addEventListener('click', () => {
-    organizations.sort((a,b) => a.name.localeCompare(b.name));
+    sortWithinFolders(organizations, orgFolders);
     renderOrgsGrid(); renderOrgsSidebar(); showNotif('Organizations sorted A-Z');
+    if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+  });
+  document.getElementById('sortNpcsBtn')?.addEventListener('click', () => {
+    sortWithinFolders(npcs, npcFolders);
+    renderNpcsGrid(); renderNpcsSidebar(); showNotif('NPCs sorted A-Z');
     if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
   });
 
@@ -15824,6 +16267,11 @@ window.craftGetState = function() {
     factions: JSON.parse(JSON.stringify(factions)),
     contacts: JSON.parse(JSON.stringify(contacts)),
     organizations: JSON.parse(JSON.stringify(organizations)),
+    npcs: JSON.parse(JSON.stringify(npcs)),
+    factionFolders: JSON.parse(JSON.stringify(factionFolders)),
+    contactFolders: JSON.parse(JSON.stringify(contactFolders)),
+    orgFolders: JSON.parse(JSON.stringify(orgFolders)),
+    npcFolders: JSON.parse(JSON.stringify(npcFolders)),
     facCustomTables: JSON.parse(JSON.stringify(window._facCustomTables || { factions: [], contacts: [], orgs: [] })),
     // Mind Map
     mmNodes: JSON.parse(JSON.stringify(mmNodes)),
@@ -15875,6 +16323,11 @@ window.craftSetState = function(state, skipRender) {
   if (state.factions) factions = state.factions;
   if (state.contacts) contacts = state.contacts;
   if (state.organizations) organizations = state.organizations;
+  if (state.npcs) npcs = state.npcs;
+  if (state.factionFolders) factionFolders = state.factionFolders;
+  if (state.contactFolders) contactFolders = state.contactFolders;
+  if (state.orgFolders) orgFolders = state.orgFolders;
+  if (state.npcFolders) npcFolders = state.npcFolders;
   if (state.facCustomTables) window._facCustomTables = state.facCustomTables;
   
   // Mind Map

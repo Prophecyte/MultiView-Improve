@@ -1528,6 +1528,36 @@
             <div class="context-menu-item" data-action="design-shadow">
               Shadow
             </div>
+            <div class="context-menu-item" data-action="design-bloodstone">
+              Bloodstone
+            </div>
+            <div class="context-menu-item" data-action="design-arcane">
+              Arcane
+            </div>
+            <div class="context-menu-item" data-action="design-nature">
+              Nature
+            </div>
+            <div class="context-menu-item" data-action="design-holy">
+              Holy
+            </div>
+            <div class="context-menu-item" data-action="design-void">
+              Void
+            </div>
+            <div class="context-menu-item" data-action="design-scifi">
+              Sci-Fi
+            </div>
+            <div class="context-menu-item" data-action="design-runic">
+              Runic
+            </div>
+            <div class="context-menu-item" data-action="design-leather">
+              Leather
+            </div>
+            <div class="context-menu-item" data-action="design-tapestry">
+              Tapestry
+            </div>
+            <div class="context-menu-item" data-action="design-copper">
+              Copper
+            </div>
           </div>
         </div>
         <div class="context-menu-divider"></div>
@@ -1887,6 +1917,7 @@
             </div>
             <div style="padding:2px 12px 4px;">
               <button class="btn secondary sm full-width" id="facAddToBoard" style="font-size:10px;opacity:0.8;">⚡ Generate Full Entry</button>
+              <button class="btn secondary sm full-width" id="addFacFolderBtn" style="font-size:10px;opacity:0.6;margin-top:2px;">📁 Add Folder</button>
             </div>
             <div id="factionsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No factions yet</div>
@@ -1900,6 +1931,7 @@
             </div>
             <div style="padding:2px 12px 4px;">
               <button class="btn secondary sm full-width" id="contactAddToBoard" style="font-size:10px;opacity:0.8;">⚡ Generate Full Entry</button>
+              <button class="btn secondary sm full-width" id="addContactFolderBtn" style="font-size:10px;opacity:0.6;margin-top:2px;">📁 Add Folder</button>
             </div>
             <div id="contactsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No contacts yet</div>
@@ -1913,10 +1945,32 @@
             </div>
             <div style="padding:2px 12px 4px;">
               <button class="btn secondary sm full-width" id="orgAddToBoard" style="font-size:10px;opacity:0.8;">⚡ Generate Full Entry</button>
+              <button class="btn secondary sm full-width" id="addOrgFolderBtn" style="font-size:10px;opacity:0.6;margin-top:2px;">📁 Add Folder</button>
             </div>
             <div id="orgsList" style="padding:4px 8px;">
               <div class="empty-pins-message">No organizations yet</div>
             </div>
+          </div>
+          <div class="sidebar-section npcs-list-section hidden" id="npcsListSection">
+            <div class="section-header"><span>NPCs</span></div>
+            <div style="padding:4px 12px 0;display:flex;gap:4px;">
+              <button class="btn primary sm" id="addNpcBtn" style="flex:1;">+ Add NPC</button>
+              <button class="btn secondary sm" id="sortNpcsBtn" title="Sort A-Z" style="padding:4px 8px;font-size:11px;">A↓Z</button>
+            </div>
+            <div style="padding:2px 12px 4px;">
+              <button class="btn secondary sm full-width" id="npcAddToBoard" style="font-size:10px;opacity:0.8;">⚡ Generate Full Entry</button>
+              <button class="btn secondary sm full-width" id="addNpcFolderBtn" style="font-size:10px;opacity:0.6;margin-top:2px;">📁 Add Folder</button>
+            </div>
+            <div id="npcsList" style="padding:4px 8px;">
+              <div class="empty-pins-message">No NPCs yet</div>
+            </div>
+          </div>
+          <!-- Connection Folder Context Menu -->
+          <div class="context-menu hidden" id="conFolderContextMenu" style="position:fixed;z-index:10000;">
+            <button class="context-menu-item" id="conFolderRenameBtn">Rename Folder</button>
+            <button class="context-menu-item" id="conFolderToggleBtn">Collapse/Expand</button>
+            <div class="context-menu-divider"></div>
+            <button class="context-menu-item danger" id="conFolderDeleteBtn">Delete Folder</button>
           </div>
         </aside>
 
@@ -3312,6 +3366,7 @@
               <button class="fac-sub-tab active" id="facTabFactions" onclick="switchFacTab('factions')">Factions</button>
               <button class="fac-sub-tab" id="facTabContacts" onclick="switchFacTab('contacts')">Contacts</button>
               <button class="fac-sub-tab" id="facTabOrgs" onclick="switchFacTab('orgs')">Organizations</button>
+              <button class="fac-sub-tab" id="facTabNpcs" onclick="switchFacTab('npcs')">NPCs</button>
             </div>
           </div>
           <!-- Factions Grid -->
@@ -3330,6 +3385,12 @@
           <div class="fac-body hidden" id="facOrgsBody">
             <div class="fac-grid" id="facOrgsGrid">
               <div class="fac-empty"><p>No organizations yet</p><p style="opacity:0.5;font-size:12px;">Add organizations from the sidebar to track guilds, companies, churches, etc.</p></div>
+            </div>
+          </div>
+          <!-- NPCs Grid -->
+          <div class="fac-body hidden" id="facNpcsBody">
+            <div class="fac-contacts-grid" id="facNpcsGrid">
+              <div class="fac-empty"><p>No NPCs yet</p><p style="opacity:0.5;font-size:12px;">Add NPCs from the sidebar to track characters in your world</p></div>
             </div>
           </div>
         </div>
@@ -4065,7 +4126,6 @@
                   <option value="end">Arrow End →</option>
                   <option value="start">← Arrow Start</option>
                   <option value="both">← Both →</option>
-                  <option value="dots">● Dots ●</option>
                 </select>
               </div>
               <div class="detail-section">
@@ -4402,6 +4462,99 @@
               </div>
               <div class="detail-section" style="padding-top:8px;border-top:1px solid var(--border-color);">
                 <button class="btn secondary sm" id="orgDetailDelete" style="color:#f43f5e;">Delete Organization</button>
+              </div>
+            </div>
+
+            <!-- NPC Details -->
+            <div class="contact-details hidden" id="npcDetails">
+              <div class="detail-section">
+                <label class="detail-label">Image</label>
+                <div class="fac-detail-image-wrap" id="npcDetailImageWrap">
+                  <div class="fac-detail-no-image" id="npcDetailNoImage">No image</div>
+                  <img id="npcDetailImage" src="" alt="" class="fac-detail-img hidden" />
+                </div>
+                <div style="display:flex;gap:6px;margin-top:4px;">
+                  <button class="btn secondary sm" id="npcDetailUploadBtn">Choose Image</button>
+                  <button class="btn secondary sm hidden" id="npcDetailRemoveImg" style="color:#f43f5e;">Remove</button>
+                </div>
+                <input type="file" id="npcImageInput" accept="image/*" style="display:none" />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Name</label>
+                <input type="text" class="detail-input" id="npcDetailName" placeholder="Character name..." />
+              </div>
+              <div class="detail-section" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div>
+                  <label class="detail-label">Race</label>
+                  <input type="text" class="detail-input" id="npcDetailRace" placeholder="e.g. Human, Elf..." />
+                </div>
+                <div>
+                  <label class="detail-label">Class</label>
+                  <input type="text" class="detail-input" id="npcDetailClass" placeholder="e.g. Fighter, Wizard..." />
+                </div>
+              </div>
+              <div class="detail-section" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                <div>
+                  <label class="detail-label">Level</label>
+                  <input type="number" class="detail-input" id="npcDetailLevel" placeholder="—" min="1" max="20" />
+                </div>
+                <div>
+                  <label class="detail-label">HP</label>
+                  <input type="text" class="detail-input" id="npcDetailHP" placeholder="—" />
+                </div>
+                <div>
+                  <label class="detail-label">AC</label>
+                  <input type="text" class="detail-input" id="npcDetailAC" placeholder="—" />
+                </div>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Alignment</label>
+                <select class="detail-input" id="npcDetailAlignment">
+                  <option value="">— Select —</option>
+                  <option>Lawful Good</option><option>Neutral Good</option><option>Chaotic Good</option>
+                  <option>Lawful Neutral</option><option>True Neutral</option><option>Chaotic Neutral</option>
+                  <option>Lawful Evil</option><option>Neutral Evil</option><option>Chaotic Evil</option>
+                </select>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Background</label>
+                <input type="text" class="detail-input" id="npcDetailBackground" placeholder="e.g. Acolyte, Noble, Criminal..." />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Personality Traits</label>
+                <textarea class="detail-textarea" id="npcDetailTraits" rows="2" placeholder="Personality traits..."></textarea>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Ideals</label>
+                <input type="text" class="detail-input" id="npcDetailIdeals" placeholder="What drives them..." />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Bonds</label>
+                <input type="text" class="detail-input" id="npcDetailBonds" placeholder="Who or what they care about..." />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Flaws</label>
+                <input type="text" class="detail-input" id="npcDetailFlaws" placeholder="Weaknesses, vices..." />
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Appearance</label>
+                <textarea class="detail-textarea" id="npcDetailAppearance" rows="2" placeholder="Physical description..."></textarea>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Backstory</label>
+                <textarea class="detail-textarea" id="npcDetailBackstory" rows="3" placeholder="Character history..."></textarea>
+              </div>
+              <div class="detail-section">
+                <label class="detail-label">Tags</label>
+                <div class="chapter-tags-display" id="npcDetailTagsDisplay"></div>
+                <input type="text" class="detail-input" id="npcDetailTagsInput" placeholder="Type tag, press comma..." />
+              </div>
+              <div class="detail-section owner-only">
+                <label class="detail-label">GM Notes</label>
+                <textarea class="detail-textarea" id="npcDetailNotes" rows="3" placeholder="Private notes..."></textarea>
+              </div>
+              <div class="detail-section" style="padding-top:8px;border-top:1px solid var(--border-color);">
+                <button class="btn secondary sm" id="npcDetailDelete" style="color:#f43f5e;">Delete NPC</button>
               </div>
             </div>
 
