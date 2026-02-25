@@ -1806,17 +1806,23 @@ function renderDestinations() {
     const label = dest.label || `Dest ${i + 1}`;
 
     el.innerHTML = `
-      <div class="dest-pulse-ring" style="border-color: ${color}55; background: ${color}08;"></div>
-      <div class="dest-pulse-ring delay" style="border-color: ${color}55; background: ${color}08;"></div>
-      <div class="dest-crosshair-h" style="background: ${color};"></div>
-      <div class="dest-crosshair-v" style="background: ${color};"></div>
-      <div class="dest-core" style="background: radial-gradient(circle at 35% 35%, ${color}dd, ${color} 55%, ${color}aa); box-shadow: 0 0 16px ${color}bb, 0 0 32px ${color}55, 0 0 4px rgba(255,255,255,0.25);"></div>
+      <div class="dest-ping" style="border-color: ${color};"></div>
+      <div class="dest-ping-2" style="border-color: ${color};"></div>
+      <div class="dest-ring" style="border-color: ${color}; box-shadow: 0 0 12px ${color}88;"></div>
+      <div class="dest-diamond" style="background: ${color}; --dest-color: ${color};"></div>
       ${dest.hideLabel ? '' : `<div class="dest-label" style="border-color: ${color}40;">${label}</div>`}
     `;
 
+    // Click to select
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       selectedDestinationId = dest.id;
+      renderDestinations();
+    });
+
+    // Double-click to edit
+    el.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
       if (window.craftMyRole === 'viewer') {
         showNotif('You do not have permission to edit this room');
         return;
@@ -1824,21 +1830,74 @@ function renderDestinations() {
       openDestEditorModal(dest.id);
     });
 
+    // Right-click context menu
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (window.craftMyRole === 'viewer') {
-        showNotif('You do not have permission to delete this item');
+        showNotif('You do not have permission to edit this room');
         return;
       }
-      destinationMarkers = destinationMarkers.filter(d => d.id !== dest.id);
-      if (selectedDestinationId === dest.id) selectedDestinationId = null;
-      renderDestinations();
-      showNotif('Destination removed');
+      showDestContextMenu(e, dest);
+    });
+
+    // Drag support
+    el.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (window.craftMyRole === 'viewer') return;
+      e.stopPropagation();
+      const wrapper = document.getElementById('mapImageWrapper');
+      if (!wrapper) return;
+      let moved = false;
+      const onMove = (ev) => {
+        moved = true;
+        const rect = wrapper.getBoundingClientRect();
+        const xPct = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+        const yPct = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+        dest.x = xPct;
+        dest.y = yPct;
+        el.style.left = xPct + '%';
+        el.style.top = yPct + '%';
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (moved) renderDestinations();
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
 
     layer.appendChild(el);
   });
+}
+
+// Destination context menu
+function showDestContextMenu(e, dest) {
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:10000;`;
+  menu.innerHTML = `
+    <div class="context-menu-item" data-action="editDest">Edit Destination</div>
+    <div class="context-menu-item" data-action="deleteDest" style="color:#f43f5e;">Delete Destination</div>
+  `;
+  menu.addEventListener('click', (ev) => {
+    const action = ev.target.dataset.action;
+    if (action === 'editDest') openDestEditorModal(dest.id);
+    else if (action === 'deleteDest') {
+      destinationMarkers = destinationMarkers.filter(d => d.id !== dest.id);
+      if (selectedDestinationId === dest.id) selectedDestinationId = null;
+      renderDestinations();
+      showNotif('Destination removed');
+    }
+    menu.remove();
+  });
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    const dismiss = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('mousedown', dismiss); } };
+    document.addEventListener('mousedown', dismiss);
+  }, 10);
 }
 
 // Destination Editor
@@ -1934,11 +1993,13 @@ function createPinElement(pin) {
   }
 
   el.addEventListener('click', (e) => {
+    if (mapPathDrawing || mapTool === 'map-path' || mapTool === 'map-region') return;
     e.stopPropagation();
     selectPin(pin.id);
   });
 
   el.addEventListener('dblclick', (e) => {
+    if (mapPathDrawing || mapTool === 'map-path' || mapTool === 'map-region') return;
     e.stopPropagation();
     if (window.craftMyRole === 'viewer') {
       showNotif('You do not have permission to edit this room');
@@ -1954,7 +2015,7 @@ function createPinElement(pin) {
       if (isDraggingPin) return;
       hoverBox = document.createElement('div');
       hoverBox.className = 'pin-hover-preview';
-      hoverBox.innerHTML = `<img src="${pin.image}" alt="${pin.name || ''}" />${pin.name ? `<div class="pin-hover-name">${pin.name}</div>` : ''}`;
+      hoverBox.innerHTML = `<img src="${pin.image}" alt="${pin.name || ''}" />`;
       el.appendChild(hoverBox);
       // Position above pin
       requestAnimationFrame(() => {
@@ -2250,7 +2311,7 @@ function renderRegions() {
     hit.style.cursor = 'pointer';
 
     hit.addEventListener('click', (e) => {
-      if (mapTool === 'map-region') return;
+      if (mapTool === 'map-region' || mapTool === 'map-path' || mapPathDrawing) return;
       e.stopPropagation();
       selectRegion(reg.id);
     });
@@ -2695,7 +2756,7 @@ function renderMapPaths() {
     pathLayer.id = 'mapPathLayer';
     pathLayer.setAttribute('viewBox', '0 0 100 100');
     pathLayer.setAttribute('preserveAspectRatio', 'none');
-    pathLayer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+    pathLayer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;';
     wrapper.appendChild(pathLayer);
   }
   // Ensure viewBox is set (for existing layers missing it)
@@ -2714,7 +2775,7 @@ function renderMapPaths() {
     const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     hitPath.setAttribute('d', d);
     hitPath.setAttribute('stroke', 'transparent');
-    hitPath.setAttribute('stroke-width', Math.max(w + 14, 18));
+    hitPath.setAttribute('stroke-width', Math.max(w + 6, 10));
     hitPath.setAttribute('fill', 'none');
     hitPath.setAttribute('stroke-linecap', 'round');
     hitPath.style.pointerEvents = 'stroke';
@@ -6993,12 +7054,21 @@ function handleContextAction(e) {
     const design = action.replace('design-', '');
     const newDesign = design === 'default' ? null : design;
     saveUndoState();
-    // Apply to all multi-selected cards, or just the one
     const targets = multiSelectedCards.size > 0
       ? board.cards.filter(c => multiSelectedCards.has(c.id))
       : (cardData ? [cardData] : []);
-    targets.forEach(cd => { cd.design = newDesign; });
-    rebuildBoard();
+    targets.forEach(cd => {
+      cd.design = newDesign;
+      const el = document.getElementById(cd.id);
+      if (el) {
+        // Remove all design-* classes, then add the new one
+        el.className = el.className.replace(/\bdesign-\S+/g, '').trim();
+        if (newDesign) el.classList.add('design-' + newDesign);
+        // Clear any inline background that would override the design gradient
+        if (newDesign) el.style.background = '';
+      }
+    });
+    renderConnections();
     showNotif('Design applied to ' + targets.length + ' card' + (targets.length !== 1 ? 's' : ''));
   } else if (action.startsWith('size-')) {
     const sizePresets = {
@@ -7014,8 +7084,13 @@ function handleContextAction(e) {
       const targets = multiSelectedCards.size > 0
         ? board.cards.filter(c => multiSelectedCards.has(c.id))
         : (cardData ? [cardData] : []);
-      targets.forEach(cd => { cd.width = preset.width; cd.height = preset.height; });
-      rebuildBoard();
+      targets.forEach(cd => {
+        cd.width = preset.width;
+        cd.height = preset.height;
+        const el = document.getElementById(cd.id);
+        if (el) { el.style.width = preset.width + 'px'; el.style.height = preset.height + 'px'; }
+      });
+      renderConnections();
     }
   } else if (action === 'hideTitle') {
     if (cardData) {
@@ -7289,6 +7364,26 @@ function renderConnections() {
     // Users without hidden access: skip connections involving hidden cards
     if (!window.craftCanViewHidden && (fromCard.classList.contains('card-hidden') || toCard.classList.contains('card-hidden'))) return;
 
+    // Self-loop: card connects to itself
+    const isSelfLoop = conn.from === conn.to;
+
+    let fromX, fromY, toX, toY, d;
+    let dist = 0;
+
+    if (isSelfLoop) {
+      const cx = parseFloat(fromCard.style.left) + fromCard.offsetWidth / 2;
+      const cy = parseFloat(fromCard.style.top);
+      const hw = fromCard.offsetWidth / 2;
+      const loopH = Math.max(60, fromCard.offsetHeight * 0.6);
+      fromX = cx - hw * 0.4;
+      fromY = cy - EDGE_PADDING;
+      toX = cx + hw * 0.4;
+      toY = cy - EDGE_PADDING;
+      const cpUp = loopH + 30;
+      d = `M ${fromX} ${fromY} C ${fromX - 30} ${fromY - cpUp} ${toX + 30} ${toY - cpUp} ${toX} ${toY}`;
+      dist = Math.hypot(toX - fromX, toY - fromY);
+    } else {
+
     // Use edge points instead of card centers so markers aren't hidden behind cards
     const toCenterX = parseFloat(toCard.style.left) + toCard.offsetWidth / 2;
     const toCenterY = parseFloat(toCard.style.top) + toCard.offsetHeight / 2;
@@ -7298,18 +7393,17 @@ function renderConnections() {
     const fromEdge = getEdgePoint(fromCard, toCenterX, toCenterY);
     const toEdge = getEdgePoint(toCard, fromCenterX, fromCenterY);
 
-    const fromX = fromEdge.x;
-    const fromY = fromEdge.y;
-    const toX = toEdge.x;
-    const toY = toEdge.y;
+    fromX = fromEdge.x;
+    fromY = fromEdge.y;
+    toX = toEdge.x;
+    toY = toEdge.y;
 
     const midX = (fromX + toX) / 2;
 
-    const dist = Math.hypot(toX - fromX, toY - fromY);
+    dist = Math.hypot(toX - fromX, toY - fromY);
     const curvature = Math.max(80, dist * 0.35);
 
     const curveMode = conn.curve || 'up';
-    let d;
     if (curveMode === 'straight') {
       d = `M ${fromX} ${fromY} L ${toX} ${toY}`;
     } else if (curveMode === 'swirl') {
@@ -7391,13 +7485,18 @@ function renderConnections() {
     } else if (curveMode === 'loop') {
       const dx = toX - fromX;
       const dy = toY - fromY;
-      const len = Math.hypot(dx, dy);
+      const len = Math.hypot(dx, dy) || 1;
       const nx = -dy / len;
       const ny = dx / len;
-      const loopR = Math.min(len * 0.2, 40);
-      const midLX = fromX + dx * 0.5 + nx * loopR * 2;
-      const midLY = fromY + dy * 0.5 + ny * loopR * 2;
-      d = `M ${fromX} ${fromY} Q ${fromX + dx * 0.25 + nx * loopR} ${fromY + dy * 0.25 + ny * loopR} ${midLX} ${midLY} Q ${fromX + dx * 0.75 + nx * loopR} ${fromY + dy * 0.75 + ny * loopR} ${toX} ${toY}`;
+      const loopR = Math.min(len * 0.35, 70);
+      // Create a figure-8/pretzel loop that visibly crosses over itself
+      const m1x = fromX + dx * 0.3;
+      const m1y = fromY + dy * 0.3;
+      const m2x = fromX + dx * 0.7;
+      const m2y = fromY + dy * 0.7;
+      const peakX = fromX + dx * 0.5 + nx * loopR * 2.5;
+      const peakY = fromY + dy * 0.5 + ny * loopR * 2.5;
+      d = `M ${fromX} ${fromY} C ${m1x + nx * loopR * 1.5} ${m1y + ny * loopR * 1.5} ${peakX - dx * 0.15} ${peakY - dy * 0.15} ${peakX} ${peakY} C ${peakX + dx * 0.15} ${peakY + dy * 0.15} ${m2x + nx * loopR * 1.5} ${m2y + ny * loopR * 1.5} ${toX} ${toY}`;
     } else if (curveMode === 'sstep') {
       const midY = (fromY + toY) / 2;
       d = `M ${fromX} ${fromY} L ${fromX} ${midY} L ${toX} ${midY} L ${toX} ${toY}`;
@@ -7438,8 +7537,11 @@ function renderConnections() {
       const ctrlY = (curveMode === 'down')
         ? (Math.max(fromY, toY) + curvature)
         : (Math.min(fromY, toY) - curvature);
-      d = `M ${fromX} ${fromY} Q ${midX} ${ctrlY} ${toX} ${toY}`;
+      // Use cubic bezier so tangent at each endpoint approaches from correct angle
+      d = `M ${fromX} ${fromY} C ${fromX} ${ctrlY} ${toX} ${ctrlY} ${toX} ${toY}`;
     }
+
+    } // end non-self-loop else
 
     // Glow filter for this connection
     if (conn.glow) {
@@ -7584,6 +7686,32 @@ function renderConnections() {
     if (style === 'energy') {
       path.setAttribute('stroke-dasharray', '4 8');
       path.classList.add('energy-line');
+    }
+
+    if (style === 'pulse') {
+      path.classList.add('pulse-line');
+    }
+
+    if (style === 'flow') {
+      path.setAttribute('stroke-dasharray', '12 8');
+      path.classList.add('flow-line');
+    }
+
+    if (style === 'heartbeat') {
+      path.classList.add('heartbeat-line');
+    }
+
+    if (style === 'ripple') {
+      path.setAttribute('stroke-dasharray', '3 14');
+      path.classList.add('ripple-line');
+    }
+
+    if (style === 'spark') {
+      path.classList.add('spark-line');
+    }
+
+    if (style === 'breathe') {
+      path.classList.add('breathe-line');
     }
 
     // Tapered: thicker at start, thinner at end using gradient
@@ -8558,6 +8686,7 @@ function rebuildBoard() {
   if (!board) return;
   board.cards.forEach(c => createCardElement(c));
   renderConnections();
+  applyCanvasTransform();
   selectedCard = null;
   multiSelectedCards.clear();
   setToolbarMode('none');
@@ -9215,8 +9344,10 @@ function handleWikiLinkSearch(query) {
     resultsEl.innerHTML = results.slice(0, 10).map(item => `
       <div class="search-result-item" data-type="${item.type}" data-id="${item.id}" data-map-id="${item.mapId || ''}" data-name="${item.name}">
         <span class="search-result-color type-${item.type}" style="background: ${item.color}"></span>
-        <span class="search-result-name">${item.name}</span>
-        <span class="search-result-location">${item.type === 'pin' ? '📍' : '📋'} ${item.location}</span>
+        <div class="search-result-info">
+          <span class="search-result-name">${item.name}</span>
+          <span class="search-result-source"><span class="search-result-badge">${item.type === 'pin' ? 'Map' : 'Board'}</span> ${item.location}</span>
+        </div>
       </div>
     `).join('');
 
@@ -9443,7 +9574,8 @@ function handleAssociationSearch(query, resultsId, contextType) {
           type: 'card',
           id: card.id,
           name: card.title,
-          location: board.name,
+          source: 'Board',
+          detail: board.name,
           color: cardColors[card.type] || '#888'
         });
       }
@@ -9459,7 +9591,8 @@ function handleAssociationSearch(query, resultsId, contextType) {
           id: pin.id,
           parentId: map.id,
           name: pin.name,
-          location: `📍 ${map.name}`,
+          source: 'Map',
+          detail: map.name,
           color: pin.color || '#ef4444'
         });
       }
@@ -9470,11 +9603,13 @@ function handleAssociationSearch(query, resultsId, contextType) {
   chapters.forEach(chapter => {
     const title = chapter.title || chapter.label;
     if (title.toLowerCase().includes(lowerQuery)) {
+      const folder = chapter.folderId ? chapterFolders.find(f => f.id === chapter.folderId) : null;
       results.push({
         type: 'chapter',
         id: chapter.id,
         name: title,
-        location: '📝 Writing',
+        source: 'Writing',
+        detail: folder ? folder.name : '',
         color: '#d4a824'
       });
     }
@@ -9487,7 +9622,8 @@ function handleAssociationSearch(query, resultsId, contextType) {
         type: 'map',
         id: map.id,
         name: map.name,
-        location: '🗺️ Map',
+        source: 'Map',
+        detail: '',
         color: '#3b82f6'
       });
     }
@@ -9500,7 +9636,8 @@ function handleAssociationSearch(query, resultsId, contextType) {
         type: 'faction',
         id: fac.id,
         name: fac.name,
-        location: '⚔ Faction',
+        source: 'Connections',
+        detail: 'Faction',
         color: fac.color || '#8b5cf6'
       });
     }
@@ -9514,7 +9651,8 @@ function handleAssociationSearch(query, resultsId, contextType) {
         type: 'contact',
         id: con.id,
         name: con.name,
-        location: conFac ? `👤 ${conFac.name}` : '👤 Independent',
+        source: 'Connections',
+        detail: conFac ? conFac.name : 'Contact',
         color: conFac ? conFac.color : '#666'
       });
     }
@@ -9526,8 +9664,10 @@ function handleAssociationSearch(query, resultsId, contextType) {
     resultsEl.innerHTML = results.slice(0, 10).map(item => `
       <div class="search-result-item" data-type="${item.type}" data-id="${item.id}" data-parent-id="${item.parentId || ''}" data-name="${item.name}">
         <span class="search-result-color type-${item.type}" style="background: ${item.color}"></span>
-        <span class="search-result-name">${item.name}</span>
-        <span class="search-result-location">${item.location}</span>
+        <div class="search-result-info">
+          <span class="search-result-name">${item.name}</span>
+          <span class="search-result-source"><span class="search-result-badge">${item.source}</span>${item.detail ? ' ' + item.detail : ''}</span>
+        </div>
       </div>
     `).join('');
 
@@ -13060,8 +13200,19 @@ function renderConnectionSidebar(config) {
       <svg class="folder-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
       <input type="text" class="folder-name-input" value="${folder.name}" />
       <span class="folder-meta">${folderItems.length}</span>
+      <button class="folder-del-btn" title="Delete folder">×</button>
     </div>`;
     const headerEl = folderEl.querySelector('.folder-header');
+    folderEl.querySelector('.folder-del-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Move items out of folder before deleting
+      items.filter(it => it.folderId === folder.id).forEach(it => { it.folderId = null; });
+      const idx = folders.indexOf(folder);
+      if (idx >= 0) folders.splice(idx, 1);
+      config.rerender();
+      showNotif('Folder deleted');
+      if (typeof window.craftSchedulePush === 'function') window.craftSchedulePush();
+    });
     headerEl.addEventListener('click', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.classList.contains('drag-handle')) return;
       folder.collapsed = !folder.collapsed;
@@ -15513,11 +15664,31 @@ function doExport(format, scope) {
     const ch = chapters.find(c => c.id === currentChapterId);
     chaptersToExport = ch ? [ch] : [];
   } else {
-    chaptersToExport = [...chapters];
+    // Organize by folder order: folders first (in order), then unfiled
+    chaptersToExport = [];
+    const exportSections = []; // {folder: null|folder, chapters: []}
+    chapterFolders.forEach(folder => {
+      const folderChaps = chapters.filter(c => c.folderId === folder.id);
+      if (folderChaps.length > 0) {
+        exportSections.push({ folder: folder, chapters: folderChaps });
+      }
+    });
+    const unfiled = chapters.filter(c => !c.folderId);
+    if (unfiled.length > 0) {
+      exportSections.push({ folder: null, chapters: unfiled });
+    }
+    // Flatten with folder markers
+    exportSections.forEach(sec => {
+      if (sec.folder) {
+        chaptersToExport.push({ _isFolder: true, name: sec.folder.name });
+      }
+      sec.chapters.forEach(ch => chaptersToExport.push(ch));
+    });
   }
   if (!chaptersToExport.length) { showNotif('Nothing to export'); return; }
 
-  const projectTitle = chaptersToExport.length === 1 ? chaptersToExport[0].title : 'Writing Project';
+  const projectTitle = chaptersToExport.length === 1 && !chaptersToExport[0]._isFolder
+    ? chaptersToExport[0].title : 'Writing Project';
 
   if (format === 'docx') exportAsDocx(chaptersToExport, projectTitle);
   else if (format === 'html') exportAsHtml(chaptersToExport, projectTitle);
@@ -15526,13 +15697,20 @@ function doExport(format, scope) {
 }
 
 function exportAsDocx(chaps, title) {
-  // Use Word-compatible HTML with MSO namespace for .docx opening
   let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${title}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--><style>body{font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;margin:1in;}h1{font-size:18pt;font-weight:bold;margin:18pt 0 12pt;}h2{font-size:14pt;font-weight:bold;margin:14pt 0 10pt;}h3{font-size:12pt;font-weight:bold;margin:12pt 0 8pt;}p{margin:0 0 6pt;}</style></head><body>`;
-  chaps.forEach((ch, i) => {
-    if (i > 0) html += '<br clear="all" style="page-break-before:always">';
+  let first = true;
+  chaps.forEach((ch) => {
+    if (ch._isFolder) {
+      if (!first) html += '<br clear="all" style="page-break-before:always">';
+      html += `<h1 style="font-size:20pt;text-align:center;border-bottom:2pt solid #000;padding-bottom:8pt;">${ch.name}</h1>`;
+      first = false;
+      return;
+    }
+    if (!first) html += '<br clear="all" style="page-break-before:always">';
     if (ch.label) html += `<p style="font-size:10pt;color:#666;">${ch.label}</p>`;
     html += `<h1>${ch.title || 'Untitled'}</h1>`;
     html += cleanHtmlForExport(ch.content || '');
+    first = false;
   });
   html += '</body></html>';
   downloadFile(html, sanitizeFilename(title) + '.doc', 'application/msword');
@@ -15540,12 +15718,20 @@ function exportAsDocx(chaps, title) {
 }
 
 function exportAsHtml(chaps, title) {
-  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>body{max-width:700px;margin:40px auto;font-family:Georgia,serif;font-size:16px;line-height:1.8;color:#333;padding:0 20px;}h1{font-size:28px;border-bottom:2px solid #eee;padding-bottom:8px;}h2{font-size:22px;}h3{font-size:18px;}blockquote{border-left:3px solid #ccc;margin:1em 0;padding:0.5em 1em;color:#555;}img{max-width:100%;height:auto;}</style></head><body>`;
-  chaps.forEach((ch, i) => {
-    if (i > 0) html += '<hr style="margin:40px 0;">';
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>body{max-width:700px;margin:40px auto;font-family:Georgia,serif;font-size:16px;line-height:1.8;color:#333;padding:0 20px;}h1{font-size:28px;border-bottom:2px solid #eee;padding-bottom:8px;}h2{font-size:22px;}h3{font-size:18px;}blockquote{border-left:3px solid #ccc;margin:1em 0;padding:0.5em 1em;color:#555;}img{max-width:100%;height:auto;}.folder-section{font-size:32px;text-align:center;border-bottom:3px solid #ccc;padding:20px 0 10px;margin:40px 0 20px;color:#555;letter-spacing:2px;text-transform:uppercase;}</style></head><body>`;
+  let first = true;
+  chaps.forEach((ch) => {
+    if (ch._isFolder) {
+      if (!first) html += '<hr style="margin:40px 0;">';
+      html += `<div class="folder-section">${ch.name}</div>`;
+      first = false;
+      return;
+    }
+    if (!first) html += '<hr style="margin:40px 0;">';
     if (ch.label) html += `<p style="font-size:12px;color:#999;text-transform:uppercase;letter-spacing:1px;">${ch.label}</p>`;
     html += `<h1>${ch.title || 'Untitled'}</h1>`;
     html += cleanHtmlForExport(ch.content || '');
+    first = false;
   });
   html += '</body></html>';
   downloadFile(html, sanitizeFilename(title) + '.html', 'text/html');
@@ -15554,11 +15740,19 @@ function exportAsHtml(chaps, title) {
 
 function exportAsMarkdown(chaps, title) {
   let md = '';
-  chaps.forEach((ch, i) => {
-    if (i > 0) md += '\n\n---\n\n';
+  let first = true;
+  chaps.forEach((ch) => {
+    if (ch._isFolder) {
+      if (!first) md += '\n\n---\n\n';
+      md += `# ${ch.name}\n\n`;
+      first = false;
+      return;
+    }
+    if (!first) md += '\n\n---\n\n';
     if (ch.label) md += `*${ch.label}*\n\n`;
-    md += `# ${ch.title || 'Untitled'}\n\n`;
+    md += `## ${ch.title || 'Untitled'}\n\n`;
     md += htmlToMarkdown(ch.content || '');
+    first = false;
   });
   downloadFile(md, sanitizeFilename(title) + '.md', 'text/markdown');
   showNotif('Exported as Markdown');
@@ -15566,13 +15760,21 @@ function exportAsMarkdown(chaps, title) {
 
 function exportAsText(chaps, title) {
   let txt = '';
-  chaps.forEach((ch, i) => {
-    if (i > 0) txt += '\n\n========================================\n\n';
+  let first = true;
+  chaps.forEach((ch) => {
+    if (ch._isFolder) {
+      if (!first) txt += '\n\n========================================\n\n';
+      txt += '[ ' + ch.name.toUpperCase() + ' ]\n';
+      first = false;
+      return;
+    }
+    if (!first) txt += '\n\n========================================\n\n';
     if (ch.label) txt += ch.label + '\n';
     txt += (ch.title || 'Untitled') + '\n\n';
     const temp = document.createElement('div');
     temp.innerHTML = ch.content || '';
     txt += temp.textContent || temp.innerText || '';
+    first = false;
   });
   downloadFile(txt, sanitizeFilename(title) + '.txt', 'text/plain');
   showNotif('Exported as plain text');

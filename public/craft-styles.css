@@ -2062,7 +2062,7 @@ body {
   bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  width: 140px;
+  width: 120px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -2078,20 +2078,10 @@ body {
 }
 .pin-hover-preview img {
   width: 100%;
-  height: 100px;
+  height: 90px;
   object-fit: cover;
   display: block;
-}
-.pin-hover-name {
-  padding: 4px 8px;
-  font-size: 11px;
-  color: var(--text-primary);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: var(--bg-dark);
-  border-top: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
 }
 @keyframes pinHoverIn {
   from { opacity: 0; transform: translateX(-50%) translateY(4px); }
@@ -2505,7 +2495,6 @@ body {
   background: linear-gradient(135deg, #2a2318 0%, #352c1e 20%, #2e2518 40%, #3a3222 60%, #2c2418 80%, #332b1c 100%);
   border: 1px solid rgba(160, 130, 80, 0.3);
   box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4), inset 0 0 6px rgba(180, 150, 90, 0.08), 0 4px 16px rgba(0, 0, 0, 0.5);
-  position: relative;
   overflow: hidden;
 }
 .card.design-worn::before {
@@ -2757,7 +2746,6 @@ select optgroup {
   background: linear-gradient(145deg, #3d3425 0%, #4a3e2e 15%, #3a3020 35%, #443a28 55%, #3d3425 75%, #4a3e2e 100%);
   border: 1px solid rgba(168, 140, 100, 0.35);
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(180, 150, 90, 0.06), 0 4px 16px rgba(0, 0, 0, 0.5);
-  position: relative;
   overflow: hidden;
 }
 .card.design-parchment::before {
@@ -5740,91 +5728,147 @@ select optgroup {
   animation: energyFlow 0.8s linear infinite;
 }
 
+@keyframes connPulse {
+  0%, 100% { opacity: 1; stroke-width: inherit; }
+  50% { opacity: 0.4; }
+}
+.pulse-line {
+  animation: connPulse 2s ease-in-out infinite;
+}
+
+@keyframes connFlow {
+  to { stroke-dashoffset: -40; }
+}
+.flow-line {
+  animation: connFlow 2s linear infinite;
+}
+
+@keyframes connHeartbeat {
+  0%, 100% { stroke-width: inherit; }
+  15% { stroke-width: 5; }
+  30% { stroke-width: inherit; }
+  45% { stroke-width: 4; }
+  60% { stroke-width: inherit; }
+}
+.heartbeat-line {
+  animation: connHeartbeat 1.8s ease-in-out infinite;
+}
+
+/* Ripple: dots that travel along the line */
+@keyframes connRipple {
+  to { stroke-dashoffset: -34; }
+}
+.ripple-line {
+  stroke-linecap: round;
+  animation: connRipple 1.2s linear infinite;
+}
+
+/* Spark: random-feeling bright flashes */
+@keyframes connSpark {
+  0%, 100% { opacity: 1; filter: none; }
+  10% { opacity: 1; filter: brightness(2.5) drop-shadow(0 0 4px currentColor); }
+  15% { opacity: 0.6; filter: none; }
+  40% { opacity: 1; filter: none; }
+  55% { opacity: 1; filter: brightness(2.2) drop-shadow(0 0 3px currentColor); }
+  60% { opacity: 0.5; filter: none; }
+  80% { opacity: 1; filter: none; }
+}
+.spark-line {
+  animation: connSpark 1.4s ease-in-out infinite;
+}
+
+/* Breathe: slow, gentle fade in/out */
+@keyframes connBreathe {
+  0%, 100% { opacity: 0.3; stroke-width: inherit; }
+  50% { opacity: 1; }
+}
+.breathe-line {
+  animation: connBreathe 3.5s ease-in-out infinite;
+}
+
 /* --- PATCH: destination markers (map view) --- */
 .destination-marker {
   position: absolute;
-  transform: translate(-50%, -50%) scale(var(--dest-scale, 1));
-  cursor: pointer;
+  transform: translate(-50%, -50%);
+  cursor: grab;
   z-index: 15;
   pointer-events: auto;
-  --dest-scale: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
+}
+.destination-marker:active { cursor: grabbing; }
+
+/* Outer pulsing radar ring */
+.dest-ping {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 48px; height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  border: 2px solid;
+  opacity: 0;
+  animation: destPing 2.4s ease-out infinite;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.dest-core {
-  width: 22px;
-  height: 22px;
+/* Second pulse ring (offset timing) */
+.dest-ping-2 {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 48px; height: 48px;
+  margin: -24px 0 0 -24px;
   border-radius: 50%;
-  position: relative;
-  z-index: 3;
-  border: 3px solid rgba(255, 255, 255, 0.75);
+  border: 1.5px solid;
+  opacity: 0;
+  animation: destPing 2.4s ease-out 1.2s infinite;
   pointer-events: none;
+  z-index: 1;
+}
+
+/* Target crosshair ring */
+.dest-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 26px; height: 26px;
+  margin: -13px 0 0 -13px;
+  border-radius: 50%;
+  border: 2px solid;
+  pointer-events: none;
+  z-index: 2;
   transition: transform 0.2s ease;
 }
 
-/* Inner dot for bullseye effect */
-.dest-core::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 6px;
-  height: 6px;
+/* Inner core dot */
+.dest-diamond {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
+  border: 2px solid rgba(255,255,255,0.9);
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+  animation: destCoreGlow 2s ease-in-out infinite;
 }
 
-/* Crosshair lines */
-.dest-crosshair {
-  position: absolute;
+@keyframes destCoreGlow {
+  0%, 100% { box-shadow: 0 0 6px var(--dest-color, #f43f5e), 0 0 12px var(--dest-color, #f43f5e)55; }
+  50% { box-shadow: 0 0 10px var(--dest-color, #f43f5e), 0 0 20px var(--dest-color, #f43f5e)88; }
+}/* Center diamond */
+.dest-diamond {
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  border: 2px solid rgba(255,255,255,0.8);
+  position: relative;
+  z-index: 3;
   pointer-events: none;
-  z-index: 2;
-}
-.dest-crosshair-h, .dest-crosshair-v {
-  position: absolute;
-  pointer-events: none;
-  z-index: 2;
-}
-.dest-crosshair-h {
-  width: 36px;
-  height: 2px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 0.5;
-}
-.dest-crosshair-v {
-  width: 2px;
-  height: 36px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 0.5;
-}
-
-.dest-pulse-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 60px;
-  height: 60px;
-  margin: -30px 0 0 -30px;
-  border-radius: 50%;
-  border: 2.5px solid rgba(244, 63, 94, 0.5);
-  background: rgba(244, 63, 94, 0.04);
-  animation: destPulse 2.8s ease-out infinite;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.dest-pulse-ring.delay {
-  animation-delay: 1.4s;
+  transition: transform 0.2s ease;
 }
 
 .dest-label {
@@ -5846,33 +5890,14 @@ select optgroup {
   border: 1px solid rgba(244, 63, 94, 0.35);
 }
 
-.destination-marker.selected .dest-core {
-  border-color: #fff;
-  transform: scale(1.1);
-}
+.destination-marker.selected .dest-ring { transform: scale(1.2); }
+.destination-marker.selected .dest-diamond { transform: scale(1.3); }
+.destination-marker:hover .dest-ring { transform: scale(1.15); }
+.destination-marker:hover .dest-diamond { transform: scale(1.2); }
 
-.destination-marker:hover .dest-core {
-  transform: scale(1.12);
-  transition: transform 0.2s ease;
-}
-
-.destination-marker:hover .dest-crosshair-h,
-.destination-marker:hover .dest-crosshair-v {
-  opacity: 0.8;
-}
-
-@keyframes destPulse {
-  0% {
-    transform: scale(0.3);
-    opacity: 0.9;
-  }
-  80% {
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
+@keyframes destPing {
+  0% { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2); opacity: 0; }
 }
 
 /* Pin drop animation */
@@ -5911,13 +5936,53 @@ select optgroup {
 .connection-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .search-result-color,
 .association-icon,
 .connection-color {
-  flex: 0 0 12px;
+  flex: 0 0 10px;
+}
+
+.search-result-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.search-result-info .search-result-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.search-result-source {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.search-result-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .search-result-name,
@@ -7322,12 +7387,21 @@ body.craft-not-owner .owner-only {
 .sidebar-del-btn {
   position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
   background: none; border: none; color: var(--text-muted); font-size: 14px;
-  cursor: pointer; opacity: 0; transition: var(--transition-fast);
+  cursor: pointer; opacity: 0.35; transition: var(--transition-fast);
   width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius-sm);
 }
-.sidebar-item:hover .sidebar-del-btn { opacity: 0.5; }
+.sidebar-item:hover .sidebar-del-btn { opacity: 0.6; }
 .sidebar-del-btn:hover { opacity: 1 !important; color: var(--rose); background: rgba(244,63,94,0.1); }
+
+.folder-del-btn {
+  background: none; border: none; color: var(--text-muted); font-size: 14px;
+  cursor: pointer; opacity: 0.35; transition: var(--transition-fast);
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm); margin-left: 2px; flex-shrink: 0;
+}
+.folder-header:hover .folder-del-btn { opacity: 0.6; }
+.folder-del-btn:hover { opacity: 1 !important; color: var(--rose); background: rgba(244,63,94,0.1); }
 
 /* ============================================ */
 /* Buff/Debuff Pills on Combatants */
@@ -9313,11 +9387,19 @@ body.mm-dragging .mindmap-canvas {
   color: var(--gold); border-radius: 3px; font-weight: 600;
 }
 .export-scope {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 8px 14px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
 }
 .export-scope label {
-  display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  display: flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--text-secondary); cursor: pointer;
+  white-space: nowrap;
 }
 .export-scope input[type="radio"] { accent-color: var(--gold); }
 
