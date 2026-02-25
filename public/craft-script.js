@@ -848,13 +848,14 @@ function switchView(view) {
   const factionsListSection = get('factionsListSection');
   const contactsListSection = get('contactsListSection');
   const orgsListSection = get('orgsListSection');
+  const npcsListSection = get('npcsListSection');
 
   // Hide everything first
   document.querySelector('.main-content')?.classList.remove('sb-active');
   [boardView, mapView, writeView, timelineView, combatView, factionView, mindmapView, soundboardView,
    boardsSection, templatesSection, mapsSection, pinsSection, tagsSection, chaptersSection,
    timelinesSection, timelineTemplatesSection, timelineInfoSection,
-   combatAddSection, combatEncountersSection, factionsListSection, contactsListSection, orgsListSection]
+   combatAddSection, combatEncountersSection, factionsListSection, contactsListSection, orgsListSection, npcsListSection]
     .filter(Boolean)
     .forEach((el) => el.classList.add('hidden'));
 
@@ -944,6 +945,10 @@ function switchView(view) {
     // Show correct sidebar based on active sub-tab
     if (currentFacTab === 'contacts') {
       contactsListSection?.classList.remove('hidden');
+    } else if (currentFacTab === 'orgs') {
+      orgsListSection?.classList.remove('hidden');
+    } else if (currentFacTab === 'npcs') {
+      get('npcsListSection')?.classList.remove('hidden');
     } else {
       factionsListSection?.classList.remove('hidden');
     }
@@ -1942,6 +1947,33 @@ function createPinElement(pin) {
     openPinEditorModal(pin.id);
   });
 
+  // Image hover preview
+  if (pin.image) {
+    let hoverBox = null;
+    el.addEventListener('mouseenter', () => {
+      if (isDraggingPin) return;
+      hoverBox = document.createElement('div');
+      hoverBox.className = 'pin-hover-preview';
+      hoverBox.innerHTML = `<img src="${pin.image}" alt="${pin.name || ''}" />${pin.name ? `<div class="pin-hover-name">${pin.name}</div>` : ''}`;
+      el.appendChild(hoverBox);
+      // Position above pin
+      requestAnimationFrame(() => {
+        if (!hoverBox) return;
+        const rect = el.getBoundingClientRect();
+        const boxRect = hoverBox.getBoundingClientRect();
+        if (rect.top - boxRect.height < 10) {
+          hoverBox.classList.add('below');
+        }
+      });
+    });
+    el.addEventListener('mouseleave', () => {
+      if (hoverBox) { hoverBox.remove(); hoverBox = null; }
+    });
+    el.addEventListener('mousedown', () => {
+      if (hoverBox) { hoverBox.remove(); hoverBox = null; }
+    });
+  }
+
   // Dragging
   el.addEventListener('mousedown', (e) => {
     if (mapTool !== 'map-select') return;
@@ -2538,6 +2570,7 @@ let selectedMapPath = null;
 
 function startMapPathDrawing() {
   mapPathDrawing = { points: [], active: true };
+  showNotif('Click to add points · Double-click to finish path');
 }
 
 function addMapPathPoint(xPct, yPct) {
@@ -2561,37 +2594,27 @@ function renderMapPathPreview() {
   preview.innerHTML = '';
   if (!mapPathDrawing || mapPathDrawing.points.length < 1) return;
   const pts = mapPathDrawing.points;
-  // Draw curve preview as dashed line
+  // Draw curve preview as dashed line only (no dot markers to avoid oval stretching)
   if (pts.length >= 2) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', buildSmoothPath(pts));
     path.setAttribute('stroke', '#d4a824');
-    path.setAttribute('stroke-width', '0.4');
+    path.setAttribute('stroke-width', '2');
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke-dasharray', '1.5 0.8');
+    path.setAttribute('stroke-dasharray', '8 6');
     path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('vector-effect', 'non-scaling-stroke');
     preview.appendChild(path);
-  }
-  // Small start/end markers only
-  if (pts.length >= 1) {
-    const startDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    startDot.setAttribute('cx', pts[0].x);
-    startDot.setAttribute('cy', pts[0].y);
-    startDot.setAttribute('r', '0.4');
-    startDot.setAttribute('fill', '#d4a824');
-    startDot.setAttribute('stroke', '#000');
-    startDot.setAttribute('stroke-width', '0.1');
-    preview.appendChild(startDot);
-  }
-  if (pts.length >= 2) {
-    const endDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    endDot.setAttribute('cx', pts[pts.length - 1].x);
-    endDot.setAttribute('cy', pts[pts.length - 1].y);
-    endDot.setAttribute('r', '0.4');
-    endDot.setAttribute('fill', '#d4a824');
-    endDot.setAttribute('stroke', '#000');
-    endDot.setAttribute('stroke-width', '0.1');
-    preview.appendChild(endDot);
+  } else if (pts.length === 1) {
+    // Single point indicator - use a small rect instead of circle to avoid oval
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', pts[0].x - 0.3);
+    r.setAttribute('y', pts[0].y - 0.3);
+    r.setAttribute('width', '0.6');
+    r.setAttribute('height', '0.6');
+    r.setAttribute('fill', '#d4a824');
+    r.setAttribute('rx', '0.1');
+    preview.appendChild(r);
   }
 }
 
@@ -2637,6 +2660,7 @@ function finishMapPath() {
   const map = getCurrentMap();
   if (!map) { cancelMapPath(); return; }
   if (!map.paths) map.paths = [];
+  saveMapUndoState();
   const activeColorBtn = document.querySelector('.pin-color-btn.active');
   map.paths.push({
     id: 'path-' + Date.now(),
@@ -2707,9 +2731,11 @@ function renderMapPaths() {
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
     path.setAttribute('vector-effect', 'non-scaling-stroke');
-    if (p.style === 'dashed') path.setAttribute('stroke-dasharray', '8 4');
-    else if (p.style === 'dotted') path.setAttribute('stroke-dasharray', '2 4');
-    else if (p.style === 'dashdot') path.setAttribute('stroke-dasharray', '8 3 2 3');
+    if (p.style === 'dashed') path.setAttribute('stroke-dasharray', '16 10');
+    else if (p.style === 'dotted') { path.setAttribute('stroke-dasharray', '2 10'); path.setAttribute('stroke-linecap', 'round'); }
+    else if (p.style === 'dashdot') path.setAttribute('stroke-dasharray', '16 8 3 8');
+    else if (p.style === 'longdash') path.setAttribute('stroke-dasharray', '28 12');
+    else if (p.style === 'shortdash') path.setAttribute('stroke-dasharray', '6 8');
     path.style.pointerEvents = 'none';
     if (p.id === selectedMapPath) {
       path.setAttribute('filter', 'drop-shadow(0 0 4px rgba(212,168,36,0.6))');
@@ -2792,6 +2818,7 @@ function deleteSelectedMapPath() {
   if (!selectedMapPath) return;
   const map = getCurrentMap();
   if (!map || !map.paths) return;
+  saveMapUndoState();
   map.paths = map.paths.filter(p => p.id !== selectedMapPath);
   selectedMapPath = null;
   renderMapPaths();
@@ -3116,7 +3143,7 @@ function showRegionContextMenu(cx, cy) {
 function saveMapUndoState() {
   const map = getCurrentMap();
   if (!map) return;
-  undoStacks.map.push(JSON.stringify({ pins: map.pins, regions: map.regions || [] }));
+  undoStacks.map.push(JSON.stringify({ pins: map.pins, regions: map.regions || [], paths: map.paths || [] }));
   if (undoStacks.map.length > MAX_UNDO) undoStacks.map.shift();
   redoStacks.map = [];
 }
@@ -6964,10 +6991,15 @@ function handleContextAction(e) {
     deleteCard(contextMenuCard.id);
   } else if (action.startsWith('design-')) {
     const design = action.replace('design-', '');
-    if (cardData) {
-      cardData.design = design === 'default' ? null : design;
-      refreshCard(cardData);
-    }
+    const newDesign = design === 'default' ? null : design;
+    saveUndoState();
+    // Apply to all multi-selected cards, or just the one
+    const targets = multiSelectedCards.size > 0
+      ? board.cards.filter(c => multiSelectedCards.has(c.id))
+      : (cardData ? [cardData] : []);
+    targets.forEach(cd => { cd.design = newDesign; });
+    rebuildBoard();
+    showNotif('Design applied to ' + targets.length + ' card' + (targets.length !== 1 ? 's' : ''));
   } else if (action.startsWith('size-')) {
     const sizePresets = {
       'size-small': { width: 150, height: 100 },
@@ -6977,23 +7009,29 @@ function handleContextAction(e) {
       'size-wide': { width: 350, height: 150 }
     };
     const preset = sizePresets[action];
-    if (cardData && preset) {
-      cardData.width = preset.width;
-      cardData.height = preset.height;
-      refreshCard(cardData);
+    if (preset) {
+      saveUndoState();
+      const targets = multiSelectedCards.size > 0
+        ? board.cards.filter(c => multiSelectedCards.has(c.id))
+        : (cardData ? [cardData] : []);
+      targets.forEach(cd => { cd.width = preset.width; cd.height = preset.height; });
+      rebuildBoard();
     }
   } else if (action === 'hideTitle') {
     if (cardData) {
+      saveUndoState();
       cardData.hideTitle = !cardData.hideTitle;
       refreshCard(cardData);
     }
   } else if (action === 'hideTags') {
     if (cardData) {
+      saveUndoState();
       cardData.hideTags = !cardData.hideTags;
       refreshCard(cardData);
     }
   } else if (action === 'toggleHideCard') {
     if (cardData) {
+      saveUndoState();
       cardData.hidden = !cardData.hidden;
       const el = document.getElementById(cardData.id);
       if (el) el.classList.toggle('card-hidden', !!cardData.hidden);
@@ -8480,11 +8518,12 @@ function undo() {
   } else if (currentView === 'map') {
     if (undoStacks.map.length === 0) { showNotif('Nothing to undo'); return; }
     const map = getCurrentMap(); if (!map) return;
-    redoStacks.map.push(JSON.stringify({ pins: map.pins, regions: map.regions || [] }));
+    redoStacks.map.push(JSON.stringify({ pins: map.pins, regions: map.regions || [], paths: map.paths || [] }));
     const state = JSON.parse(undoStacks.map.pop());
     map.pins = state.pins;
     map.regions = state.regions || [];
-    renderPins(); renderPinsList(); renderRegions(); removeRegionEditHandles(); showNotif('Undo');
+    map.paths = state.paths || [];
+    renderPins(); renderPinsList(); renderRegions(); removeRegionEditHandles(); renderMapPaths(); showNotif('Undo');
   } else {
     showNotif('Nothing to undo');
   }
@@ -8501,11 +8540,12 @@ function redo() {
   } else if (currentView === 'map') {
     if (redoStacks.map.length === 0) { showNotif('Nothing to redo'); return; }
     const map = getCurrentMap(); if (!map) return;
-    undoStacks.map.push(JSON.stringify({ pins: map.pins, regions: map.regions || [] }));
+    undoStacks.map.push(JSON.stringify({ pins: map.pins, regions: map.regions || [], paths: map.paths || [] }));
     const state = JSON.parse(redoStacks.map.pop());
     map.pins = state.pins;
     map.regions = state.regions || [];
-    renderPins(); renderPinsList(); renderRegions(); removeRegionEditHandles(); showNotif('Redo');
+    map.paths = state.paths || [];
+    renderPins(); renderPinsList(); renderRegions(); removeRegionEditHandles(); renderMapPaths(); showNotif('Redo');
   } else {
     showNotif('Nothing to redo');
   }
