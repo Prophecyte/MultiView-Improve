@@ -4358,6 +4358,28 @@ select optgroup {
   outline: 2px solid var(--gold);
 }
 
+/* Drag resizers between inserted column blocks */
+.editor-col-resizer {
+  width: 10px;
+  margin: 0 -5px;
+  cursor: col-resize;
+  position: relative;
+  flex: 0 0 10px;
+}
+.editor-col-resizer::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--border-light);
+  border-radius: 2px;
+  opacity: 0.8;
+}
+body.col-resize-active { cursor: col-resize; }
+
 /* Columns Modal */
 .column-layouts {
   display: grid;
@@ -6597,9 +6619,10 @@ select optgroup {
 /* Sidebar items */
 .sidebar-item {
   display: flex; flex-direction: column; gap: 2px;
-  padding: 8px 12px; border-radius: var(--radius-sm);
+  padding: 8px 12px; padding-right: 34px; border-radius: var(--radius-sm);
   cursor: pointer; transition: var(--transition-fast);
   border: 1px solid transparent;
+  position: relative;
 }
 .sidebar-item:hover { background: var(--bg-hover); }
 .sidebar-item.active {
@@ -8733,8 +8756,10 @@ body.mm-dragging .mindmap-canvas {
   color: var(--text-primary);
   flex: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
   letter-spacing: 0.01em;
 }
 .sb-tile-cat {
@@ -8745,6 +8770,21 @@ body.mm-dragging .mindmap-canvas {
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 4px;
+  background: rgba(255,255,255,0.03);
+}
+
+.sb-tile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 6px 0 0;
+}
+.sb-tile-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
   background: rgba(255,255,255,0.03);
 }
 .sb-tile-controls {
@@ -9164,6 +9204,13 @@ body.mm-dragging .mindmap-canvas {
 .write-editor.justify-mode p,
 .write-editor.justify-mode div:not(.editor-image-wrapper):not(.editor-columns):not(.editor-column):not(.dice-roll-badge) {
   text-align: justify;
+}
+.write-editor.justify-mode td,
+.write-editor.justify-mode th,
+.write-editor.justify-mode li,
+.write-editor.justify-mode blockquote,
+.write-editor.justify-mode .editor-column {
+  text-align: justify !important;
 }
 #justifyToggleBtn.active { color: var(--gold); background: rgba(212,168,36,0.15); }
 

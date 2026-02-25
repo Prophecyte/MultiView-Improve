@@ -2323,7 +2323,10 @@ function renderRegions() {
     });
     // Drag entire region
     hit.addEventListener('mousedown', (e) => {
-      if (mapTool === 'map-region' || e.button !== 0) return;
+      // When drawing paths, regions should not capture the pointer.
+      // This allows path points to be placed "over" regions while still
+      // rendering the finished path beneath regions.
+      if (mapTool === 'map-region' || mapTool === 'map-path' || mapPathDrawing || e.button !== 0) return;
       e.stopPropagation();
       e.preventDefault();
       const wrapper = document.getElementById('mapImageWrapper');
@@ -3387,6 +3390,18 @@ function renderChaptersList() {
     });
 
     const labelInput = item.querySelector('.chapter-label-input');
+    // Single-click should select the chapter (easy navigation).
+    // Double-click enables editing the label.
+    labelInput.addEventListener('mousedown', (e) => {
+      if (e.detail >= 2) return; // allow dblclick to edit
+      e.preventDefault();
+      selectChapter(chapter.id);
+    });
+    labelInput.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      labelInput.focus();
+      labelInput.select();
+    });
     labelInput.addEventListener('change', (e) => {
       chapter.label = e.target.value;
       if (chapter.id === currentChapterId) {
@@ -3397,6 +3412,16 @@ function renderChaptersList() {
     labelInput.addEventListener('click', (e) => e.stopPropagation());
 
     const titleInput = item.querySelector('.chapter-title');
+    titleInput.addEventListener('mousedown', (e) => {
+      if (e.detail >= 2) return;
+      e.preventDefault();
+      selectChapter(chapter.id);
+    });
+    titleInput.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      titleInput.focus();
+      titleInput.select();
+    });
     titleInput.addEventListener('change', (e) => {
       chapter.title = e.target.value;
       if (chapter.id === currentChapterId) {
@@ -7913,7 +7938,7 @@ function addConnectionToSelection(fromId, toId) {
   renderConnections();
 }
 
-function updateConnectionStyle() {
+function updateConnectionStyle(e) {
   if (multiSelectedConnections.length === 0 && !selectedConnection) return;
 
   const board = getCurrentBoard();
@@ -7927,18 +7952,22 @@ function updateConnectionStyle() {
 
   const targets = multiSelectedConnections.length > 0 ? multiSelectedConnections : (selectedConnection ? [selectedConnection] : []);
 
+  // Only update the field that actually changed so we don't accidentally
+  // overwrite a user's chosen curve/path while they tweak animation styles.
+  const changedId = e?.target?.id || null;
+
   targets.forEach(sc => {
     const conn = board.connections.find(c =>
       (c.from === sc.from && c.to === sc.to) || (c.from === sc.to && c.to === sc.from)
     );
     if (conn) {
-      conn.style = style;
-      conn.width = width;
-      conn.color = color;
-      conn.arrow = arrow;
-      conn.curve = curve;
-      conn.glow = glow;
-      conn.label = label;
+      if (!changedId || changedId === 'connStyleSelect') conn.style = style;
+      if (!changedId || changedId === 'connWidthSelect') conn.width = width;
+      if (!changedId || changedId === 'connColorPicker') conn.color = color;
+      if (!changedId || changedId === 'connArrowSelect') conn.arrow = arrow;
+      if (!changedId || changedId === 'connCurveSelect') conn.curve = curve;
+      if (!changedId || changedId === 'connGlowToggle') conn.glow = glow;
+      if (!changedId || changedId === 'connLabelInput') conn.label = label;
     }
   });
 
@@ -10255,6 +10284,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Table resize functionality
   setupTableResize();
+
+  // Column block resize functionality
+  setupColumnResize();
 });
 
 // Column context menu variables
@@ -10415,6 +10447,81 @@ function setupTableResize() {
     resizeTable = null;
     resizeColIndex = -1;
     resizeRow = null;
+  });
+}
+
+// Allow users to drag-resize the column blocks inserted via "Insert Columns".
+function setupColumnResize() {
+  const editor = document.getElementById('writeEditor');
+  if (!editor) return;
+
+  let active = null;
+  let startX = 0;
+  let startA = 0;
+  let startB = 0;
+
+  function ensureResizers(container) {
+    if (container._hasResizers) return;
+    const cols = Array.from(container.querySelectorAll('.editor-column'));
+    if (cols.length < 2) return;
+    container.style.position = container.style.position || 'relative';
+    // Insert a resizer between each pair of columns
+    cols.forEach((col, idx) => {
+      if (idx === cols.length - 1) return;
+      const res = document.createElement('div');
+      res.className = 'editor-col-resizer';
+      res.dataset.index = String(idx);
+      container.insertBefore(res, cols[idx + 1]);
+    });
+    container._hasResizers = true;
+  }
+
+  // Ensure resizers exist when the editor changes (columns inserted, etc.)
+  const mo = new MutationObserver(() => {
+    editor.querySelectorAll('.editor-columns').forEach(ensureResizers);
+  });
+  mo.observe(editor, { childList: true, subtree: true });
+  editor.querySelectorAll('.editor-columns').forEach(ensureResizers);
+
+  editor.addEventListener('mousedown', (e) => {
+    const resizer = e.target.closest('.editor-col-resizer');
+    if (!resizer) return;
+    const container = resizer.closest('.editor-columns');
+    if (!container) return;
+
+    const idx = parseInt(resizer.dataset.index || '0', 10);
+    const cols = Array.from(container.querySelectorAll('.editor-column'));
+    const colA = cols[idx];
+    const colB = cols[idx + 1];
+    if (!colA || !colB) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    active = { container, idx, colA, colB };
+    startX = e.clientX;
+    startA = colA.getBoundingClientRect().width;
+    startB = colB.getBoundingClientRect().width;
+    document.body.classList.add('col-resize-active');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!active) return;
+    const dx = e.clientX - startX;
+    const newA = Math.max(80, startA + dx);
+    const newB = Math.max(80, startB - dx);
+    const total = newA + newB;
+    const pctA = (newA / total) * 100;
+    const pctB = (newB / total) * 100;
+    active.colA.style.flexBasis = `calc(${pctA.toFixed(2)}% - 8px)`;
+    active.colB.style.flexBasis = `calc(${pctB.toFixed(2)}% - 8px)`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!active) return;
+    document.body.classList.remove('col-resize-active');
+    active = null;
+    saveCurrentChapter();
   });
 }
 
@@ -15466,11 +15573,13 @@ async function fetchThesaurusResults(word, type, container) {
 }
 
 function handleEditorContextMenu(e) {
-  e.preventDefault();
+  // Let table/column context menus take priority.
+  if (e.target.closest('table') || e.target.closest('.editor-column')) return;
 
   // If text is selected, open thesaurus
   const selectedWord = getSelectedWord();
   if (selectedWord) {
+    e.preventDefault();
     thesWord = selectedWord;
     showThesaurusAt(selectedWord, e.clientX, e.clientY);
     return;
@@ -15479,6 +15588,7 @@ function handleEditorContextMenu(e) {
   // No selection: get word under cursor and offer spell check
   const wordInfo = getWordUnderCursor();
   if (wordInfo && wordInfo.word.length > 1) {
+    e.preventDefault();
     showSpellCheckMenu(wordInfo, e.clientX, e.clientY);
   }
 }
@@ -16444,7 +16554,7 @@ function sbRenderChannels(){
   sounds.forEach(def=>{const isP=!!sbActiveChannels[def.id]?.playing;const vol=sbActiveChannels[def.id]?.volume??70;
     const t=document.createElement('div');t.className=`sb-tile${isP?' playing':''}${def.type==='youtube'?' yt-tile':''}`;t.dataset.id=def.id;
     let badge='';if(def.type==='file')badge='<span class="sb-tile-type">File</span>';else if(def.type==='youtube')badge='<span class="sb-tile-type">YT</span>';else if(def.type==='url')badge='<span class="sb-tile-type">Web</span>';
-    t.innerHTML=`<div class="sb-tile-header"><span class="sb-tile-name" title="${def.name}">${def.name}</span>${badge}<span class="sb-tile-cat">${def.cat}</span><button class="sb-tile-remove" title="Remove">&times;</button></div><div class="sb-tile-controls"><button class="sb-tile-play" title="${isP?'Stop':'Play'}">${isP?'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>':'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'}</button><input type="range" class="sb-tile-vol" min="0" max="100" value="${vol}" /><span class="sb-tile-vol-val">${vol}%</span></div>`;
+    t.innerHTML=`<div class="sb-tile-header"><span class="sb-tile-name" title="${def.name}">${def.name}</span>${badge}<button class="sb-tile-remove" title="Remove">&times;</button></div><div class="sb-tile-controls"><button class="sb-tile-play" title="${isP?'Stop':'Play'}">${isP?'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>':'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'}</button><input type="range" class="sb-tile-vol" min="0" max="100" value="${vol}" /><span class="sb-tile-vol-val">${vol}%</span></div><div class="sb-tile-meta"><span class="sb-tile-tag">${def.cat}</span></div>`;
     t.querySelector('.sb-tile-play').addEventListener('click',()=>sbToggle(def.id));
     const sl=t.querySelector('.sb-tile-vol'),vl=t.querySelector('.sb-tile-vol-val');
     sl.addEventListener('input',()=>{const v=parseInt(sl.value);vl.textContent=v+'%';if(sbActiveChannels[def.id])sbSetVol(def.id,v);});

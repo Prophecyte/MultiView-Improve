@@ -3680,7 +3680,7 @@ function HomePage(props) {
             React.createElement('button', { className: 'btn', onClick: function() { setShowCreate(false); } }, 'Cancel')
           ),
           rooms.length === 0 && !showCreate && React.createElement('div', { className: 'empty-section' },
-            'Create a Video Room to watch together with friends'
+            'Create a Video Room to watch and create together'
           ),
           React.createElement('div', { className: 'rooms-grid' },
             rooms.map(function(room) {
@@ -3709,7 +3709,7 @@ function HomePage(props) {
         React.createElement('div', { className: 'rooms-section craft-rooms-section' },
           React.createElement('div', { className: 'rooms-header' },
             React.createElement('h2', null, 'Craft Rooms'),
-            React.createElement('button', { className: 'btn primary', onClick: function() { setShowCreateCraft(true); } }, React.createElement(Icon, { name: 'plus', size: 'sm' }), ' New Craft Room')
+            React.createElement('button', { className: 'btn primary', onClick: function() { setShowCreateCraft(true); } }, React.createElement(Icon, { name: 'plus', size: 'sm' }), ' New Room')
           ),
           showCreateCraft && React.createElement('div', { className: 'create-room-form' },
             React.createElement('input', { type: 'text', value: newCraftName, onChange: function(e) { setNewCraftName(e.target.value); }, placeholder: 'Craft room name', autoFocus: true, onKeyDown: function(e) { if (e.key === 'Enter') createCraftRoom(); } }),
@@ -5165,8 +5165,15 @@ function Room(props) {
   }
 
   function handleColorChange(visitorId, guestId, color) {
-    api.presence.updateMember(room.id, visitorId, guestId, { color: color }).then(function() {
-      setConnectedUsers(connectedUsers.map(function(u) { return (u.visitorId === visitorId || u.guestId === guestId) ? Object.assign({}, u, { color: color }) : u; }));
+    // Clearing color should reliably reset on the server as well.
+    // Some backends ignore null, so we send an empty string for "clear".
+    var payloadColor = (color === null || typeof color === 'undefined') ? '' : color;
+    api.presence.updateMember(room.id, visitorId, guestId, { color: payloadColor }).then(function() {
+      setConnectedUsers(connectedUsers.map(function(u) {
+        return (u.visitorId === visitorId || u.guestId === guestId)
+          ? Object.assign({}, u, { color: (payloadColor || null) })
+          : u;
+      }));
     });
   }
 
