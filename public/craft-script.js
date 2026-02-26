@@ -10274,8 +10274,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('writeEditor')?.addEventListener('contextmenu', (e) => {
     if (e.target.closest('table')) {
       handleTableContextMenu(e);
+      e.stopImmediatePropagation();
     } else if (e.target.closest('.editor-column')) {
       handleColumnContextMenu(e);
+      e.stopImmediatePropagation();
     }
   });
 

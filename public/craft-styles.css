@@ -463,7 +463,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 20000;
+  overflow: visible;
   animation: fadeIn 0.15s ease;
 }
 
@@ -1206,10 +1207,7 @@ body {
   justify-content: space-between;
 }
 
-.context-submenu {
-  position: absolute;
-  left: 100%;
-  top: 0;
+  z-index: 20001;
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -9874,3 +9872,21 @@ body.mm-dragging .mindmap-canvas {
 [title] { -webkit-font-smoothing: auto; }
 [title]:hover::after { display: none !important; }
 /* Override browser tooltip by clearing title on hover via JS below */
+
+/* ============================================
+   Connections: sidebar action buttons
+   ============================================ */
+.conn-actions {
+  padding: 6px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conn-actions .btn {
+  font-size: 11px;
+}
+
+.conn-actions .btn.secondary {
+  opacity: 0.95;
+}

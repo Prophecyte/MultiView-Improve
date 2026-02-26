@@ -2680,10 +2680,10 @@ function UserMenu(props) {
         React.createElement('div', { className: 'name' }, user.displayName),
         React.createElement('div', { className: 'email' }, user.email)
       ),
-      onHome && React.createElement('button', { className: 'dropdown-item', onClick: function() { onHome(); setOpen(false); } }, React.createElement(Icon, { name: 'home', size: 'sm' }), ' My Rooms'),
-      React.createElement('button', { className: 'dropdown-item', onClick: function() { onSettings(); setOpen(false); } }, React.createElement(Icon, { name: 'settings', size: 'sm' }), ' Settings'),
+      onHome && React.createElement('button', { className: 'dropdown-item', onClick: function() { onHome(); setOpen(false); } }, ' My Rooms'),
+      React.createElement('button', { className: 'dropdown-item', onClick: function() { onSettings(); setOpen(false); } }, ' Settings'),
       React.createElement('div', { className: 'dropdown-divider' }),
-      React.createElement('button', { className: 'dropdown-item danger', onClick: onLogout }, React.createElement(Icon, { name: 'logout', size: 'sm' }), ' Log out')
+      React.createElement('button', { className: 'dropdown-item danger', onClick: onLogout }, ' Log out')
     )
   );
 }
@@ -2721,9 +2721,7 @@ function GuestMenu(props) {
         React.createElement('div', { className: 'name' }, displayName),
         React.createElement('div', { className: 'email guest-notice' }, 'Temporary account')
       ),
-      React.createElement('button', { className: 'dropdown-item primary', onClick: function() { onCreateAccount(); setOpen(false); } }, 
-        React.createElement(Icon, { name: 'plus', size: 'sm' }), ' Create Account'
-      ),
+      React.createElement('button', { className: 'dropdown-item primary', onClick: function() { onCreateAccount(); setOpen(false); } }, ' Create Account'),
       React.createElement('div', { className: 'dropdown-hint' }, 'Save your display name and access your room history')
     )
   );
@@ -3403,7 +3401,7 @@ function AuthScreen(props) {
       React.createElement('div', { className: 'logo-section' },
         React.createElement('span', { className: 'logo-icon' }, '🐉'),
         React.createElement('h1', { className: 'logo' }, 'Multiview'),
-        React.createElement('p', { className: 'tagline' }, 'Watch together, anywhere')
+        React.createElement('p', { className: 'tagline' }, 'Watch & create together, anywhere')
       ),
       React.createElement('div', { className: 'auth-box' },
         React.createElement('h2', null, mode === 'login' ? 'Welcome back' : 'Create account'),
@@ -3662,7 +3660,7 @@ function HomePage(props) {
     React.createElement('main', { className: 'home-content' },
       React.createElement('div', { className: 'home-welcome' },
         React.createElement('h1', null, 'Welcome, ' + user.displayName),
-        React.createElement('p', null, 'Watch together and craft adventures with friends')
+        React.createElement('p', null, 'Watch and create together with friends')
       ),
       
       // ─── 3-Column Layout ───
