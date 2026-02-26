@@ -1207,6 +1207,12 @@ body {
   justify-content: space-between;
 }
 
+
+.context-submenu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 6px;
   z-index: 20001;
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
@@ -9457,8 +9463,8 @@ body.mm-dragging .mindmap-canvas {
   overflow: hidden;
 }
 .sb-sidebar {
-  width: 200px;
-  min-width: 200px;
+  width: 260px;
+  min-width: 260px;
   background: var(--bg-dark);
   border-right: 1px solid var(--border-color);
   display: flex;

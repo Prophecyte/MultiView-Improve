@@ -10308,10 +10308,55 @@ function handleColumnContextMenu(e) {
   menu.style.top = `${e.clientY}px`;
 }
 
-function handleColumnContextAction(e) {
+function mvPickColor(initialHex) {
+  return new Promise(function(resolve) {
+    var input = document.createElement("input");
+    input.type = "color";
+    input.value = (typeof initialHex === "string" && /^#[0-9a-fA-F]{6}$/.test(initialHex)) ? initialHex : "#d4a824";
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    input.style.top = "-9999px";
+    document.body.appendChild(input);
+
+    var done = false;
+    function cleanup(val) {
+      if (done) return;
+      done = true;
+      try { input.remove(); } catch (e) {}
+      resolve(val);
+    }
+
+    input.addEventListener("input", function() { cleanup(input.value); });
+    input.addEventListener("change", function() { cleanup(input.value); });
+    input.addEventListener("blur", function() { cleanup(null); });
+
+    input.click();
+  });
+}
+
+function mvEnsureBorder(el) {
+  if (!el) return;
+  var cs = getComputedStyle(el);
+  var bw = cs.borderStyle === "none" ? 0 : parseFloat(cs.borderWidth || "0");
+  if (!bw) el.style.border = "1px solid var(--border-color)";
+}
+
+function mvPxPrompt(label, currentPx, fallback) {
+  var cur = (typeof currentPx === "number" && !isNaN(currentPx)) ? currentPx : fallback;
+  var raw = prompt(label, String(cur));
+  if (raw == null) return null;
+  var n = parseFloat(raw);
+  if (!isFinite(n) || n < 0) return null;
+  return n;
+}
+
+
+
+async function handleColumnContextAction(e) {
   const action = e.target.dataset.action;
   if (!action || !contextMenuColumn) return;
 
+  // Column border presets
   if (action.startsWith('colBorder-')) {
     const style = action.replace('colBorder-', '');
     if (style === 'all') {
@@ -10324,18 +10369,60 @@ function handleColumnContextAction(e) {
     } else if (style === 'dashed') {
       contextMenuColumn.style.border = '1px dashed var(--border-color)';
     }
-  } else if (action.startsWith('containerBorder-')) {
+  }
+
+  // Column custom border
+  else if (action === 'colBorderColor') {
+    mvEnsureBorder(contextMenuColumn);
+    const picked = await mvPickColor(null);
+    if (picked) contextMenuColumn.style.borderColor = picked;
+  } else if (action === 'colBorderWidth') {
+    mvEnsureBorder(contextMenuColumn);
+    const cs = getComputedStyle(contextMenuColumn);
+    const curW = parseFloat(cs.borderWidth || '1');
+    const n = mvPxPrompt('Border width (px)', curW, 1);
+    if (n != null) contextMenuColumn.style.borderWidth = n + 'px';
+  }
+
+  // Container border presets
+  else if (action.startsWith('containerBorder-')) {
     const style = action.replace('containerBorder-', '');
     if (contextMenuColumns) {
       if (style === 'none') {
         contextMenuColumns.classList.add('borderless');
+        contextMenuColumns.style.border = '';
       } else {
         contextMenuColumns.classList.remove('borderless');
         if (style === 'dashed') contextMenuColumns.style.border = '1px dashed var(--border-light)';
         else if (style === 'solid') contextMenuColumns.style.border = '1px solid var(--border-color)';
       }
     }
-  } else if (action.startsWith('colBg-')) {
+  }
+
+  // Container custom border/background
+  else if (action === 'containerBorderColor') {
+    if (contextMenuColumns) {
+      mvEnsureBorder(contextMenuColumns);
+      const picked = await mvPickColor(null);
+      if (picked) contextMenuColumns.style.borderColor = picked;
+    }
+  } else if (action === 'containerBorderWidth') {
+    if (contextMenuColumns) {
+      mvEnsureBorder(contextMenuColumns);
+      const cs = getComputedStyle(contextMenuColumns);
+      const curW = parseFloat(cs.borderWidth || '1');
+      const n = mvPxPrompt('Container border width (px)', curW, 1);
+      if (n != null) contextMenuColumns.style.borderWidth = n + 'px';
+    }
+  } else if (action === 'containerBg-custom') {
+    if (contextMenuColumns) {
+      const picked = await mvPickColor(null);
+      if (picked) contextMenuColumns.style.background = picked;
+    }
+  }
+
+  // Column background presets + custom
+  else if (action.startsWith('colBg-')) {
     const bg = action.replace('colBg-', '');
     if (bg === 'none') {
       contextMenuColumn.style.background = 'transparent';
@@ -10345,8 +10432,14 @@ function handleColumnContextAction(e) {
       contextMenuColumn.style.background = 'var(--bg-medium)';
     } else if (bg === 'gold') {
       contextMenuColumn.style.background = 'rgba(212, 168, 36, 0.1)';
+    } else if (bg === 'custom') {
+      const picked = await mvPickColor(null);
+      if (picked) contextMenuColumn.style.background = picked;
     }
-  } else if (action === 'addColBefore' && contextMenuColumns) {
+  }
+
+  // Column structure actions
+  else if (action === 'addColBefore' && contextMenuColumns) {
     const newCol = document.createElement('div');
     newCol.className = 'editor-column';
     newCol.contentEditable = 'true';
@@ -16452,7 +16545,7 @@ function sbRenderSidebar(){
     Object.entries(sc.mix).forEach(([id,cfg])=>{
       detail+=`<div class="sb-mix-row" data-sc="${sc.id}" data-sid="${id}"><span class="sb-mix-name">${getName(id)}</span><input type="range" class="sb-mix-vol" min="0" max="100" value="${cfg.volume}" /><span class="sb-mix-val">${cfg.volume}%</span></div>`;
     });
-    return`<div class="sb-sidebar-item${active}" data-sc="${sc.id}"><div class="sb-si-header"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sc.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-sc="${sc.id}" title="Load">▶</button><button class="sb-si-btn" data-scupd="${sc.id}" title="Save current volumes">↻</button><button class="sb-si-btn" data-scdel="${sc.id}" title="Delete">×</button></span></div><div class="sb-mix-detail" style="display:none;">${detail||'<div class="sb-sidebar-empty">Empty mix</div>'}</div></div>`;
+    return`<div class="sb-sidebar-item${active}" data-sc="${sc.id}"><div class="sb-si-header"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25;">${sc.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-sc="${sc.id}" title="Load">▶</button><button class="sb-si-btn" data-scupd="${sc.id}" title="Save current volumes">↻</button><button class="sb-si-btn" data-scdel="${sc.id}" title="Delete">×</button></span></div><div class="sb-mix-detail" style="display:none;">${detail||'<div class="sb-sidebar-empty">Empty mix</div>'}</div></div>`;
   }).join('');}
   // Soundscape events
   scList.querySelectorAll('.sb-si-header').forEach(hdr=>{hdr.addEventListener('click',e=>{if(e.target.closest('.sb-si-btn'))return;const item=hdr.closest('.sb-sidebar-item');const det=item.querySelector('.sb-mix-detail');if(det)det.style.display=det.style.display==='none'?'block':'none';});});
@@ -16468,7 +16561,7 @@ function sbRenderSidebar(){
       const vol=pl.volumes[id]??70;
       detail+=`<div class="sb-mix-row" data-pl="${pl.id}" data-sid="${id}"><span class="sb-mix-name">${getName(id)}</span><input type="range" class="sb-mix-vol" min="0" max="100" value="${vol}" /><span class="sb-mix-val">${vol}%</span><button class="sb-mix-rm" data-plrm="${pl.id}" data-sidrm="${id}" title="Remove">×</button></div>`;
     });
-    return`<div class="sb-sidebar-item${active}" data-pl="${pl.id}"><div class="sb-si-header"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pl.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-plplay="${pl.id}" title="Play all">▶</button><button class="sb-si-btn" data-plupd="${pl.id}" title="Save current volumes">↻</button><button class="sb-si-btn" data-pldel="${pl.id}" title="Delete">×</button></span></div><div class="sb-mix-detail" style="display:none;">${detail||'<div class="sb-sidebar-empty">No sounds</div>'}</div></div>`;
+    return`<div class="sb-sidebar-item${active}" data-pl="${pl.id}"><div class="sb-si-header"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25;">${pl.name}</span><span class="sb-si-count">${cnt}</span><span class="sb-si-actions"><button class="sb-si-btn sb-si-play" data-plplay="${pl.id}" title="Play all">▶</button><button class="sb-si-btn" data-plupd="${pl.id}" title="Save current volumes">↻</button><button class="sb-si-btn" data-pldel="${pl.id}" title="Delete">×</button></span></div><div class="sb-mix-detail" style="display:none;">${detail||'<div class="sb-sidebar-empty">No sounds</div>'}</div></div>`;
   }).join('');}
   // Playlist events
   plList.querySelectorAll('.sb-si-header').forEach(hdr=>{hdr.addEventListener('click',e=>{if(e.target.closest('.sb-si-btn'))return;const item=hdr.closest('.sb-sidebar-item');const det=item.querySelector('.sb-mix-detail');if(det)det.style.display=det.style.display==='none'?'block':'none';});});
